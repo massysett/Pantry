@@ -12,16 +12,16 @@ data Tags = Tags (M.Map String String) deriving Show
 data MixedNum = MixedNum Decimal Rational deriving Show
 data AbsUnit = Grams | Ounces | Pounds deriving Show
 data CurrUnit = Absolute AbsUnit
-              | Arbitrary String
+              | Arbitrary Unit
               deriving Show
 data PctRefuse = PctRefuse Decimal deriving Show
 data Qty = Qty MixedNum deriving Show
 data Yield = Yield (Maybe Decimal) deriving Show
 data Ingr = Ingr [Food] deriving Show
 
-data Nut = Nut String Rational
-data Unit = Unit String Rational
-data Tag = Tag String String
+data Nut = Nut String Rational deriving Show
+data Unit = Unit String Rational deriving Show
+data Tag = Tag String String deriving Show
 
 data Food = Food { tags :: Tags
                  , units :: Units
@@ -42,10 +42,14 @@ emptyFood = Food { tags = Tags M.empty
                  , yield = Yield Nothing
                  , ingr = Ingr [] }
 
+-- Tag manipulations
+
 addTag :: Food -> Tag -> Food
 addTag f (Tag n v) = f { tags = newTags} where
   (Tags oldMap) = tags f
-  newTags = Tags (M.insert n v oldMap)
+  newTags = if null v
+            then Tags (M.delete n oldMap)
+            else Tags (M.insert n v oldMap)
 
 tagMatches :: String -- ^ Tag name
               -> String -- ^ Regexp for value
@@ -58,7 +62,7 @@ hasTag :: String -> Food -> Bool
 hasTag s f = isJust (getTag f s)
 
 getTagList :: Food -> [Tag]
-getTagList f = map (uncurry Tag) (M.toList ts) where
+getTagList f = map (uncurry Tag) (M.assocs ts) where
   (Tags ts) = tags f
 
 getTag :: Food -> String -> Maybe Tag
@@ -67,3 +71,44 @@ getTag f s = do
   v <- M.lookup s m
   return $ Tag s v
 
+-- Units manipulations
+addUnit :: Food -> Unit -> Food
+addUnit f (Unit n v) = f {units = newUnits} where
+  (Units oldMap) = units f
+  newUnits = Units $ if v /= 0
+                     then M.insert n v oldMap
+                     else M.delete n oldMap
+
+getUnitList :: Food -> [Unit]
+getUnitList f = map (uncurry Unit) (M.assocs m) where
+  (Units m) = units f
+
+allUnitsMap :: Units -> M.Map String (Either AbsUnit Unit)
+allUnitsMap (Units m) = M.fromList eithers where
+  eithers = arbs ++ abss
+  arbs = zip arbKeys arbVals
+  arbKeys = M.keys m
+  arbVals = map Right . map (uncurry Unit) $ M.assocs m
+  absKeys = ["g", "oz", "lb"]
+  absVals = map Left [Grams, Ounces, Pounds]
+  abss = zip absKeys absVals
+
+if' :: Bool -> a -> a -> a
+if' b x y = case b of True -> x; False -> y
+
+changeCurrUnit :: String -> Food -> Either Error Food
+changeCurrUnit p f = if' oneMatch (Right updateFood) (Left err) where
+  oneMatch = length matches == 1
+  allU = allUnitsMap $ units f
+  matches = filter (=~ p) (M.keys allU)
+  newUnitWrapped = allU M.! head matches
+  newUnit = case newUnitWrapped of
+    (Left abs) -> Absolute abs
+    (Right arb) -> Arbitrary arb
+  updateFood = f {currUnit = newUnit}
+  err = if null matches
+        then NoMatchingUnit
+        else MultipleMatchingUnits matches
+
+data Error = NoMatchingUnit
+           | MultipleMatchingUnits [String]
