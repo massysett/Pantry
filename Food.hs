@@ -47,11 +47,19 @@ addTag f (Tag n v) = f { tags = newTags} where
   (Tags oldMap) = tags f
   newTags = Tags (M.insert n v oldMap)
 
-{-
-matchingTags :: Food -> String -> [Tag]
-matchingTags f s = catMaybes . map (getTag f) tags $ matches where
-  matches = filter p 
--}
+tagMatches :: String -- ^ Tag name
+              -> String -- ^ Regexp for value
+              -> Food
+              -> Bool
+tagMatches n p f = case (getTag f n) of Nothing -> False
+                                        (Just (Tag _ v)) -> v =~ p
+
+hasTag :: String -> Food -> Bool
+hasTag s f = isJust (getTag f s)
+
+getTagList :: Food -> [Tag]
+getTagList f = map (uncurry Tag) (M.toList ts) where
+  (Tags ts) = tags f
 
 getTag :: Food -> String -> Maybe Tag
 getTag f s = do
