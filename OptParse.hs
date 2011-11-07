@@ -91,6 +91,13 @@ isLongOpt s = "--" `isPrefixOf` s
 isShortOpt :: String -> Bool
 isShortOpt s = "-" `isPrefixOf` s
 
+isStopper :: String -> Bool
+isStopper s = s == "--"
+
+parseStopper :: (ParseErr err, Error err)
+                => ErrorT err (State (ParseState opts)) ()
+parseStopper = undefined
+
 parseArg :: (ParseErr err, Error err)
             => CharOpts opts
             -> StringOpts opts
@@ -106,6 +113,7 @@ pickParser :: (ParseErr err, Error err)
               -> StringOpts opts
               -> ErrorT err (State (ParseState opts)) ()
 pickParser lead co so
+  | isStopper lead = parseStopper
   | isLongOpt lead = parseLongOpt so
   | isShortOpt lead = parseShortOpt co
   | otherwise = parsePosArg
@@ -118,69 +126,79 @@ parseShortOpt = undefined
 innerParseShort :: (ParseErr err, Error err)
                    => CharOpts opts
                    -> [Char]       -- ^ The word with the option - prefix omitted
-                   -> ErrorT err (State (ParseState opts)) [Char] -- ^ Remaining letters in this word to parse
-innerParseShort _ [] = return []
+                   -> ErrorT err (State (ParseState opts)) ()
+innerParseShort _ [] = return ()
 innerParseShort co (o:os) = do
-  st <- lift get
   let maybeArgDesc = M.lookup o co
-      opts = stOpts st
   when (isNothing maybeArgDesc) (throwError (badShortOpt o))
   let ad = fromJust maybeArgDesc
-  case ad of
-    (Flag f) -> do
-      let newOpts = f opts
-          newSt = st {stOpts = newOpts}
-      lift $ put newSt
-      innerParseShort co os
-    (Single f) -> case os of
-      [] -> do
-        when (null $ stLeft st) (throwError (insufficientArgs (Right o) 1 []))
-        let (a:as) = stLeft st
-            newOpts = f opts a
-            newSt = st { stOpts = newOpts
-                       , stLeft = as }
-        lift $ put newSt
-        return []
-      word -> do
-        let newOpts = f opts word
-            newSt = st { stOpts = newOpts }
-        lift $ put newSt
-        return []
-    (Double f) -> case os of
-      [] -> do
-        when (length (stLeft st) < 2) (throwError (insufficientArgs (Right o) 2 []))
-        let (a:b:as) = stLeft st
-            newOpts = f opts a b
-            newSt = st { stOpts = newOpts }
-        lift $ put newSt
-        return []
-      word -> do
-        when (null (stLeft st)) (throwError (insufficientArgs (Right o) 2 []))
-        let (a:as) = stLeft st
-            newOpts = f opts word a
-            newSt = st { stOpts = newOpts }
-        lift $ put newSt
-        return []
+  case ad of (Flag f) -> parseShortFlag f co os
+             (Single f) -> parseShortSingle f o os
+             (Double f) -> parseShortDouble f o os
 
-{-
-parseCarryoverOpt :: (ParseErr err, Error err)
-                     => CharOpts opts
-                     -> ErrorT err (State (ParseState opts)) ()
-parseCarryoverOpt co = do
+parseShortFlag :: (ParseErr err, Error err)
+                  => (opts -> opts)
+                  -> CharOpts opts
+                  -> [Char]
+                  -> ErrorT err (State (ParseState opts)) ()
+parseShortFlag f co os = do
   st <- lift get
-  let (o:os) = fromJust $ shortOpts st
-      maybeArgDesc = M.lookup o co
-      opts = stOpts st
-  when (isNothing maybeArgDesc) (throwError (badShortOpt o))
-  let ad = fromJust maybeArgDesc
-  case ad of
-    (Flag f) -> do
-      let newOpts = f o
-          newSt = st {stOpts = newOpts}
-      lift $ put newSt 
-    (Single f) -> 
--}
-  
+  let opts = stOpts st
+      newOpts = f opts
+      newSt = st {stOpts = newOpts}
+  lift $ put newSt
+  case os of [] -> return ()
+             _ -> innerParseShort co os
+
+parseShortSingle :: (ParseErr err, Error err)
+                    => (opts -> String -> opts)
+                    -> Char
+                    -> [Char]
+                    -> ErrorT err (State (ParseState opts)) ()
+parseShortSingle f o os = do
+  st <- lift get
+  let opts = stOpts st
+  case os of
+    [] -> do
+      when (null $ stLeft st) (throwError (insufficientArgs (Right o) 1 []))
+      let (a:as) = stLeft st
+          newOpts = f opts a
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      lift $ put newSt
+      return ()
+    word -> do
+      let newOpts = f opts word
+          newSt = st { stOpts = newOpts }
+      lift $ put newSt
+      return ()
+
+parseShortDouble :: (ParseErr err, Error err)
+                    => (opts -> String -> String -> opts)
+                    -> Char
+                    -> [Char]
+                    -> ErrorT err (State (ParseState opts)) ()
+parseShortDouble f o os = do
+  st <- lift get
+  let opts = stOpts st
+  case os of
+    [] -> do
+      when (length (stLeft st) < 2)
+        (throwError (insufficientArgs (Right o) 2 []))
+      let (a:b:as) = stLeft st
+          newOpts = f opts a b
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      lift $ put newSt
+      return ()
+    word -> do
+      when (null (stLeft st)) (throwError (insufficientArgs (Right o) 2 []))
+      let (a:as) = stLeft st
+          newOpts = f opts word a
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      lift $ put newSt
+      return ()
 
 parseLongOpt :: (ParseErr err)
                 => StringOpts opts
