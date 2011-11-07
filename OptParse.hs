@@ -3,6 +3,7 @@ module OptParse where
 import qualified Data.Map as M
 import Data.List
 import Data.Maybe
+import qualified Control.Monad.Error as E
 import Control.Monad.State
 import Control.Monad.Trans.Error
 import Control.Monad.Instances
@@ -36,6 +37,7 @@ class ParseErr a where
                       -> Int
                       -> [String]
                       -> a
+  longOptWithoutName :: a
 
 data PosDesc opts posargs = NoPosArgs posargs
                          | PosArgs ([(opts, String)] -> posargs)
@@ -94,10 +96,6 @@ isShortOpt s = "-" `isPrefixOf` s
 isStopper :: String -> Bool
 isStopper s = s == "--"
 
-parseStopper :: (ParseErr err, Error err)
-                => ErrorT err (State (ParseState opts)) ()
-parseStopper = undefined
-
 parseArg :: (ParseErr err, Error err)
             => CharOpts opts
             -> StringOpts opts
@@ -118,10 +116,21 @@ pickParser lead co so
   | isShortOpt lead = parseShortOpt co
   | otherwise = parsePosArg
 
+------------------------------------------------------------
+------------------------------------------------------------
+-- SHORT OPTION PARSING
+------------------------------------------------------------
+------------------------------------------------------------
+
 parseShortOpt :: (ParseErr err, Error err)
                  => CharOpts opts
                  -> ErrorT err (State (ParseState opts)) ()
-parseShortOpt = undefined
+parseShortOpt co = do
+  st <- lift get
+  let curr = tail . head . stLeft $ st
+      newLeft = tail $ stLeft st
+  put $ st { stLeft = newLeft }
+  innerParseShort co curr
 
 innerParseShort :: (ParseErr err, Error err)
                    => CharOpts opts
@@ -200,11 +209,142 @@ parseShortDouble f o os = do
       lift $ put newSt
       return ()
 
-parseLongOpt :: (ParseErr err)
+------------------------------------------------------------
+------------------------------------------------------------
+-- LONG OPTION PARSING
+------------------------------------------------------------
+------------------------------------------------------------
+
+parseLongOpt :: (ParseErr err, Error err)
                 => StringOpts opts
                 -> ErrorT err (State (ParseState opts)) ()
-parseLongOpt = undefined
+parseLongOpt so = do
+  st <- lift get
+  let curr = head . stLeft $ st
+      newLeft = tail . stLeft $ st
+      newSt = st { stLeft = newLeft }
+  lift $ put newSt
+  let ei = breakLongWord curr
+  case ei of
+    (Left err) -> throwError err
+    (Right broken) -> pickLongParser so broken
 
+pickLongParser :: (ParseErr err, Error err)
+                  => StringOpts opts
+                  -> (String, Maybe String)
+                  -> ErrorT err (State (ParseState opts)) ()
+pickLongParser so p@(s, _) = do
+  case (bestLongArgDesc so s) of
+    (Left err) -> throwError err
+    (Right desc) -> case desc of
+      (Flag f) -> parseLongFlag f p
+      (Single f) -> parseLongSingle f p
+      (Double f) -> parseLongDouble f p
+
+parseLongFlag :: (ParseErr err, Error err)
+                 => (opts -> opts)
+                 -> (String, (Maybe String))
+                 -> ErrorT err (State (ParseState opts)) ()
+parseLongFlag f (s, (Just a)) = throwError $ badEqualsOpt s a
+parseLongFlag f (s, Nothing) = do
+  st <- lift get
+  let opts = stOpts st
+      newOpts = f opts
+      newSt = st { stOpts = newOpts }
+  lift $ put newSt
+  return ()
+
+parseLongSingle :: (ParseErr err, Error err)
+                   => (opts -> String -> opts)
+                   -> (String, (Maybe String))
+                   -> ErrorT err (State (ParseState opts)) ()
+parseLongSingle f (s, (Just a)) = do
+  st <- lift get
+  let opts = stOpts st
+      newOpts = f opts a
+      newSt = st { stOpts = newOpts }
+  lift $ put newSt
+  return ()
+parseLongSingle f (s, Nothing) = do
+  st <- lift get
+  let left = stLeft st
+  when (length left < 1) (throwError $ insufficientArgs (Left s) 1 [])
+  let a = head left
+      opts = stOpts st
+      newOpts = f opts a
+      newSt = st { stOpts = newOpts
+                 , stLeft = tail left }
+  lift $ put newSt
+  return ()
+
+parseLongDouble :: (ParseErr err, Error err)
+                   => (opts -> String -> String -> opts)
+                   -> (String, Maybe String)
+                   -> ErrorT err (State (ParseState opts)) ()
+parseLongDouble f (s, (Just a1)) = do
+  st <- lift get
+  let left = stLeft st
+  when (length left < 1) (throwError $ insufficientArgs (Left s) 2 [a1])
+  let a2 = head left
+      opts = stOpts st
+      newOpts = f opts a1 a2
+      newSt = st { stOpts = newOpts
+                 , stLeft = tail left }
+  lift $ put newSt
+  return ()
+
+parseLongDouble f (s, Nothing) = do
+  st <- lift get
+  let left = stLeft st
+  when (length left < 2) (throwError $ insufficientArgs (Left s) 2 [])
+  let a1 = head left
+      a2 = left !! 1
+      opts = stOpts st
+      newOpts = f opts a1 a2
+      newSt = st { stOpts = newOpts
+                 , stLeft = drop 2 left }
+  lift $ put newSt
+  return ()
+
+-- |Applied to a string that is a long option, such as "--hello=yes",
+-- returns the long option name and the argument given, if any. For
+-- example, for "--hello=yes", returns ("hello", Just "yes"). Returns
+-- an error if there is no long option name (e.g. "--=yes").
+breakLongWord :: (Error err, ParseErr err) =>
+                 String ->
+                 Either err (String, (Maybe String))
+breakLongWord s = do
+  let trimmed = drop 2 s
+      (pre, suf) = break (== '=') trimmed
+      arg = if (null suf) then Nothing else (Just $ tail suf)
+  when (null pre) (E.throwError longOptWithoutName)
+  return (pre, arg)
+
+-- |Finds the ArgDesc that is the best match for a string. If there is
+-- an exact match, use that. Otherwise, if there is exactly one option
+-- that starts with the word given, use that. Otherwise, returns an
+-- error.
+bestLongArgDesc :: StringOpts opts
+                   -> String
+                   -> Either err (ArgDesc opts)
+bestLongArgDesc = undefined
+
+------------------------------------------------------------
+------------------------------------------------------------
+-- STOPPER PARSING
+------------------------------------------------------------
+------------------------------------------------------------
+parseStopper :: (ParseErr err, Error err)
+                => ErrorT err (State (ParseState opts)) ()
+parseStopper = undefined
+
+
+
+------------------------------------------------------------
+------------------------------------------------------------
+-- POS ARG PARSING
+------------------------------------------------------------
+------------------------------------------------------------
 parsePosArg :: (ParseErr err) => ErrorT err (State (ParseState opts)) ()
 parsePosArg = undefined
 
