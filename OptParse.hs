@@ -7,6 +7,7 @@ import qualified Control.Monad.Error as E
 import Control.Monad.State
 import Control.Monad.Trans.Error
 import Control.Monad.Instances
+import Control.Monad.Loops
 
 data Command = Create
              | Find
@@ -31,6 +32,7 @@ data Opts = Opts {
 
 class ParseErr a where
   badLongOpt :: String -> a
+  ambiguousLongOpt :: String -> [String] -> a
   badShortOpt :: Char -> a
   badEqualsOpt :: String -> String -> a
   insufficientArgs :: Either String Char
@@ -96,14 +98,43 @@ isShortOpt s = "-" `isPrefixOf` s
 isStopper :: String -> Bool
 isStopper s = s == "--"
 
-parseArg :: (ParseErr err, Error err)
-            => CharOpts opts
-            -> StringOpts opts
-            -> ErrorT err (State (ParseState opts)) ()
-parseArg co so = do
+parseArgs :: (ParseErr err, Error err)
+             => CharOpts opts
+             -> StringOpts opts
+             -> [String]
+             -> opts
+             -> Either err (opts, [(opts, String)])
+parseArgs co so ss op =
+  let (ei, opts) = unwrapState st defaultSt
+      defaultSt = ParseState { stOpts = op
+                             , stPos = []
+                             , stLeft = ss }
+      st = unwrapET parser
+      parser = parseArgsM co so
+  in case ei of
+    (Left err) -> Left err
+    (Right ()) -> Right (stOpts opts, stPos opts)
+
+unwrapState :: (ParseErr err, Error err)
+               => State (ParseState opts) (Either err ())
+               -> ParseState opts
+               -> (Either err (), ParseState opts)
+unwrapState = runState
+
+unwrapET :: (ParseErr err, Error err)
+            => ErrorT err (State (ParseState opts)) ()
+            -> State (ParseState opts) (Either err ())
+unwrapET = runErrorT
+
+parseArgsM :: (ParseErr err, Error err)
+              => CharOpts opts
+              -> StringOpts opts
+              -> ErrorT err (State (ParseState opts)) ()
+parseArgsM co so = do
   st <- lift get
-  let lead = head $ stLeft st
-  pickParser lead co so
+  if (null . stLeft $ st)
+    then return ()
+    else pickParser (head . stLeft $ st) co so
 
 pickParser :: (ParseErr err, Error err)
               => String
@@ -324,10 +355,19 @@ breakLongWord s = do
 -- an exact match, use that. Otherwise, if there is exactly one option
 -- that starts with the word given, use that. Otherwise, returns an
 -- error.
-bestLongArgDesc :: StringOpts opts
+bestLongArgDesc :: (ParseErr err)
+                   => StringOpts opts
                    -> String
                    -> Either err (ArgDesc opts)
-bestLongArgDesc = undefined
+bestLongArgDesc so s
+  | isJust exact = Right (fromJust exact)
+  | length matches == 1 = Right (snd . head $ matches)
+  | length matches == 0 = Left (badLongOpt s)
+  | otherwise = Left (ambiguousLongOpt s (map fst matches))
+    where
+      exact = M.lookup s so
+      matches = filter p $ M.assocs so
+      p (n, _) = s `isPrefixOf` n
 
 ------------------------------------------------------------
 ------------------------------------------------------------
@@ -336,25 +376,33 @@ bestLongArgDesc = undefined
 ------------------------------------------------------------
 parseStopper :: (ParseErr err, Error err)
                 => ErrorT err (State (ParseState opts)) ()
-parseStopper = undefined
-
-
+parseStopper = do
+  st <- lift get
+  let newLeft = tail $ stLeft st
+      newSt = st { stLeft = newLeft }
+  lift $ put newSt
+  whileM_ moreArgs parsePosArg
+  
+moreArgs :: (Error err) => ErrorT err (State (ParseState opts)) Bool
+moreArgs = lift get >>= return . not . null . stLeft
 
 ------------------------------------------------------------
 ------------------------------------------------------------
 -- POS ARG PARSING
 ------------------------------------------------------------
 ------------------------------------------------------------
-parsePosArg :: (ParseErr err) => ErrorT err (State (ParseState opts)) ()
-parsePosArg = undefined
+parsePosArg :: (ParseErr err, Error err)
+               => ErrorT err (State (ParseState opts)) ()
+parsePosArg = do
+  st <- lift get
+  let curr = head . stLeft $ st
+      opts = stOpts st
+      newPos = (stPos st) ++ [(opts, curr)]
+      newLeft = tail . stLeft $ st
+      newSt = st { stLeft = newLeft 
+                 , stPos = newPos }
+  lift . put $ newSt
 
-parseArgs :: (ParseErr err)
-             => CharOpts opts
-             -> StringOpts opts
-             -> opts        -- ^ Default opts
-             -> [String] -- ^ Command line arguments remaining
-             -> Either err (opts, [(opts, String)]) -- ^ opts, posargs
-parseArgs = undefined
 
 parseCmd :: (ParseErr err)
             => [CmdDesc cmd opts posargs]
