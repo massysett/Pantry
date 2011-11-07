@@ -69,7 +69,7 @@ type CharOpts opts = M.Map Char (ArgDesc opts)
 type StringOpts opts = M.Map String (ArgDesc opts)
 
 addCharOpt :: ArgDesc opts -> CharOpts opts -> Char -> CharOpts opts
-addCharOpt = undefined
+addCharOpt ad old c new
 
 addStringOpt :: ArgDesc opts -> StringOpts opts -> String -> StringOpts opts
 addStringOpt = undefined
