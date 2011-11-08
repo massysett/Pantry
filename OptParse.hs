@@ -30,18 +30,20 @@ class ParseErr a where
   noCmd :: a
   posArgsNotAllowed :: String -> a
 
-data PosDesc opts posargs = NoPosArgs posargs
-                         | PosArgs ([(opts, String)] -> posargs)
-data ArgDesc opts = Flag (opts -> opts)
-               | Single (opts -> String -> opts)
-               | Double (opts -> String -> String -> opts)
-data OptDesc opts = OptDesc [Char] [String] (ArgDesc opts)
+data PosDesc opts posargs err =
+  NoPosArgs posargs
+  | PosArgs ([(opts, String)] -> Either err posargs)
 
-data CmdDesc cmd opts posargs =
+data ArgDesc opts err = Flag (opts -> Either err opts)
+               | Single (opts -> String -> Either err opts)
+               | Double (opts -> String -> String -> Either err opts)
+data OptDesc opts err = OptDesc [Char] [String] (ArgDesc opts err)
+
+data CmdDesc cmd opts posargs err =
   CmdDesc { cmdName :: String
           , cmdF :: (String -> cmd)
-          , cmdOpts :: [OptDesc opts]
-          , cmdPos :: PosDesc opts posargs }
+          , cmdOpts :: [OptDesc opts err]
+          , cmdPos :: PosDesc opts posargs err }
 
 parse :: (ParseErr err, Error err)
          => [OptDesc opts] -- ^ Global opts
@@ -57,28 +59,39 @@ parse ods ds o ss = do
 -----------------------------
 -----------------------------
 
-type CharOpts opts = M.Map Char (ArgDesc opts)
-type StringOpts opts = M.Map String (ArgDesc opts)
+type CharOpts opts err = M.Map Char (ArgDesc opts err)
+type StringOpts opts err = M.Map String (ArgDesc opts err)
 
-addCharOpt :: ArgDesc opts -> CharOpts opts -> Char -> CharOpts opts
+addCharOpt :: ArgDesc opts err
+              -> CharOpts opts err
+              -> Char
+              -> CharOpts opts err
 addCharOpt ad old c = M.insert c ad old
 
-addStringOpt :: ArgDesc opts -> StringOpts opts -> String -> StringOpts opts
+addStringOpt :: ArgDesc opts err
+                -> StringOpts opts err
+                -> String
+                -> StringOpts opts err
 addStringOpt ad old s = M.insert s ad old
 
-addCharOpts :: CharOpts opts -> OptDesc opts -> CharOpts opts
+addCharOpts :: CharOpts opts err
+               -> OptDesc opts err
+               -> CharOpts opts err
 addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) M.empty cs
 
-addStringOpts :: StringOpts opts -> OptDesc opts -> StringOpts opts
+addStringOpts :: StringOpts opts err
+                 -> OptDesc opts err
+                 -> StringOpts opts err
 addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) M.empty ss
 
-addOptsToLookups :: [OptDesc opts] -> (CharOpts opts, StringOpts opts)
+addOptsToLookups :: [OptDesc opts err]
+                    -> (CharOpts opts err, StringOpts opts err)
 addOptsToLookups os = (co, so) where
   co = foldl addCharOpts M.empty os
   so = foldl addStringOpts M.empty os
 
-addCmdToLookups :: CmdDesc cmd opts posargs
-                   -> (CharOpts opts, StringOpts opts)
+addCmdToLookups :: CmdDesc cmd opts posargs err
+                   -> (CharOpts opts err, StringOpts opts err)
 addCmdToLookups (CmdDesc _ _ os _) = addOptsToLookups os
 
 data ParseState opts = ParseState { stOpts :: opts -- ^ Opts parsed so far
@@ -96,7 +109,7 @@ isStopper :: String -> Bool
 isStopper s = s == "--"
 
 parseCmdDesc :: (ParseErr err, Error err)
-                => CmdDesc cmd opts posargs
+                => CmdDesc cmd opts posargs err
                 -> [String] -- ^ To parse
                 -> opts     -- ^ Default options
                 -> Either err (opts, [(opts, String)])
@@ -104,8 +117,8 @@ parseCmdDesc d ss o = parseArgs co so ss o where
   (co, so) = addCmdToLookups d
 
 parseArgs :: (ParseErr err, Error err)
-             => CharOpts opts
-             -> StringOpts opts
+             => CharOpts opts err
+             -> StringOpts opts err
              -> [String]
              -> opts
              -> Either err (opts, [(opts, String)])
@@ -121,8 +134,8 @@ parseArgs co so ss op =
     (Right ()) -> Right (stOpts opts, stPos opts)
     
 parseArgsNoPosArgs :: (ParseErr err, Error err)
-                      => CharOpts opts
-                      -> StringOpts opts
+                      => CharOpts opts err
+                      -> StringOpts opts err
                       -> [String]
                       -> opts
                       -> Either err (opts, [String])
@@ -138,7 +151,7 @@ parseArgsNoPosArgs co so ss op =
 
 
 unwrapState :: (ParseErr err, Error err)
-               => State (ParseState opts) (Either err ())
+               => State (ParseState opts err) (Either err ())
                -> ParseState opts
                -> (Either err (), ParseState opts)
 unwrapState = runState
@@ -149,8 +162,8 @@ unwrapET :: (ParseErr err, Error err)
 unwrapET = runErrorT
 
 parseArgsM :: (ParseErr err, Error err)
-              => CharOpts opts
-              -> StringOpts opts
+              => CharOpts opts err
+              -> StringOpts opts err
               -> ErrorT err (State (ParseState opts)) ()
 parseArgsM co so = do
   st <- lift get
@@ -160,8 +173,8 @@ parseArgsM co so = do
 
 pickParser :: (ParseErr err, Error err)
               => String
-              -> CharOpts opts
-              -> StringOpts opts
+              -> CharOpts opts err
+              -> StringOpts opts err
               -> ErrorT err (State (ParseState opts)) ()
 pickParser lead co so
   | isStopper lead = parseStopper
@@ -170,8 +183,8 @@ pickParser lead co so
   | otherwise = parsePosArg
 
 parseArgsNoPosArgsM :: (ParseErr err, Error err)
-                       => CharOpts opts
-                       -> StringOpts opts
+                       => CharOpts opts err
+                       -> StringOpts opts err
                        -> ErrorT err (State (ParseState opts)) [String]
 parseArgsNoPosArgsM co so = do
   st <- lift get
@@ -183,8 +196,8 @@ parseArgsNoPosArgsM co so = do
 
 pickParserNoPosArgs :: (ParseErr err, Error err)
                        => String
-                       -> CharOpts opts
-                       -> StringOpts opts
+                       -> CharOpts opts err
+                       -> StringOpts opts err
                        -> ErrorT err (State (ParseState opts)) ()
 pickParserNoPosArgs lead co so
   | isLongOpt lead = parseLongOpt so
@@ -197,7 +210,7 @@ pickParserNoPosArgs lead co so
 ------------------------------------------------------------
 
 parseShortOpt :: (ParseErr err, Error err)
-                 => CharOpts opts
+                 => CharOpts opts err
                  -> ErrorT err (State (ParseState opts)) ()
 parseShortOpt co = do
   st <- lift get
@@ -207,7 +220,7 @@ parseShortOpt co = do
   innerParseShort co curr
 
 innerParseShort :: (ParseErr err, Error err)
-                   => CharOpts opts
+                   => CharOpts opts err
                    -> [Char]       -- ^ The word with the option - prefix omitted
                    -> ErrorT err (State (ParseState opts)) ()
 innerParseShort _ [] = return ()
@@ -219,16 +232,19 @@ innerParseShort co (o:os) = do
              (Single f) -> parseShortSingle f o os
              (Double f) -> parseShortDouble f o os
 
+-- START HERE
 parseShortFlag :: (ParseErr err, Error err)
-                  => (opts -> opts)
-                  -> CharOpts opts
+                  => (opts -> Either err opts)
+                  -> CharOpts opts err 
                   -> [Char]
                   -> ErrorT err (State (ParseState opts)) ()
 parseShortFlag f co os = do
   st <- lift get
   let opts = stOpts st
-      newOpts = f opts
+      ei = f opts
+      newOpts = fromRight ei
       newSt = st {stOpts = newOpts}
+  throwOnLeft ei
   lift $ put newSt
   case os of [] -> return ()
              _ -> innerParseShort co os
@@ -494,3 +510,16 @@ pickCmd cs ss
       matches = filter isPre cs
       isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
       names = map (\(CmdDesc s _ _ _) -> s) matches
+
+-- |Throws an error if applied to an Either which is Left.
+-- Otherwise, does nothing.
+throwOnLeft :: (Error e, Monad m)
+               => Either e b
+               -> m ()
+throwOnLeft (Left e) = throwError e
+throwOnLeft _ = return ()
+
+-- |Extracts the Right value from an Either. Bombs if there is no Right value.
+fromRight :: Either a b -> b
+fromRight (Left a) -> error "fromRight: value is not a right."
+fromRight (Right b) -> b
