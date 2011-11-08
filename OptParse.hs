@@ -1,3 +1,62 @@
+-- | A full-featured command line arguments parser. Features:
+--
+-- * Parses both short options (@-i@) and long options (@--ignore@)
+--
+-- * Allows short options to be combined with other short options (@ls
+-- -lh@ rather than @ls -l -h@) and with arguments (@foocmd -oarg@
+-- rather than @foocmd -o arg@ and even @foocmd -ioarg@ assuming that
+-- @-i@ is an option that takes no arguments)
+--
+-- * Allows long option to be combined with its argument with an equal
+-- sign (GNU style, like @head --lines=20@). However this is optional;
+-- having the long option and the argument in separate words is also
+-- permitted (like @head --lines 20@).
+--
+-- * Parses \"commands\". Examples include @git clone@ or @cvs up@,
+-- where @clone@ and @up@ are the commands, respectively. Each command
+-- might take different options and handle positional arguments
+-- differently.
+--
+-- * Both commands and options can be abbreviated to the shortest
+-- unambiguous abbreviation. For example, instead of @--ignore-case@
+-- you could use @--igno@ or even @--i@ if either of those is
+-- unambiguous.
+--
+-- * Options, option arguments, commands, and positional arguments are
+-- all parsed using user-provided functions. For example, you can use
+-- this to change option arguments to different datatypes (an Int,
+-- say) or to make sure there is a particular number of positional
+-- arguments. You could make sure some options only appear on the
+-- command line once, or you can make implement an option that toggles
+-- an option on and off.
+--
+-- * Full error reporting using Either and a user-defined error
+-- object. Parsing stops when an error is found, and that error is
+-- reported. The user can define her own errors, which can be used if
+-- an error is encountered when parsing options, option arguments,
+-- commands, or positional arguments.
+--
+-- * Positional arguments and options can be freely interspersed.
+--
+-- * Recognizes @--@ by itself and then stops parsing options. All
+-- subsequent words are then treated as positional arguments, even if
+-- they begin with dashes.
+--
+-- * Options can take zero, one, or two arguments.
+--
+-- Non-features / disadvantages:
+--
+-- * Complicated.
+--
+-- * Some parsers, like System.Console.GetOpt, automatically generate
+-- help messages; this does not.
+--
+-- * Options must take a set number of arguments. Unlike
+-- System.Console.GetOpt, you cannot specify that an option takes an
+-- optional argument.
+--
+-- * Positional arguments and options may always be freely
+-- interspersed; this cannot be turned off.
 module OptParse ( ParseErr(..)
                 , PosDesc(..)
                 , ArgDesc(..)
@@ -15,42 +74,164 @@ import Control.Monad.Trans.Error
 import Control.Monad.Instances
 import Control.Monad.Loops
 
+-- | Instances of the ParseErr class can be used with the 'parse'
+-- function to report errors. In addition, ParseErr can be used to
+-- report custom errors. For example, one of the argument processing
+-- functions in 'ArgDesc' can refurn a Left err to indicate that the
+-- user passed an incorrect value. This will terminate all further
+-- processing and report the error. Though options are typically
+-- preceded with one or two dashes, none of the arguments passed to
+-- the ParseErr functions are passed with leading dashes.
 class ParseErr a where
-  badLongOpt :: String -> a
-  ambiguousLongOpt :: String -> [String] -> a
-  badShortOpt :: Char -> a
-  badEqualsOpt :: String -> String -> a
-  insufficientArgs :: Either String Char
-                      -> Int
-                      -> [String]
+  -- | A long option string was not recognized.
+  badLongOpt :: String -- ^ The bad input
+                -> a
+  
+  -- | A long option string was short but has more than one match. For
+  -- instance the user passed the string @--he@ as an option, but the
+  -- program has options for both @--hello@ and @--head@.
+  ambiguousLongOpt :: String -- ^ The string the user passed
+                      -> [String] -- ^ Possible matches
                       -> a
-  longOptWithoutName :: a
-  noMatchingCmd :: String -> a
-  ambiguousCmd :: String -> [String] -> a
-  noCmd :: a
-  posArgsNotAllowed :: String -> a
+                      
+  -- | A short option character has no recognized matches.
+  badShortOpt :: Char -- ^ Unrecognized character
+                 -> a
+  
+  -- | Long options can be passed GNU style, where the option and the
+  -- option argument appear in the same word, as in @--number=4@. This
+  -- works when the option has one or two arguments. When an option
+  -- argument is passed for an option that does not take any
+  -- arguments, this function is called.
+  badEqualsOpt :: String -- ^ The option name
+                  -> String -- ^ The option argument the user passed
+                  -> a
+  
+  -- | The user did not give enough option arguments.
+  insufficientArgs :: Either String Char
+                      -- ^ The option name (short or long)
+                      -> Int
+                      -- ^ The number of arguments expected
+                      -> [String]
+                      -- ^ Number of arguments actually received
+                      -> a
 
+  -- | Long option was passed, and it has an equal sign and an option
+  -- argument, but no name (e.g. @--=yes@)
+  longOptWithoutName :: a
+  
+  -- | An unrecognized command name was used.
+  noMatchingCmd :: String -- ^ name of unrecognized command
+                   -> a
+
+  -- | A command name matches more than one possible command name, for
+  -- instance the user passed @fin@ but there are commands named
+  -- @find@ and @finagle@.
+  ambiguousCmd :: String -- ^ The string the user passed
+                  -> [String] -- ^ Possible matches
+                  -> a
+
+  -- | The user did not provide any command at all.
+  noCmd :: a
+
+  -- | The user passed a positional argument where one is not allowed
+  -- (e.g. for a command for which positional arguments are not
+  -- allowed).
+  posArgsNotAllowed :: String -- ^ Positional argument the user gave
+                       -> a
+
+-- | Describes a positional argument. For example, in the command @pantry find -i name hello@, the positional arguments are @name@ and @hello@ (@-i@ is an option, not a positional argument).
 data PosDesc opts posargs err =
+  -- | Use if this command does not accept any positional
+  -- arguments. However you still must give a function that takes no
+  -- arguments; this function is called when and will be suppled as
+  -- one of the elements of the tuple that "parse" returns. (Possible
+  -- change: have "parse" return a Nothing instead in cases like
+  -- this?)
   NoPosArgs posargs
+
+  -- | "parse" parses all the positional arguments after the rest of
+  -- the command line is processed. You supply the function that will
+  -- be called here. This way the function can see all the command
+  -- line arguments rather than seeing them just one at a time. Each
+  -- element of this is a tuple, with the first part of the tuple
+  -- being the options that were selected at the time this positional
+  -- argument appeared, and the second being the positional argument
+  -- itself. This way the output of the function can depend on what
+  -- the command line options were. The function should return Left
+  -- err if there was some problem.
   | PosArgs ([(opts, String)] -> Either err posargs)
 
+-- | Describes the arguments that an option accepts. For example, the
+-- command @head@ takes an option named @-n@, which accepts a single
+-- argument for the number of lines to print. Each of these
+-- constructors takes one argument, which is a function. The first
+-- argument of the function is always the command line options as they
+-- existed before this argument is parsed. This allows each option
+-- behave differently depending upon what options preceded it. For
+-- instance, this could be used to implement toggling behavior. Next
+-- the function accepts zero or more string arguments, with each
+-- string representing a command-line argument for the option. Finally
+-- each function returns an Either. Return Left err if there was some
+-- problem with the parse, or a Right opts with the new state of the
+-- command-line options.
 data ArgDesc opts err = Flag (opts -> Either err opts)
                | Single (opts -> String -> Either err opts)
                | Double (opts -> String -> String -> Either err opts)
-data OptDesc opts err = OptDesc [Char] [String] (ArgDesc opts err)
 
+-- | Describes a command line option. For example, in the command line
+-- @pantry find -i name Chex@, a command line option is @-i@.
+data OptDesc opts err =
+  OptDesc { -- | Short option names, without the leading dash.
+            optShort :: [Char] 
+
+            -- | Long option names, without the leading dashes.
+          , optLong :: [String] 
+          
+            -- | Whether this option takes any arguments and, if so, how many.
+          , optArgDesc :: (ArgDesc opts err)
+          }
+
+-- | Describes a command. For instance, from the command line @pantry
+-- find -i name Chex@, the command is @find@.
 data CmdDesc cmd opts posargs err =
-  CmdDesc { cmdName :: String
+  CmdDesc { -- | The command name, such as @find@.
+            cmdName :: String
+          
+            -- | Takes the full name of the command, returns something
+            -- to indicate which command was called.
           , cmdF :: (String -> cmd)
+            
+            -- | A list of all the options that the command takes.
           , cmdOpts :: [OptDesc opts err]
+          
+            -- | How to parse positional arguments for this command.
           , cmdPos :: PosDesc opts posargs err }
 
+-- | Parse a command line. Presumably you got it from System.Environment.getArgs. Do not include the program name as the first string to parse (consistent with System.Environment.getArgs).
 parse :: (ParseErr err, Error err)
-         => [OptDesc opts err] -- ^ Global opts
+         => [OptDesc opts err]
+         -- ^ Global options. For example, in the command @pantry -i
+         -- find name pretzels@, @-i@ is a global option because it
+         -- appears before the command.
+         
          -> [CmdDesc cmd opts posargs err]
-         -> opts -- ^ Default opts
-         -> [String] -- ^ To parse
+         -- ^ All command descriptions
+         
+         -> opts
+         -- ^ Default options. When the command line is parsed, each
+         -- option receives the options that have already been
+         -- parsed. The first option will receive this item.
+         
+         -> [String]
+         -- ^ What to parse
+         
          -> Either err (cmd, opts, posargs)
+         -- ^ Left if an error occurred; Right if everything
+         -- succeeded. The tuple has the command that was seen, the
+         -- final state of the options item, and any positional
+         -- arguments.
+
 parse ods ds o ss = do
   let (gc, gs) = addOptsToLookups ods
   (opts, left) <- parseArgsNoPosArgs gc gs ss o
@@ -115,6 +296,21 @@ parseCmdDesc :: (ParseErr err, Error err)
                 -> Either err (opts, [(opts, String)])
 parseCmdDesc d ss o = parseArgs co so ss o where
   (co, so) = addCmdToLookups d
+
+-- | What to do when the args parser encounters a non-option argument?
+-- Both of these options will properly respect a \"stopper\"
+-- (@--@). The stopper will be parsed and then the remaining arguments
+-- will be returned unparsed.
+data AtNonOpt
+
+     -- | Stop parsing, do not parse the non-option argument, and
+     -- return the remaining arguments unparsed
+     = StopParsing
+     
+     -- | Add the non-option argument to the list of remaining
+     -- arguments that will be returned, then resume parsing at the
+     -- next word
+     | ResumeParsing
 
 parseArgs :: (ParseErr err, Error err)
              => CharOpts opts err
@@ -533,7 +729,7 @@ pickCmd cs ss
 
 -- |Throws an error if applied to an Either which is Left.
 -- Otherwise, does nothing.
-throwOnLeft ::(E.MonadError e m)
+throwOnLeft :: E.MonadError e m
               => Either e b
               -> m ()
 throwOnLeft (Left e) = E.throwError e
