@@ -15,8 +15,6 @@ import Control.Monad.Trans.Error
 import Control.Monad.Instances
 import Control.Monad.Loops
 
--- | Make a data type an instance of the ParseErr class to enable it
--- to record errors that may occur while parsing options.
 class ParseErr a where
   badLongOpt :: String -> a
   ambiguousLongOpt :: String -> [String] -> a
