@@ -494,4 +494,3 @@ pickCmd cs ss
       matches = filter isPre cs
       isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
       names = map (\(CmdDesc s _ _ _) -> s) matches
-
