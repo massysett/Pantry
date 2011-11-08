@@ -40,6 +40,10 @@ class ParseErr a where
                       -> [String]
                       -> a
   longOptWithoutName :: a
+  noMatchingCmd :: String -> a
+  ambiguousCmd :: String -> [String] -> a
+  noCmd :: a
+  posArgsNotAllowed :: String -> a
 
 data PosDesc opts posargs = NoPosArgs posargs
                          | PosArgs ([(opts, String)] -> posargs)
@@ -69,20 +73,22 @@ type CharOpts opts = M.Map Char (ArgDesc opts)
 type StringOpts opts = M.Map String (ArgDesc opts)
 
 addCharOpt :: ArgDesc opts -> CharOpts opts -> Char -> CharOpts opts
-addCharOpt ad old c new
+addCharOpt ad old c = M.insert c ad old
 
 addStringOpt :: ArgDesc opts -> StringOpts opts -> String -> StringOpts opts
-addStringOpt = undefined
+addStringOpt ad old s = M.insert s ad old
 
 addCharOpts :: CharOpts opts -> OptDesc opts -> CharOpts opts
-addCharOpts = undefined
+addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) M.empty cs
 
 addStringOpts :: StringOpts opts -> OptDesc opts -> StringOpts opts
-addStringOpts = undefined
+addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) M.empty ss
 
 addOptsToLookups :: CmdDesc cmd opts posargs
                     -> (CharOpts opts, StringOpts opts)
-addOptsToLookups = undefined
+addOptsToLookups (CmdDesc _ _ os _) = (co, so) where
+  co = foldl addCharOpts M.empty os
+  so = foldl addStringOpts M.empty os
 
 data ParseState opts = ParseState { stOpts :: opts -- ^ Opts parsed so far
                                , stPos :: [(opts, String)] -- ^ Pos args so far
@@ -97,6 +103,14 @@ isShortOpt s = "-" `isPrefixOf` s
 
 isStopper :: String -> Bool
 isStopper s = s == "--"
+
+parseCmdDesc :: (ParseErr err, Error err)
+                => CmdDesc cmd opts posargs
+                -> [String] -- ^ To parse
+                -> opts     -- ^ Default options
+                -> Either err (opts, [(opts, String)])
+parseCmdDesc d ss o = parseArgs co so ss o where
+  (co, so) = addOptsToLookups d
 
 parseArgs :: (ParseErr err, Error err)
              => CharOpts opts
@@ -403,11 +417,51 @@ parsePosArg = do
                  , stPos = newPos }
   lift . put $ newSt
 
+------------------------------------------------------------
+------------------------------------------------------------
+-- COMMAND NAME PARSING
+------------------------------------------------------------
+------------------------------------------------------------
 
-parseCmd :: (ParseErr err)
+-- | Applied to a list of command descriptions, a set of default
+-- options, and a list of strings to parse, returns either an error or
+-- the resulting command, the resulting options, and the resulting
+-- posargs.
+parseCmd :: (ParseErr err, Error err)
             => [CmdDesc cmd opts posargs]
             -> opts -- ^ Default opts
             -> [String] -- ^ To parse
             -> Either err (cmd, opts, posargs)
-parseCmd = undefined
+parseCmd cs defaultOpts ss = do
+  when (null ss) (E.throwError noCmd)
+  desc@(CmdDesc name fCmd _ pd) <- pickCmd cs ss
+  let rest = tail ss
+  (resultOpts, ps) <- parseCmdDesc desc rest defaultOpts
+  let cmd = fCmd name
+  case pd of
+    (NoPosArgs n) -> if not . null $ ps
+                   then E.throwError $ posArgsNotAllowed name
+                   else return (cmd, resultOpts, n)
+    (PosArgs f) -> return (cmd, resultOpts, f ps)
+  
 
+-- |Given a list of CmdDesc and a list of command line arguments
+-- waiting to be parsed, returns the appropriate CmdDesc for the
+-- argument at the head of the list. Assumes there is at least one
+-- argument in the list; blows up if there isn't one.
+pickCmd :: (ParseErr err, Error err)
+           => [CmdDesc cmd opts posargs]
+           -> [String] -- ^ To parse
+           -> Either err (CmdDesc cmd opts posargs)
+pickCmd cs ss
+  | isJust exact = Right $ fromJust exact
+  | length matches == 1 = Right $ head matches
+  | null matches = Left $ noMatchingCmd curr
+  | otherwise = Left $ ambiguousCmd curr names
+    where
+      curr = head ss
+      exact = find pred cs
+      pred (CmdDesc s _ _ _) = curr == s
+      matches = filter isPre cs
+      isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
+      names = map (\(CmdDesc s _ _ _) -> s) matches
