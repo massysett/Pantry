@@ -46,8 +46,8 @@ data CmdDesc cmd opts posargs err =
           , cmdPos :: PosDesc opts posargs err }
 
 parse :: (ParseErr err, Error err)
-         => [OptDesc opts] -- ^ Global opts
-         -> [CmdDesc cmd opts posargs]
+         => [OptDesc opts err] -- ^ Global opts
+         -> [CmdDesc cmd opts posargs err]
          -> opts -- ^ Default opts
          -> [String] -- ^ To parse
          -> Either err (cmd, opts, posargs)
@@ -151,7 +151,7 @@ parseArgsNoPosArgs co so ss op =
 
 
 unwrapState :: (ParseErr err, Error err)
-               => State (ParseState opts err) (Either err ())
+               => State (ParseState opts) (Either err ())
                -> ParseState opts
                -> (Either err (), ParseState opts)
 unwrapState = runState
@@ -232,7 +232,6 @@ innerParseShort co (o:os) = do
              (Single f) -> parseShortSingle f o os
              (Double f) -> parseShortDouble f o os
 
--- START HERE
 parseShortFlag :: (ParseErr err, Error err)
                   => (opts -> Either err opts)
                   -> CharOpts opts err 
@@ -250,7 +249,7 @@ parseShortFlag f co os = do
              _ -> innerParseShort co os
 
 parseShortSingle :: (ParseErr err, Error err)
-                    => (opts -> String -> opts)
+                    => (opts -> String -> Either err opts)
                     -> Char
                     -> [Char]
                     -> ErrorT err (State (ParseState opts)) ()
@@ -261,19 +260,23 @@ parseShortSingle f o os = do
     [] -> do
       when (null $ stLeft st) (throwError (insufficientArgs (Right o) 1 []))
       let (a:as) = stLeft st
-          newOpts = f opts a
+          ei = f opts a
+          newOpts = fromRight ei
           newSt = st { stOpts = newOpts
                      , stLeft = as }
+      throwOnLeft ei
       lift $ put newSt
       return ()
     word -> do
-      let newOpts = f opts word
+      let ei = f opts word
+          newOpts = fromRight ei
           newSt = st { stOpts = newOpts }
+      throwOnLeft ei
       lift $ put newSt
       return ()
 
 parseShortDouble :: (ParseErr err, Error err)
-                    => (opts -> String -> String -> opts)
+                    => (opts -> String -> String -> Either err opts)
                     -> Char
                     -> [Char]
                     -> ErrorT err (State (ParseState opts)) ()
@@ -285,17 +288,21 @@ parseShortDouble f o os = do
       when (length (stLeft st) < 2)
         (throwError (insufficientArgs (Right o) 2 []))
       let (a:b:as) = stLeft st
-          newOpts = f opts a b
+          ei = f opts a b
+          newOpts = fromRight ei
           newSt = st { stOpts = newOpts
                      , stLeft = as }
+      throwOnLeft ei
       lift $ put newSt
       return ()
     word -> do
       when (null (stLeft st)) (throwError (insufficientArgs (Right o) 2 []))
       let (a:as) = stLeft st
-          newOpts = f opts word a
+          ei = f opts word a
+          newOpts = fromRight ei
           newSt = st { stOpts = newOpts
                      , stLeft = as }
+      throwOnLeft ei
       lift $ put newSt
       return ()
 
@@ -306,7 +313,7 @@ parseShortDouble f o os = do
 ------------------------------------------------------------
 
 parseLongOpt :: (ParseErr err, Error err)
-                => StringOpts opts
+                => StringOpts opts err
                 -> ErrorT err (State (ParseState opts)) ()
 parseLongOpt so = do
   st <- lift get
@@ -320,7 +327,7 @@ parseLongOpt so = do
     (Right broken) -> pickLongParser so broken
 
 pickLongParser :: (ParseErr err, Error err)
-                  => StringOpts opts
+                  => StringOpts opts err
                   -> (String, Maybe String)
                   -> ErrorT err (State (ParseState opts)) ()
 pickLongParser so p@(s, _) = do
@@ -332,27 +339,31 @@ pickLongParser so p@(s, _) = do
       (Double f) -> parseLongDouble f p
 
 parseLongFlag :: (ParseErr err, Error err)
-                 => (opts -> opts)
+                 => (opts -> Either err opts)
                  -> (String, (Maybe String))
                  -> ErrorT err (State (ParseState opts)) ()
 parseLongFlag f (s, (Just a)) = throwError $ badEqualsOpt s a
 parseLongFlag f (s, Nothing) = do
   st <- lift get
   let opts = stOpts st
-      newOpts = f opts
+      ei = f opts
+      newOpts = fromRight ei
       newSt = st { stOpts = newOpts }
+  throwOnLeft ei
   lift $ put newSt
   return ()
 
 parseLongSingle :: (ParseErr err, Error err)
-                   => (opts -> String -> opts)
+                   => (opts -> String -> Either err opts)
                    -> (String, (Maybe String))
                    -> ErrorT err (State (ParseState opts)) ()
 parseLongSingle f (s, (Just a)) = do
   st <- lift get
   let opts = stOpts st
-      newOpts = f opts a
+      ei = f opts a
+      newOpts = fromRight ei
       newSt = st { stOpts = newOpts }
+  throwOnLeft ei
   lift $ put newSt
   return ()
 parseLongSingle f (s, Nothing) = do
@@ -361,14 +372,16 @@ parseLongSingle f (s, Nothing) = do
   when (length left < 1) (throwError $ insufficientArgs (Left s) 1 [])
   let a = head left
       opts = stOpts st
-      newOpts = f opts a
+      ei = f opts a
+      newOpts = fromRight ei
       newSt = st { stOpts = newOpts
                  , stLeft = tail left }
+  throwOnLeft ei
   lift $ put newSt
   return ()
 
 parseLongDouble :: (ParseErr err, Error err)
-                   => (opts -> String -> String -> opts)
+                   => (opts -> String -> String -> Either err opts)
                    -> (String, Maybe String)
                    -> ErrorT err (State (ParseState opts)) ()
 parseLongDouble f (s, (Just a1)) = do
@@ -377,9 +390,11 @@ parseLongDouble f (s, (Just a1)) = do
   when (length left < 1) (throwError $ insufficientArgs (Left s) 2 [a1])
   let a2 = head left
       opts = stOpts st
-      newOpts = f opts a1 a2
+      ei = f opts a1 a2
+      newOpts = fromRight ei
       newSt = st { stOpts = newOpts
                  , stLeft = tail left }
+  throwOnLeft ei
   lift $ put newSt
   return ()
 
@@ -390,9 +405,11 @@ parseLongDouble f (s, Nothing) = do
   let a1 = head left
       a2 = left !! 1
       opts = stOpts st
-      newOpts = f opts a1 a2
+      ei = f opts a1 a2
+      newOpts = fromRight ei
       newSt = st { stOpts = newOpts
                  , stLeft = drop 2 left }
+  throwOnLeft ei
   lift $ put newSt
   return ()
 
@@ -415,9 +432,9 @@ breakLongWord s = do
 -- that starts with the word given, use that. Otherwise, returns an
 -- error.
 bestLongArgDesc :: (ParseErr err)
-                   => StringOpts opts
+                   => StringOpts opts err
                    -> String
-                   -> Either err (ArgDesc opts)
+                   -> Either err (ArgDesc opts err)
 bestLongArgDesc so s
   | isJust exact = Right (fromJust exact)
   | length matches == 1 = Right (snd . head $ matches)
@@ -473,7 +490,7 @@ parsePosArg = do
 -- the resulting command, the resulting options, and the resulting
 -- posargs.
 parseCmds :: (ParseErr err, Error err)
-            => [CmdDesc cmd opts posargs]
+            => [CmdDesc cmd opts posargs err]
             -> opts -- ^ Default opts
             -> [String] -- ^ To parse
             -> Either err (cmd, opts, posargs)
@@ -487,17 +504,20 @@ parseCmds cs defaultOpts ss = do
     (NoPosArgs n) -> if not . null $ ps
                    then E.throwError $ posArgsNotAllowed name
                    else return (cmd, resultOpts, n)
-    (PosArgs f) -> return (cmd, resultOpts, f ps)
-  
+    (PosArgs f) -> do
+      let ei = f ps
+          posargs = fromRight ei
+      throwOnLeft ei
+      return (cmd, resultOpts, posargs)
 
 -- |Given a list of CmdDesc and a list of command line arguments
 -- waiting to be parsed, returns the appropriate CmdDesc for the
 -- argument at the head of the list. Assumes there is at least one
 -- argument in the list; blows up if there isn't one.
 pickCmd :: (ParseErr err, Error err)
-           => [CmdDesc cmd opts posargs]
+           => [CmdDesc cmd opts posargs err]
            -> [String] -- ^ To parse
-           -> Either err (CmdDesc cmd opts posargs)
+           -> Either err (CmdDesc cmd opts posargs err)
 pickCmd cs ss
   | isJust exact = Right $ fromJust exact
   | length matches == 1 = Right $ head matches
@@ -513,13 +533,13 @@ pickCmd cs ss
 
 -- |Throws an error if applied to an Either which is Left.
 -- Otherwise, does nothing.
-throwOnLeft :: (Error e, Monad m)
-               => Either e b
-               -> m ()
-throwOnLeft (Left e) = throwError e
+throwOnLeft ::(E.MonadError e m)
+              => Either e b
+              -> m ()
+throwOnLeft (Left e) = E.throwError e
 throwOnLeft _ = return ()
 
 -- |Extracts the Right value from an Either. Bombs if there is no Right value.
 fromRight :: Either a b -> b
-fromRight (Left a) -> error "fromRight: value is not a right."
-fromRight (Right b) -> b
+fromRight (Left a) = error "fromRight: value is not a right."
+fromRight (Right b) = b
