@@ -9,27 +9,6 @@ import Control.Monad.Trans.Error
 import Control.Monad.Instances
 import Control.Monad.Loops
 
-data Command = Create
-             | Find
-             | Id
-             | Move
-               
-data PantryArgs = PantryArgs {
-  createArgs :: [String]
-  , findArgs :: [String]
-  }
-
-data Opts = Opts {
-  -- Create opts
-  ignoreCase :: Bool
-  , exactMatch :: Bool
-    
-    -- Find opts
-  , edit :: Bool
-  , keyAsc :: [String]
-  }
-
-
 class ParseErr a where
   badLongOpt :: String -> a
   ambiguousLongOpt :: String -> [String] -> a
@@ -58,13 +37,6 @@ data CmdDesc cmd opts posargs =
   [OptDesc opts]
   (PosDesc opts posargs)
 
-optParse :: (ParseErr err) 
-            => opts  -- ^ Default opts
-            -> [CmdDesc cmd opts posargs] -- Command descriptions
-            -> [String] -- ^ Args to parse
-            -> Either (err) (cmd, opts, posargs)
-optParse = undefined
-
 
 -----------------------------
 -----------------------------
@@ -84,11 +56,14 @@ addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) M.empty cs
 addStringOpts :: StringOpts opts -> OptDesc opts -> StringOpts opts
 addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) M.empty ss
 
-addOptsToLookups :: CmdDesc cmd opts posargs
-                    -> (CharOpts opts, StringOpts opts)
-addOptsToLookups (CmdDesc _ _ os _) = (co, so) where
+addOptsToLookups :: [OptDesc opts] -> (CharOpts opts, StringOpts opts)
+addOptsToLookups os = (co, so) where
   co = foldl addCharOpts M.empty os
   so = foldl addStringOpts M.empty os
+
+addCmdToLookups :: CmdDesc cmd opts posargs
+                   -> (CharOpts opts, StringOpts opts)
+addCmdToLookups (CmdDesc _ _ os _) = addOptsToLookups os
 
 data ParseState opts = ParseState { stOpts :: opts -- ^ Opts parsed so far
                                , stPos :: [(opts, String)] -- ^ Pos args so far
@@ -110,7 +85,7 @@ parseCmdDesc :: (ParseErr err, Error err)
                 -> opts     -- ^ Default options
                 -> Either err (opts, [(opts, String)])
 parseCmdDesc d ss o = parseArgs co so ss o where
-  (co, so) = addOptsToLookups d
+  (co, so) = addCmdToLookups d
 
 parseArgs :: (ParseErr err, Error err)
              => CharOpts opts
@@ -505,12 +480,12 @@ pickCmd cs ss
       names = map (\(CmdDesc s _ _ _) -> s) matches
 
 parseCmdsWithGlobalOpts :: (ParseErr err, Error err)
-                           => CharOpts opts -- ^ Global char opts
-                           -> StringOpts opts -- ^ Global string opts
+                           => [OptDesc opts] -- ^ Global opts
                            -> [CmdDesc cmd opts posargs]
                            -> opts -- ^ Default opts
                            -> [String] -- ^ To parse
                            -> Either err (cmd, opts, posargs)
-parseCmdsWithGlobalOpts gc gs ds o ss = do
+parseCmdsWithGlobalOpts ods ds o ss = do
+  let (gc, gs) = addOptsToLookups ods
   (opts, left) <- parseArgsNoPosArgs gc gs ss o
   parseCmds ds opts left
