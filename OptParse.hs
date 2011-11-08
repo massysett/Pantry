@@ -1,4 +1,10 @@
-module OptParse where
+module OptParse ( ParseErr(..)
+                , PosDesc(..)
+                , ArgDesc(..)
+                , OptDesc(..)
+                , CmdDesc(..)
+                , parse
+                ) where
 
 import qualified Data.Map as M
 import Data.List
@@ -37,6 +43,16 @@ data CmdDesc cmd opts posargs =
   [OptDesc opts]
   (PosDesc opts posargs)
 
+parse :: (ParseErr err, Error err)
+         => [OptDesc opts] -- ^ Global opts
+         -> [CmdDesc cmd opts posargs]
+         -> opts -- ^ Default opts
+         -> [String] -- ^ To parse
+         -> Either err (cmd, opts, posargs)
+parse ods ds o ss = do
+  let (gc, gs) = addOptsToLookups ods
+  (opts, left) <- parseArgsNoPosArgs gc gs ss o
+  parseCmds ds opts left
 
 -----------------------------
 -----------------------------
@@ -479,13 +495,3 @@ pickCmd cs ss
       isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
       names = map (\(CmdDesc s _ _ _) -> s) matches
 
-parseCmdsWithGlobalOpts :: (ParseErr err, Error err)
-                           => [OptDesc opts] -- ^ Global opts
-                           -> [CmdDesc cmd opts posargs]
-                           -> opts -- ^ Default opts
-                           -> [String] -- ^ To parse
-                           -> Either err (cmd, opts, posargs)
-parseCmdsWithGlobalOpts ods ds o ss = do
-  let (gc, gs) = addOptsToLookups ods
-  (opts, left) <- parseArgsNoPosArgs gc gs ss o
-  parseCmds ds opts left
