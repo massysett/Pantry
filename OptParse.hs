@@ -36,12 +36,12 @@ data ArgDesc opts = Flag (opts -> opts)
                | Single (opts -> String -> opts)
                | Double (opts -> String -> String -> opts)
 data OptDesc opts = OptDesc [Char] [String] (ArgDesc opts)
+
 data CmdDesc cmd opts posargs =
-  CmdDesc
-  String -- ^ Text of command name
-  (String -> cmd) -- ^How to return command name
-  [OptDesc opts]
-  (PosDesc opts posargs)
+  CmdDesc { cmdName :: String
+          , cmdF :: (String -> cmd)
+          , cmdOpts :: [OptDesc opts]
+          , cmdPos :: PosDesc opts posargs }
 
 parse :: (ParseErr err, Error err)
          => [OptDesc opts] -- ^ Global opts
