@@ -128,6 +128,23 @@ parseArgs co so ss op =
   in case ei of
     (Left err) -> Left err
     (Right ()) -> Right (stOpts opts, stPos opts)
+    
+parseArgsNoPosArgs :: (ParseErr err, Error err)
+                      => CharOpts opts
+                      -> StringOpts opts
+                      -> [String]
+                      -> opts
+                      -> Either err (opts, [String])
+parseArgsNoPosArgs co so ss op =
+  let (ei, opts) = runState st defaultSt
+      defaultSt = ParseState { stOpts = op
+                             , stPos = []
+                             , stLeft = ss }
+      st = runErrorT $ parseArgsNoPosArgsM co so
+  in case ei of
+    (Left err) -> Left err
+    (Right left) -> Right (stOpts opts, left)
+
 
 unwrapState :: (ParseErr err, Error err)
                => State (ParseState opts) (Either err ())
@@ -160,6 +177,27 @@ pickParser lead co so
   | isLongOpt lead = parseLongOpt so
   | isShortOpt lead = parseShortOpt co
   | otherwise = parsePosArg
+
+parseArgsNoPosArgsM :: (ParseErr err, Error err)
+                       => CharOpts opts
+                       -> StringOpts opts
+                       -> ErrorT err (State (ParseState opts)) [String]
+parseArgsNoPosArgsM co so = do
+  st <- lift get
+  if ((null . stLeft $ st) || ((head . head . stLeft $ st) /= '-'))
+    then return $ stLeft st
+    else do
+         pickParserNoPosArgs (head . stLeft $ st) co so
+         return $ stLeft st
+
+pickParserNoPosArgs :: (ParseErr err, Error err)
+                       => String
+                       -> CharOpts opts
+                       -> StringOpts opts
+                       -> ErrorT err (State (ParseState opts)) ()
+pickParserNoPosArgs lead co so
+  | isLongOpt lead = parseLongOpt so
+  | isShortOpt lead = parseShortOpt co
 
 ------------------------------------------------------------
 ------------------------------------------------------------
@@ -427,12 +465,12 @@ parsePosArg = do
 -- options, and a list of strings to parse, returns either an error or
 -- the resulting command, the resulting options, and the resulting
 -- posargs.
-parseCmd :: (ParseErr err, Error err)
+parseCmds :: (ParseErr err, Error err)
             => [CmdDesc cmd opts posargs]
             -> opts -- ^ Default opts
             -> [String] -- ^ To parse
             -> Either err (cmd, opts, posargs)
-parseCmd cs defaultOpts ss = do
+parseCmds cs defaultOpts ss = do
   when (null ss) (E.throwError noCmd)
   desc@(CmdDesc name fCmd _ pd) <- pickCmd cs ss
   let rest = tail ss
@@ -465,3 +503,14 @@ pickCmd cs ss
       matches = filter isPre cs
       isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
       names = map (\(CmdDesc s _ _ _) -> s) matches
+
+parseCmdsWithGlobalOpts :: (ParseErr err, Error err)
+                           => CharOpts opts -- ^ Global char opts
+                           -> StringOpts opts -- ^ Global string opts
+                           -> [CmdDesc cmd opts posargs]
+                           -> opts -- ^ Default opts
+                           -> [String] -- ^ To parse
+                           -> Either err (cmd, opts, posargs)
+parseCmdsWithGlobalOpts gc gs ds o ss = do
+  (opts, left) <- parseArgsNoPosArgs gc gs ss o
+  parseCmds ds opts left
