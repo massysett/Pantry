@@ -71,8 +71,6 @@ import Data.Maybe
 import qualified Control.Monad.Error as E
 import Control.Monad.State
 import Control.Monad.Trans.Error
-import Control.Monad.Instances
-import Control.Monad.Loops
 
 -- | Instances of the ParseErr class can be used with the 'parse'
 -- function to report errors. In addition, ParseErr can be used to
@@ -140,7 +138,9 @@ class ParseErr a where
   posArgsNotAllowed :: String -- ^ Positional argument the user gave
                        -> a
 
--- | Describes a positional argument. For example, in the command @pantry find -i name hello@, the positional arguments are @name@ and @hello@ (@-i@ is an option, not a positional argument).
+-- | Describes a positional argument. For example, in the command
+-- @pantry find -i name hello@, the positional arguments are @name@
+-- and @hello@ (@-i@ is an option, not a positional argument).
 data PosDesc opts posargs err =
   -- | Use if this command does not accept any positional
   -- arguments. However you still must give a function that takes no
@@ -208,7 +208,9 @@ data CmdDesc cmd opts posargs err =
             -- | How to parse positional arguments for this command.
           , cmdPos :: PosDesc opts posargs err }
 
--- | Parse a command line. Presumably you got it from System.Environment.getArgs. Do not include the program name as the first string to parse (consistent with System.Environment.getArgs).
+-- | Parse a command line. Presumably you got it from
+-- System.Environment.getArgs. Do not include the program name as the
+-- first string to parse (consistent with System.Environment.getArgs).
 parse :: (ParseErr err, Error err)
          => [OptDesc opts err]
          -- ^ Global options. For example, in the command @pantry -i
@@ -258,12 +260,12 @@ addStringOpt ad old s = M.insert s ad old
 addCharOpts :: CharOpts opts err
                -> OptDesc opts err
                -> CharOpts opts err
-addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) M.empty cs
+addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) os cs
 
 addStringOpts :: StringOpts opts err
                  -> OptDesc opts err
                  -> StringOpts opts err
-addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) M.empty ss
+addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) os ss
 
 addOptsToLookups :: [OptDesc opts err]
                     -> (CharOpts opts err, StringOpts opts err)
@@ -294,7 +296,7 @@ parseCmdDesc :: (ParseErr err, Error err)
                 -> [String] -- ^ To parse
                 -> opts     -- ^ Default options
                 -> Either err (opts, [(opts, String)])
-parseCmdDesc d ss o = parseArgs co so ss o where
+parseCmdDesc d ss o = parseArgs ResumeParsing co so ss o where
   (co, so) = addCmdToLookups d
 
 -- | What to do when the args parser encounters a non-option argument?
@@ -313,18 +315,19 @@ data AtNonOpt
      | ResumeParsing
 
 parseArgs :: (ParseErr err, Error err)
-             => CharOpts opts err
+             => AtNonOpt
+             -> CharOpts opts err
              -> StringOpts opts err
              -> [String]
              -> opts
              -> Either err (opts, [(opts, String)])
-parseArgs co so ss op =
+parseArgs at co so ss op =
   let (ei, opts) = unwrapState st defaultSt
       defaultSt = ParseState { stOpts = op
                              , stPos = []
                              , stLeft = ss }
       st = unwrapET parser
-      parser = parseArgsM co so
+      parser = parseArgsM at co so
   in case ei of
     (Left err) -> Left err
     (Right ()) -> Right (stOpts opts, stPos opts)
@@ -358,25 +361,29 @@ unwrapET :: (ParseErr err, Error err)
 unwrapET = runErrorT
 
 parseArgsM :: (ParseErr err, Error err)
-              => CharOpts opts err
-              -> StringOpts opts err
-              -> ErrorT err (State (ParseState opts)) ()
-parseArgsM co so = do
-  st <- lift get
-  if (null . stLeft $ st)
-    then return ()
-    else pickParser (head . stLeft $ st) co so
-
-pickParser :: (ParseErr err, Error err)
-              => String
+              => AtNonOpt
               -> CharOpts opts err
               -> StringOpts opts err
               -> ErrorT err (State (ParseState opts)) ()
-pickParser lead co so
+parseArgsM at co so = do
+  st <- lift get
+  if (null . stLeft $ st)
+    then return ()
+    else pickParser at (head . stLeft $ st) co so
+  parseArgsM at co so
+
+pickParser :: (ParseErr err, Error err)
+              => AtNonOpt
+              -> String
+              -> CharOpts opts err
+              -> StringOpts opts err
+              -> ErrorT err (State (ParseState opts)) ()
+pickParser at lead co so
   | isStopper lead = parseStopper
   | isLongOpt lead = parseLongOpt so
   | isShortOpt lead = parseShortOpt co
-  | otherwise = parsePosArg
+  | otherwise = case at of StopParsing -> parseRemainingPosArgs
+                           ResumeParsing -> parseOnePosArg
 
 parseArgsNoPosArgsM :: (ParseErr err, Error err)
                        => CharOpts opts err
@@ -653,19 +660,16 @@ parseStopper = do
   let newLeft = tail $ stLeft st
       newSt = st { stLeft = newLeft }
   lift $ put newSt
-  whileM_ moreArgs parsePosArg
+  parseRemainingPosArgs
   
-moreArgs :: (Error err) => ErrorT err (State (ParseState opts)) Bool
-moreArgs = lift get >>= return . not . null . stLeft
-
 ------------------------------------------------------------
 ------------------------------------------------------------
 -- POS ARG PARSING
 ------------------------------------------------------------
 ------------------------------------------------------------
-parsePosArg :: (ParseErr err, Error err)
+parseOnePosArg :: (ParseErr err, Error err)
                => ErrorT err (State (ParseState opts)) ()
-parsePosArg = do
+parseOnePosArg = do
   st <- lift get
   let curr = head . stLeft $ st
       opts = stOpts st
@@ -674,6 +678,13 @@ parsePosArg = do
       newSt = st { stLeft = newLeft 
                  , stPos = newPos }
   lift . put $ newSt
+
+parseRemainingPosArgs :: (ParseErr err, Error err)
+                         => ErrorT err (State (ParseState opts)) ()
+parseRemainingPosArgs = do
+  st <- lift get
+  let stillLeft = not . null . stLeft $ st
+  if stillLeft then parseOnePosArg else (return ())
 
 ------------------------------------------------------------
 ------------------------------------------------------------
