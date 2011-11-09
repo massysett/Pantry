@@ -253,13 +253,16 @@ addCharOpt :: ArgDesc opts err
               -> CharOpts opts err
 addCharOpt ad old c = M.insert c ad old
 
--- | Adds a single argument description to a map of StringOpts. 
+-- | Adds a single argument description to a map of StringOpts.
 addStringOpt :: ArgDesc opts err
                 -> StringOpts opts err
                 -> String
                 -> StringOpts opts err
 addStringOpt ad old s = M.insert s ad old
 
+-- | Adds the group of single argument descriptor found in OptDesc to
+-- the (possibly several) letter(s) that are found in the accompanying
+-- OptDesc.
 addCharOpts :: CharOpts opts err
                -> OptDesc opts err
                -> CharOpts opts err
