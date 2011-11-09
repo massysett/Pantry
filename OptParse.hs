@@ -72,7 +72,8 @@ module OptParse ( ParseErr(..)
                 , ArgDesc(..)
                 , OptDesc(..)
                 , CmdDesc(..)
-                , parse
+                , parseGlobalsCmds
+                , parseCmds
                 ) where
 
 import qualified Data.Map as M
@@ -218,36 +219,58 @@ data CmdDesc cmd opts posargs err =
             -- | How to parse positional arguments for this command.
           , cmdPos :: PosDesc opts posargs err }
 
--- | Parse a command line. Presumably you got it from
--- System.Environment.getArgs. Do not include the program name as the
--- first string to parse (consistent with System.Environment.getArgs).
-parse :: (ParseErr err, Error err)
-         => [OptDesc opts err]
-         -- ^ Global options. For example, in the command @pantry -i
-         -- find name pretzels@, @-i@ is a global option because it
-         -- appears before the command.
+-- | Parse a command line that features both global options and
+-- commands. This is the most heavy-duty parser.  Do not include the
+-- program name as the first string to parse (consistent with
+-- System.Environment.getArgs).
+parseGlobalsCmds ::
+  (ParseErr err, Error err)
+  => [OptDesc opts err]
+  -- ^ Global options. For example, in the command @pantry -i find
+  -- name pretzels@, @-i@ is a global option because it appears before
+  -- the command.
 
-         -> [CmdDesc cmd opts posargs err]
-         -- ^ All command descriptions
+  -> [CmdDesc cmd opts posargs err]
+  -- ^ All command descriptions
 
-         -> opts
-         -- ^ Default options. When the command line is parsed, each
-         -- option receives the options that have already been
-         -- parsed. The first option will receive this item.
+  -> opts
+  -- ^ Default options. When the command line is parsed, each option
+  -- receives the options that have already been parsed. The first
+  -- option will receive this item.
 
-         -> [String]
-         -- ^ What to parse
+  -> [String]
+  -- ^ What to parse
 
-         -> Either err (cmd, opts, posargs)
-         -- ^ Left if an error occurred; Right if everything
-         -- succeeded. The tuple has the command that was seen, the
-         -- final state of the options item, and any positional
-         -- arguments.
+  -> Either err (cmd, opts, posargs)
+  -- ^ Left if an error occurred; Right if everything succeeded. The
+  -- tuple has the command that was seen, the final state of the
+  -- options item, and any positional arguments.
 
-parse ods ds o ss = do
+parseGlobalsCmds ods ds o ss = do
   let (gc, gs) = addOptsToLookups ods
   (opts, left) <- parseArgs StopParsing gc gs ss o
-  parseCmds ds opts (map snd left)
+  parseCmdList ds opts (map snd left)
+
+-- | Parses commands, but no global options.
+parseCmds ::
+  (ParseErr err, Error err)
+  => [CmdDesc cmd opts posargs err]
+  -- ^ All command descriptions
+
+  -> opts
+  -- ^ Default options. When the command line is parsed, each option
+  -- receives the options that have already been parsed. The first
+  -- option will receive this item.
+
+  -> [String]
+  -- ^ What to parse
+
+  -> Either err (cmd, opts, posargs)
+  -- ^ Left if an error occurred; Right if everything succeeded. The
+  -- tuple has the command that was seen, the final state of the
+  -- options item, and any positional arguments.
+parseCmds = parseGlobalsCmds []
+
 
 -----------------------------
 -----------------------------
@@ -779,12 +802,12 @@ parseRemainingPosArgs = do
 -- options, and a list of strings to parse, returns either an error or
 -- the resulting command, the resulting options, and the resulting
 -- posargs.
-parseCmds :: (ParseErr err, Error err)
+parseCmdList :: (ParseErr err, Error err)
             => [CmdDesc cmd opts posargs err]
             -> opts -- ^ Default opts
             -> [String] -- ^ To parse
             -> Either err (cmd, opts, posargs)
-parseCmds cs defaultOpts ss = do
+parseCmdList cs defaultOpts ss = do
   when (null ss) (E.throwError noCmd)
   desc@(CmdDesc name fCmd _ pd) <- pickCmd cs ss
   let rest = tail ss
