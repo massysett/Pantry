@@ -271,6 +271,12 @@ parseCmds ::
   -- options item, and any positional arguments.
 parseCmds = parseGlobalsCmds []
 
+-- | Parses a command line that has options and positional
+-- arguments. This is the simplest parser and the one that most
+-- resembles many other parsers, such as System.Console.Getopt.
+parseOptsArgs :: (ParseErr err, Error err)
+                 => [OptDesc opts err]
+                 -> 
 
 -----------------------------
 -----------------------------
