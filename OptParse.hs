@@ -55,6 +55,16 @@
 -- System.Console.GetOpt, you cannot specify that an option takes an
 -- optional argument.
 --
+-- * Short options (those specified with a single dash) must be only
+-- one character long. So you will not be able to use this to write a
+-- clone of the Unix @find(1)@ command.
+--
+-- * Although short options can be combined (e.g. @-isn@ assuming @-i@
+-- and @-s@ take no option arguments and that @-n@ is an option) the
+-- first option must be preceded with a dash. That is, this does not
+-- support the style of options you find in BSD-like @ps(1)@ commands,
+-- for example.
+--
 -- * Positional arguments and options may always be freely
 -- interspersed; this cannot be turned off.
 module OptParse ( ParseErr(..)
@@ -84,18 +94,18 @@ class ParseErr a where
   -- | A long option string was not recognized.
   badLongOpt :: String -- ^ The bad input
                 -> a
-  
+
   -- | A long option string was short but has more than one match. For
   -- instance the user passed the string @--he@ as an option, but the
   -- program has options for both @--hello@ and @--head@.
   ambiguousLongOpt :: String -- ^ The string the user passed
                       -> [String] -- ^ Possible matches
                       -> a
-                      
+
   -- | A short option character has no recognized matches.
   badShortOpt :: Char -- ^ Unrecognized character
                  -> a
-  
+
   -- | Long options can be passed GNU style, where the option and the
   -- option argument appear in the same word, as in @--number=4@. This
   -- works when the option has one or two arguments. When an option
@@ -104,7 +114,7 @@ class ParseErr a where
   badEqualsOpt :: String -- ^ The option name
                   -> String -- ^ The option argument the user passed
                   -> a
-  
+
   -- | The user did not give enough option arguments.
   insufficientArgs :: Either String Char
                       -- ^ The option name (short or long)
@@ -117,7 +127,7 @@ class ParseErr a where
   -- | Long option was passed, and it has an equal sign and an option
   -- argument, but no name (e.g. @--=yes@)
   longOptWithoutName :: a
-  
+
   -- | An unrecognized command name was used.
   noMatchingCmd :: String -- ^ name of unrecognized command
                    -> a
@@ -183,11 +193,11 @@ data ArgDesc opts err = Flag (opts -> Either err opts)
 -- @pantry find -i name Chex@, a command line option is @-i@.
 data OptDesc opts err =
   OptDesc { -- | Short option names, without the leading dash.
-            optShort :: [Char] 
+            optShort :: [Char]
 
             -- | Long option names, without the leading dashes.
-          , optLong :: [String] 
-          
+          , optLong :: [String]
+
             -- | Whether this option takes any arguments and, if so, how many.
           , optArgDesc :: (ArgDesc opts err)
           }
@@ -197,14 +207,14 @@ data OptDesc opts err =
 data CmdDesc cmd opts posargs err =
   CmdDesc { -- | The command name, such as @find@.
             cmdName :: String
-          
+
             -- | Takes the full name of the command, returns something
             -- to indicate which command was called.
           , cmdF :: (String -> cmd)
-            
+
             -- | A list of all the options that the command takes.
           , cmdOpts :: [OptDesc opts err]
-          
+
             -- | How to parse positional arguments for this command.
           , cmdPos :: PosDesc opts posargs err }
 
@@ -216,18 +226,18 @@ parse :: (ParseErr err, Error err)
          -- ^ Global options. For example, in the command @pantry -i
          -- find name pretzels@, @-i@ is a global option because it
          -- appears before the command.
-         
+
          -> [CmdDesc cmd opts posargs err]
          -- ^ All command descriptions
-         
+
          -> opts
          -- ^ Default options. When the command line is parsed, each
          -- option receives the options that have already been
          -- parsed. The first option will receive this item.
-         
+
          -> [String]
          -- ^ What to parse
-         
+
          -> Either err (cmd, opts, posargs)
          -- ^ Left if an error occurred; Right if everything
          -- succeeded. The tuple has the command that was seen, the
@@ -296,10 +306,19 @@ addCmdToLookups :: CmdDesc cmd opts posargs err
                    -> (CharOpts opts err, StringOpts opts err)
 addCmdToLookups (CmdDesc _ _ os _) = addOptsToLookups os
 
-data ParseState opts = ParseState { stOpts :: opts -- ^ Opts parsed so far
-                               , stPos :: [(opts, String)] -- ^ Pos args so far
-                               , stLeft :: [String] -- ^ Args remaining to parse
-                               }
+data ParseState opts =
+  ParseState { -- | Options parsed so far
+               stOpts :: opts
+
+               -- | Positional arguments so far. These are not truly
+               -- parsed; they are simply paired with the options that
+               -- were in force when the positional argument was
+               -- encountered on the command line.
+             , stPos :: [(opts, String)]
+
+               -- | Words remaining to be parsed
+             , stLeft :: [String]
+             }
 
 isLongOpt :: String -> Bool
 isLongOpt s = "--" `isPrefixOf` s
@@ -307,14 +326,40 @@ isLongOpt s = "--" `isPrefixOf` s
 isShortOpt :: String -> Bool
 isShortOpt s = "-" `isPrefixOf` s
 
-isStopper :: String -> Bool
-isStopper s = s == "--"
-
+-- | Parses a single command description. At this point, the command
+-- itself has already been removed from the command line. For example,
+-- if the command line is @pantry find -i name beans@, then the
+-- command is "find". However, the line has already been parsed
+-- through @find@.
 parseCmdDesc :: (ParseErr err, Error err)
                 => CmdDesc cmd opts posargs err
-                -> [String] -- ^ To parse
-                -> opts     -- ^ Default options
+                -- ^ The CmdDesc of the command to parse, which
+                -- includes all the options and how to parse the
+                -- positional arguments.
+
+                -> [String]
+                -- ^ What to parse. Using the example given above, this would be
+                --
+                -- > ["-i", "name", "beans"]
+
+                -> opts
+                -- ^ Default options. Each time a set of option
+                -- arguments is parsed (which happens even for options
+                -- that take no arguments) a function is called that
+                -- takes the set of options as it has been modified by
+                -- the command line so far. The value if this
+                -- parameter is passed to the first option.
+
                 -> Either err (opts, [(opts, String)])
+                -- ^ This will be @Left err@ if an error occurred, or
+                -- @Right@ if everything succeeded. The first element
+                -- of the tuple is the options after all have been
+                -- parsed. The second is a list of positional
+                -- arguments. The first element of each tuple in this
+                -- list is the state of the options when the argument
+                -- was encountered; the second element is the argument
+                -- itself.
+
 parseCmdDesc d ss o = parseArgs ResumeParsing co so ss o where
   (co, so) = addCmdToLookups d
 
@@ -327,19 +372,39 @@ data AtNonOpt
      -- | Stop parsing, do not parse the non-option argument, and
      -- return the remaining arguments unparsed
      = StopParsing
-     
+
      -- | Add the non-option argument to the list of remaining
      -- arguments that will be returned, then resume parsing at the
      -- next word
      | ResumeParsing
 
+-- | Parses a list of options and positional arguments.
 parseArgs :: (ParseErr err, Error err)
              => AtNonOpt
+             -- ^ See documentation for "AtNonOpt" for details
+
              -> CharOpts opts err
+             -- ^ The short options
+
              -> StringOpts opts err
+             -- ^ The long options
+
              -> [String]
+             -- ^ What to parse
+
              -> opts
+             -- ^ Initial state of the options
+
              -> Either err (opts, [(opts, String)])
+             -- ^ This will be @Left err@ if an error occurred, or
+             -- @Right@ if everything succeeded. The first element
+             -- of the tuple is the options after all have been
+             -- parsed. The second is a list of positional
+             -- arguments. The first element of each tuple in this
+             -- list is the state of the options when the argument
+             -- was encountered; the second element is the argument
+             -- itself.
+
 parseArgs at co so ss op =
   let (ei, opts) = runState st defaultSt
       defaultSt = ParseState { stOpts = op
@@ -350,7 +415,11 @@ parseArgs at co so ss op =
   in case ei of
     (Left err) -> Left err
     (Right ()) -> Right (stOpts opts, stPos opts)
-    
+
+-- | Monad that carries out the parsing of options and positional
+-- arguments. This function recurses until all the command line
+-- arguments are parsed (either because they are options, or because
+-- they are positional arguments).
 parseArgsM :: (ParseErr err, Error err)
               => AtNonOpt
               -> CharOpts opts err
@@ -363,6 +432,12 @@ parseArgsM at co so = do
     else pickParser at (head . stLeft $ st) co so
   parseArgsM at co so
 
+-- |Examines, but does not change, the next word in the ParseState to
+-- be parsed. Then calls the appropriate parser in to actually parse
+-- the word. This function does not actually change or remove the next
+-- word to be parsed because the parser itself might need to examine
+-- the word (for instance, it might be a long option that also has the
+-- option argument).
 pickParser :: (ParseErr err, Error err)
               => AtNonOpt
               -> String
@@ -378,106 +453,26 @@ pickParser at lead co so
 
 ------------------------------------------------------------
 ------------------------------------------------------------
--- SHORT OPTION PARSING
+-- STOPPER PARSING
 ------------------------------------------------------------
 ------------------------------------------------------------
 
-parseShortOpt :: (ParseErr err, Error err)
-                 => CharOpts opts err
-                 -> ErrorT err (State (ParseState opts)) ()
-parseShortOpt co = do
-  st <- lift get
-  let curr = tail . head . stLeft $ st
-      newLeft = tail $ stLeft st
-  put $ st { stLeft = newLeft }
-  innerParseShort co curr
+-- | A \"stopper\" is a double dash and means \"stop processing
+-- options; everything that follows is a positional argument.\"
+isStopper :: String -> Bool
+isStopper s = s == "--"
 
-innerParseShort :: (ParseErr err, Error err)
-                   => CharOpts opts err
-                   -> [Char]       -- ^ The word with the option - prefix omitted
-                   -> ErrorT err (State (ParseState opts)) ()
-innerParseShort _ [] = return ()
-innerParseShort co (o:os) = do
-  let maybeArgDesc = M.lookup o co
-  when (isNothing maybeArgDesc) (throwError (badShortOpt o))
-  let ad = fromJust maybeArgDesc
-  case ad of (Flag f) -> parseShortFlag f co os
-             (Single f) -> parseShortSingle f o os
-             (Double f) -> parseShortDouble f o os
-
-parseShortFlag :: (ParseErr err, Error err)
-                  => (opts -> Either err opts)
-                  -> CharOpts opts err 
-                  -> [Char]
-                  -> ErrorT err (State (ParseState opts)) ()
-parseShortFlag f co os = do
+-- | Removes the stopper from the list of arguments remaining to be
+-- parsed, then parses all the remaining arguments as positional
+-- arguments.
+parseStopper :: (ParseErr err, Error err)
+                => ErrorT err (State (ParseState opts)) ()
+parseStopper = do
   st <- lift get
-  let opts = stOpts st
-      ei = f opts
-      newOpts = fromRight ei
-      newSt = st {stOpts = newOpts}
-  throwOnLeft ei
+  let newLeft = tail $ stLeft st
+      newSt = st { stLeft = newLeft }
   lift $ put newSt
-  case os of [] -> return ()
-             _ -> innerParseShort co os
-
-parseShortSingle :: (ParseErr err, Error err)
-                    => (opts -> String -> Either err opts)
-                    -> Char
-                    -> [Char]
-                    -> ErrorT err (State (ParseState opts)) ()
-parseShortSingle f o os = do
-  st <- lift get
-  let opts = stOpts st
-  case os of
-    [] -> do
-      when (null $ stLeft st) (throwError (insufficientArgs (Right o) 1 []))
-      let (a:as) = stLeft st
-          ei = f opts a
-          newOpts = fromRight ei
-          newSt = st { stOpts = newOpts
-                     , stLeft = as }
-      throwOnLeft ei
-      lift $ put newSt
-      return ()
-    word -> do
-      let ei = f opts word
-          newOpts = fromRight ei
-          newSt = st { stOpts = newOpts }
-      throwOnLeft ei
-      lift $ put newSt
-      return ()
-
-parseShortDouble :: (ParseErr err, Error err)
-                    => (opts -> String -> String -> Either err opts)
-                    -> Char
-                    -> [Char]
-                    -> ErrorT err (State (ParseState opts)) ()
-parseShortDouble f o os = do
-  st <- lift get
-  let opts = stOpts st
-  case os of
-    [] -> do
-      when (length (stLeft st) < 2)
-        (throwError (insufficientArgs (Right o) 2 []))
-      let (a:b:as) = stLeft st
-          ei = f opts a b
-          newOpts = fromRight ei
-          newSt = st { stOpts = newOpts
-                     , stLeft = as }
-      throwOnLeft ei
-      lift $ put newSt
-      return ()
-    word -> do
-      when (null (stLeft st)) (throwError (insufficientArgs (Right o) 2 []))
-      let (a:as) = stLeft st
-          ei = f opts word a
-          newOpts = fromRight ei
-          newSt = st { stOpts = newOpts
-                     , stLeft = as }
-      throwOnLeft ei
-      lift $ put newSt
-      return ()
+  parseRemainingPosArgs
 
 ------------------------------------------------------------
 ------------------------------------------------------------
@@ -485,6 +480,13 @@ parseShortDouble f o os = do
 ------------------------------------------------------------
 ------------------------------------------------------------
 
+-- |Parse a long option. pickParser has already figured out that the
+-- next word to be parsed is a long option; parseLongOpt examines the
+-- next word, examines StringOpts to determine how many option
+-- arguments it takes, and parses the option arguments. This uses
+-- breakLongWord to split the long option into the option itself and
+-- any argument that may have been passed in the same word. If the
+-- long option is not found, this calls throwError.
 parseLongOpt :: (ParseErr err, Error err)
                 => StringOpts opts err
                 -> ErrorT err (State (ParseState opts)) ()
@@ -499,9 +501,18 @@ parseLongOpt so = do
     (Left err) -> throwError err
     (Right broken) -> pickLongParser so broken
 
+-- |There are three different functions to parse long flag options,
+-- long single options, and long double options; this function picks
+-- the right one.
 pickLongParser :: (ParseErr err, Error err)
                   => StringOpts opts err
+
                   -> (String, Maybe String)
+                  -- ^ The result from breakLongWord. fst is the name
+                  -- of the long option. snd is the option argument
+                  -- that was passed in the same word, or Nothing if
+                  -- there wasn't one. See breakLongWord for details.
+
                   -> ErrorT err (State (ParseState opts)) ()
 pickLongParser so p@(s, _) = do
   case (bestLongArgDesc so s) of
@@ -586,10 +597,11 @@ parseLongDouble f (s, Nothing) = do
   lift $ put newSt
   return ()
 
--- |Applied to a string that is a long option, such as "--hello=yes",
+-- |Applied to a string that is a long option, such as @--hello=yes@,
 -- returns the long option name and the argument given, if any. For
--- example, for "--hello=yes", returns ("hello", Just "yes"). Returns
--- an error if there is no long option name (e.g. "--=yes").
+-- example, for @--hello=yes@, returns @("hello", Just "yes")@. For
+-- @--hello@, returns @("hello", Nothing)@. Returns an error if there
+-- is no long option name (e.g. @--=yes@).
 breakLongWord :: (Error err, ParseErr err) =>
                  String ->
                  Either err (String, (Maybe String))
@@ -620,18 +632,115 @@ bestLongArgDesc so s
 
 ------------------------------------------------------------
 ------------------------------------------------------------
--- STOPPER PARSING
+-- SHORT OPTION PARSING
 ------------------------------------------------------------
 ------------------------------------------------------------
-parseStopper :: (ParseErr err, Error err)
-                => ErrorT err (State (ParseState opts)) ()
-parseStopper = do
+
+-- |With short options, multiple options can be combined into one
+-- word, and an option and its argument might be combined in the same
+-- word. parseShortOpt pops the first word off from the list of words
+-- to be parsed (pickParser already ensured that the first word is
+-- indeed a short option). parseShortOpt peels the single dash off the
+-- front of the word and then passes the word to innerParseShort for
+-- parsing.
+-- BUG - FIXME - no recursion for innerParseShort
+parseShortOpt :: (ParseErr err, Error err)
+                 => CharOpts opts err
+                 -> ErrorT err (State (ParseState opts)) ()
+parseShortOpt co = do
   st <- lift get
-  let newLeft = tail $ stLeft st
-      newSt = st { stLeft = newLeft }
+  let curr = tail . head . stLeft $ st
+      newLeft = tail $ stLeft st
+  put $ st { stLeft = newLeft }
+  innerParseShort co curr
+
+innerParseShort :: (ParseErr err, Error err)
+                   => CharOpts opts err
+                   -> [Char]       -- ^ The word with the option - prefix omitted
+                   -> ErrorT err (State (ParseState opts)) ()
+innerParseShort _ [] = return ()
+innerParseShort co (o:os) = do
+  let maybeArgDesc = M.lookup o co
+  when (isNothing maybeArgDesc) (throwError (badShortOpt o))
+  let ad = fromJust maybeArgDesc
+  case ad of (Flag f) -> parseShortFlag f co os
+             (Single f) -> parseShortSingle f o os
+             (Double f) -> parseShortDouble f o os
+
+parseShortFlag :: (ParseErr err, Error err)
+                  => (opts -> Either err opts)
+                  -> CharOpts opts err
+                  -> [Char]
+                  -> ErrorT err (State (ParseState opts)) ()
+parseShortFlag f co os = do
+  st <- lift get
+  let opts = stOpts st
+      ei = f opts
+      newOpts = fromRight ei
+      newSt = st {stOpts = newOpts}
+  throwOnLeft ei
   lift $ put newSt
-  parseRemainingPosArgs
-  
+  case os of [] -> return ()
+             _ -> innerParseShort co os
+
+parseShortSingle :: (ParseErr err, Error err)
+                    => (opts -> String -> Either err opts)
+                    -> Char
+                    -> [Char]
+                    -> ErrorT err (State (ParseState opts)) ()
+parseShortSingle f o os = do
+  st <- lift get
+  let opts = stOpts st
+  case os of
+    [] -> do
+      when (null $ stLeft st) (throwError (insufficientArgs (Right o) 1 []))
+      let (a:as) = stLeft st
+          ei = f opts a
+          newOpts = fromRight ei
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      throwOnLeft ei
+      lift $ put newSt
+      return ()
+    word -> do
+      let ei = f opts word
+          newOpts = fromRight ei
+          newSt = st { stOpts = newOpts }
+      throwOnLeft ei
+      lift $ put newSt
+      return ()
+
+parseShortDouble :: (ParseErr err, Error err)
+                    => (opts -> String -> String -> Either err opts)
+                    -> Char
+                    -> [Char]
+                    -> ErrorT err (State (ParseState opts)) ()
+parseShortDouble f o os = do
+  st <- lift get
+  let opts = stOpts st
+  case os of
+    [] -> do
+      when (length (stLeft st) < 2)
+        (throwError (insufficientArgs (Right o) 2 []))
+      let (a:b:as) = stLeft st
+          ei = f opts a b
+          newOpts = fromRight ei
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      throwOnLeft ei
+      lift $ put newSt
+      return ()
+    word -> do
+      when (null (stLeft st)) (throwError (insufficientArgs (Right o) 2 []))
+      let (a:as) = stLeft st
+          ei = f opts word a
+          newOpts = fromRight ei
+          newSt = st { stOpts = newOpts
+                     , stLeft = as }
+      throwOnLeft ei
+      lift $ put newSt
+      return ()
+
 ------------------------------------------------------------
 ------------------------------------------------------------
 -- POS ARG PARSING
@@ -645,7 +754,7 @@ parseOnePosArg = do
       opts = stOpts st
       newPos = (stPos st) ++ [(opts, curr)]
       newLeft = tail . stLeft $ st
-      newSt = st { stLeft = newLeft 
+      newSt = st { stLeft = newLeft
                  , stPos = newPos }
   lift . put $ newSt
 
