@@ -236,8 +236,8 @@ parse :: (ParseErr err, Error err)
 
 parse ods ds o ss = do
   let (gc, gs) = addOptsToLookups ods
-  (opts, left) <- parseArgsNoPosArgs gc gs ss o
-  parseCmds ds opts left
+  (opts, left) <- parseArgs StopParsing gc gs ss o
+  parseCmds ds opts (map snd left)
 
 -----------------------------
 -----------------------------
@@ -332,23 +332,6 @@ parseArgs at co so ss op =
     (Left err) -> Left err
     (Right ()) -> Right (stOpts opts, stPos opts)
     
-parseArgsNoPosArgs :: (ParseErr err, Error err)
-                      => CharOpts opts err
-                      -> StringOpts opts err
-                      -> [String]
-                      -> opts
-                      -> Either err (opts, [String])
-parseArgsNoPosArgs co so ss op =
-  let (ei, opts) = runState st defaultSt
-      defaultSt = ParseState { stOpts = op
-                             , stPos = []
-                             , stLeft = ss }
-      st = runErrorT $ parseArgsNoPosArgsM co so
-  in case ei of
-    (Left err) -> Left err
-    (Right left) -> Right (stOpts opts, left)
-
-
 unwrapState :: (ParseErr err, Error err)
                => State (ParseState opts) (Either err ())
                -> ParseState opts
@@ -384,27 +367,6 @@ pickParser at lead co so
   | isShortOpt lead = parseShortOpt co
   | otherwise = case at of StopParsing -> parseRemainingPosArgs
                            ResumeParsing -> parseOnePosArg
-
-parseArgsNoPosArgsM :: (ParseErr err, Error err)
-                       => CharOpts opts err
-                       -> StringOpts opts err
-                       -> ErrorT err (State (ParseState opts)) [String]
-parseArgsNoPosArgsM co so = do
-  st <- lift get
-  if ((null . stLeft $ st) || ((head . head . stLeft $ st) /= '-'))
-    then return $ stLeft st
-    else do
-         pickParserNoPosArgs (head . stLeft $ st) co so
-         return $ stLeft st
-
-pickParserNoPosArgs :: (ParseErr err, Error err)
-                       => String
-                       -> CharOpts opts err
-                       -> StringOpts opts err
-                       -> ErrorT err (State (ParseState opts)) ()
-pickParserNoPosArgs lead co so
-  | isLongOpt lead = parseLongOpt so
-  | isShortOpt lead = parseShortOpt co
 
 ------------------------------------------------------------
 ------------------------------------------------------------
