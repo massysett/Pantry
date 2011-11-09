@@ -643,7 +643,6 @@ bestLongArgDesc so s
 -- indeed a short option). parseShortOpt peels the single dash off the
 -- front of the word and then passes the word to innerParseShort for
 -- parsing.
--- BUG - FIXME - no recursion for innerParseShort
 parseShortOpt :: (ParseErr err, Error err)
                  => CharOpts opts err
                  -> ErrorT err (State (ParseState opts)) ()
@@ -654,6 +653,11 @@ parseShortOpt co = do
   put $ st { stLeft = newLeft }
   innerParseShort co curr
 
+-- | innerParseShort is sometimes called more than once to parse a
+-- single word. If a word has more than one flag, such as @-is@
+-- (assuming both @-i@ and @-s@ are options) then innerParseShort will
+-- be called more than once. parseShortFlag will call this function as
+-- many times as necessary to parse the entire word.
 innerParseShort :: (ParseErr err, Error err)
                    => CharOpts opts err
                    -> [Char]       -- ^ The word with the option - prefix omitted
