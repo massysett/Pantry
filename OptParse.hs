@@ -242,6 +242,13 @@ parse ods ds o ss = do
 -----------------------------
 -----------------------------
 
+-- | An ArgDesc describes an argument, but the ArgDesc itself does not
+-- specify the name of the short or long option that is used on the
+-- command line to trigger the argument. For example, a program might
+-- have a flag option (one that does not take any option
+-- arguments). The flag option might be invoked using @-f@ or with
+-- @--flag@. To parse these flags, add appropriate key-value pairs to
+-- the CharOpts and StringOpts maps.
 type CharOpts opts err = M.Map Char (ArgDesc opts err)
 type StringOpts opts err = M.Map String (ArgDesc opts err)
 
@@ -260,32 +267,38 @@ addStringOpt :: ArgDesc opts err
                 -> StringOpts opts err
 addStringOpt ad old s = M.insert s ad old
 
--- | Adds the group of single argument descriptor found in OptDesc to
--- the (possibly several) letter(s) that are found in the accompanying
--- OptDesc.
+-- | Adds the list of short option names found in an OptDesc to the
+-- CharOpts, with each short option name being associated with the
+-- ArgDesc given in the OptDesc.
 addCharOpts :: CharOpts opts err
                -> OptDesc opts err
                -> CharOpts opts err
 addCharOpts os (OptDesc cs _ a) = foldl (addCharOpt a) os cs
 
+-- | Adds the list of long argument names found in an OptDesc to
+-- the StringOpts, with each long argument name being associated
+-- with the ArgDesc given in the OptDesc.
 addStringOpts :: StringOpts opts err
                  -> OptDesc opts err
                  -> StringOpts opts err
 addStringOpts os (OptDesc _ ss a) = foldl (addStringOpt a) os ss
 
+-- | Applies addStringOpts and addCharOpts repeatedly to a list of
+-- OptDesc items.
 addOptsToLookups :: [OptDesc opts err]
                     -> (CharOpts opts err, StringOpts opts err)
 addOptsToLookups os = (co, so) where
   co = foldl addCharOpts M.empty os
   so = foldl addStringOpts M.empty os
 
+-- | A simple wrapper around addOptsToLookups for CmdDesc items.
 addCmdToLookups :: CmdDesc cmd opts posargs err
                    -> (CharOpts opts err, StringOpts opts err)
 addCmdToLookups (CmdDesc _ _ os _) = addOptsToLookups os
 
 data ParseState opts = ParseState { stOpts :: opts -- ^ Opts parsed so far
                                , stPos :: [(opts, String)] -- ^ Pos args so far
-                               , stLeft :: [String] -- ^ Args to parse
+                               , stLeft :: [String] -- ^ Args remaining to parse
                                }
 
 isLongOpt :: String -> Bool
