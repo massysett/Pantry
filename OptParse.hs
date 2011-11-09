@@ -507,8 +507,8 @@ parseLongFlag :: (ParseErr err, Error err)
                  => (opts -> Either err opts)
                  -> (String, (Maybe String))
                  -> ErrorT err (State (ParseState opts)) ()
-parseLongFlag f (s, (Just a)) = throwError $ badEqualsOpt s a
-parseLongFlag f (s, Nothing) = do
+parseLongFlag _ (s, (Just a)) = throwError $ badEqualsOpt s a
+parseLongFlag f (_, Nothing) = do
   st <- lift get
   let opts = stOpts st
       ei = f opts
@@ -522,7 +522,7 @@ parseLongSingle :: (ParseErr err, Error err)
                    => (opts -> String -> Either err opts)
                    -> (String, (Maybe String))
                    -> ErrorT err (State (ParseState opts)) ()
-parseLongSingle f (s, (Just a)) = do
+parseLongSingle f (_, (Just a)) = do
   st <- lift get
   let opts = stOpts st
       ei = f opts a
@@ -694,8 +694,8 @@ pickCmd cs ss
   | otherwise = Left $ ambiguousCmd curr names
     where
       curr = head ss
-      exact = find pred cs
-      pred (CmdDesc s _ _ _) = curr == s
+      exact = find pd cs
+      pd (CmdDesc s _ _ _) = curr == s
       matches = filter isPre cs
       isPre (CmdDesc s _ _ _) = curr `isPrefixOf` s
       names = map (\(CmdDesc s _ _ _) -> s) matches
@@ -710,5 +710,5 @@ throwOnLeft _ = return ()
 
 -- |Extracts the Right value from an Either. Bombs if there is no Right value.
 fromRight :: Either a b -> b
-fromRight (Left a) = error "fromRight: value is not a right."
+fromRight (Left _) = error "fromRight: value is not a right."
 fromRight (Right b) = b
