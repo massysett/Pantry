@@ -245,12 +245,15 @@ parse ods ds o ss = do
 type CharOpts opts err = M.Map Char (ArgDesc opts err)
 type StringOpts opts err = M.Map String (ArgDesc opts err)
 
+-- | Adds a single argument description to a map of CharOpts, which
+-- will be triggered by the given char.
 addCharOpt :: ArgDesc opts err
               -> CharOpts opts err
               -> Char
               -> CharOpts opts err
 addCharOpt ad old c = M.insert c ad old
 
+-- | Adds a single argument description to a map of StringOpts. 
 addStringOpt :: ArgDesc opts err
                 -> StringOpts opts err
                 -> String
@@ -322,27 +325,16 @@ parseArgs :: (ParseErr err, Error err)
              -> opts
              -> Either err (opts, [(opts, String)])
 parseArgs at co so ss op =
-  let (ei, opts) = unwrapState st defaultSt
+  let (ei, opts) = runState st defaultSt
       defaultSt = ParseState { stOpts = op
                              , stPos = []
                              , stLeft = ss }
-      st = unwrapET parser
+      st = runErrorT parser
       parser = parseArgsM at co so
   in case ei of
     (Left err) -> Left err
     (Right ()) -> Right (stOpts opts, stPos opts)
     
-unwrapState :: (ParseErr err, Error err)
-               => State (ParseState opts) (Either err ())
-               -> ParseState opts
-               -> (Either err (), ParseState opts)
-unwrapState = runState
-
-unwrapET :: (ParseErr err, Error err)
-            => ErrorT err (State (ParseState opts)) ()
-            -> State (ParseState opts) (Either err ())
-unwrapET = runErrorT
-
 parseArgsM :: (ParseErr err, Error err)
               => AtNonOpt
               -> CharOpts opts err
