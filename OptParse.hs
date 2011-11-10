@@ -72,7 +72,6 @@ module OptParse ( ParseErr(..)
                 , ArgDesc(..)
                 , OptDesc(..)
                 , CmdDesc(..)
-                , ParseErr(..)
                 , parseGlobalsCmds
                 , parseCmds
                 , parseOptsArgs
