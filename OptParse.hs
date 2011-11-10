@@ -72,8 +72,10 @@ module OptParse ( ParseErr(..)
                 , ArgDesc(..)
                 , OptDesc(..)
                 , CmdDesc(..)
+                , ParseErr(..)
                 , parseGlobalsCmds
                 , parseCmds
+                , parseOptsArgs
                 ) where
 
 import qualified Data.Map as M
@@ -91,10 +93,17 @@ import Control.Monad.Trans.Error
 -- processing and report the error. Though options are typically
 -- preceded with one or two dashes, none of the arguments passed to
 -- the ParseErr functions are passed with leading dashes.
+--
+-- Minimal complete definition: "store".
 class ParseErr a where
+  -- | The default implementations of the class functions use the
+  -- store function to store error messages in the class instance.
+  store :: String -> a
+
   -- | A long option string was not recognized.
   badLongOpt :: String -- ^ The bad input
                 -> a
+  badLongOpt s = store $ "Long option not recognized: " ++ s ++ "\n"
 
   -- | A long option string was short but has more than one match. For
   -- instance the user passed the string @--he@ as an option, but the
@@ -102,10 +111,17 @@ class ParseErr a where
   ambiguousLongOpt :: String -- ^ The string the user passed
                       -> [String] -- ^ Possible matches
                       -> a
+  ambiguousLongOpt s ss = store $ "Ambiguous long option. "
+                        ++ "Option you passed: " ++ s
+                        ++ " Possible matches: "
+                        ++ (concat . intersperse " " $ ss)
+                        ++ "\n"
 
   -- | A short option character has no recognized matches.
   badShortOpt :: Char -- ^ Unrecognized character
                  -> a
+  badShortOpt c = store $ "Short option not recognized: "
+                  ++ c:'\n':[]
 
   -- | Long options can be passed GNU style, where the option and the
   -- option argument appear in the same word, as in @--number=4@. This
@@ -115,6 +131,10 @@ class ParseErr a where
   badEqualsOpt :: String -- ^ The option name
                   -> String -- ^ The option argument the user passed
                   -> a
+  badEqualsOpt n a = store $ "Argument passed for the "
+                     ++ n ++ " option, but it does not take "
+                     ++ "an argument. Argument you passed: "
+                     ++ a ++ "\n"
 
   -- | The user did not give enough option arguments.
   insufficientArgs :: Either String Char
@@ -124,14 +144,28 @@ class ParseErr a where
                       -> [String]
                       -- ^ Number of arguments actually received
                       -> a
+  insufficientArgs e n r = 
+    store $ "Insufficient number of option "
+    ++ "arguments given. Option name: "
+    ++ n' ++ " Number of arguments expected: "
+    ++ show n ++ " Arguments you gave: "
+    ++ (concat . intersperse " " $ r)
+    ++ "\n" where
+      n' = case e of (Left s) -> s
+                     (Right c) -> c:[]
 
   -- | Long option was passed, and it has an equal sign and an option
   -- argument, but no name (e.g. @--=yes@)
-  longOptWithoutName :: a
+  longOptWithoutName :: String -- ^ Text of the bad long option
+                        -> a
+  longOptWithoutName s = store $ "Long option was passed without a name. "
+                         ++ "Option name you passed: "
+                         ++ s ++ "\n"
 
   -- | An unrecognized command name was used.
   noMatchingCmd :: String -- ^ name of unrecognized command
                    -> a
+  noMatchingCmd s = store $ "Unrecognized long option: " ++ s ++ "\n"
 
   -- | A command name matches more than one possible command name, for
   -- instance the user passed @fin@ but there are commands named
@@ -139,15 +173,22 @@ class ParseErr a where
   ambiguousCmd :: String -- ^ The string the user passed
                   -> [String] -- ^ Possible matches
                   -> a
+  ambiguousCmd s ss = store $ "Ambiguous command name. Name you gave: "
+                      ++ s ++ " Possible matches: "
+                      ++ (concat . intersperse " " $ ss) ++ "\n"
 
   -- | The user did not provide any command at all.
   noCmd :: a
+  noCmd = store "No command given.\n"
 
   -- | The user passed a positional argument where one is not allowed
   -- (e.g. for a command for which positional arguments are not
   -- allowed).
   posArgsNotAllowed :: String -- ^ Positional argument the user gave
                        -> a
+  posArgsNotAllowed s = store $ "Positional arguments not allowed. "
+                        ++ "Positional argument you gave: "
+                        ++ s ++ "\n"
 
 -- | Describes a positional argument. For example, in the command
 -- @pantry find -i name hello@, the positional arguments are @name@
@@ -276,7 +317,27 @@ parseCmds = parseGlobalsCmds []
 -- resembles many other parsers, such as System.Console.Getopt.
 parseOptsArgs :: (ParseErr err, Error err)
                  => [OptDesc opts err]
-                 -> 
+                 -> opts
+                 -> ([(opts, String)] -> Either err posargs)
+                 -- ^ How to parse a list of @(opts, String)@
+                 -- pairs. This single function will be called after
+                 -- all positional arguments have been processed. The
+                 -- @opts@ element of the pair specifies the options
+                 -- that were in force when the positional argument
+                 -- was encountered on the command line.
+                 
+                 -> [String]
+                 -- ^ What to parse. Do not include the program name
+                 -- in the list of options to parse (this is
+                 -- consistent with what is returned by
+                 -- System.Environment.getArgs).
+
+                 -> Either err (opts, posargs)
+parseOptsArgs ods o f ss = do
+  let (co, so) = addOptsToLookups ods
+  (opts, pos) <- parseArgs StopParsing co so ss o
+  posArgs <- f pos
+  return (opts, posArgs)
 
 -----------------------------
 -----------------------------
@@ -638,7 +699,7 @@ breakLongWord s = do
   let trimmed = drop 2 s
       (pre, suf) = break (== '=') trimmed
       arg = if (null suf) then Nothing else (Just $ tail suf)
-  when (null pre) (E.throwError longOptWithoutName)
+  when (null pre) (E.throwError $ longOptWithoutName s)
   return (pre, arg)
 
 -- |Finds the ArgDesc that is the best match for a string. If there is
