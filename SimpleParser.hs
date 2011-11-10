@@ -1,6 +1,7 @@
 module SimpleParser where
 
 import OptParse
+import Data.List
 
 data SimpleErr = SimpleErr String
 
@@ -48,9 +49,35 @@ makeDoubleOpt :: [Char] -- ^ Short option names
                  -> OptDesc [ParsedOpt] SimpleErr
 makeDoubleOpt ss ls n = OptDesc ss ls (Double $ doubleParser n)
 
-combinations :: [a] -> [[[a]]]
-combinations = undefined
+data NamedOptDesc opt err = NamedOptDesc String (OptDesc opt err)
+data CLItem opt err = ShortCLItem Char (NamedOptDesc opt err)
+                    | LongCLItem String (NamedOptDesc opt err)
 
-prepend :: a -> [[a]] -> [[a]]
-prepend p [[]] = [[p]]
-prepend p ((i:is):os) = ((p:i:is):os) ++ ([p]:(i:is):os)
+data CLGroup opt err = CLGroup [CLItem opt err]
+
+toCLItems :: NamedOptDesc opt err
+            -> [NamedOptDesc opt err]
+            -> [CLItem opt err]
+toCLItems no@(NamedOptDesc n (OptDesc ss ls a)) os = shorts ++ longs where
+  shorts = map makeShort ss
+  makeShort s = ShortCLItem s no
+  longs = map makeLong ls
+  makeLong s = LongCLItem s no
+
+uniquePrefixes :: String -> [String] -> [String]
+uniquePrefixes s ss = filter notPrefix (tail . inits $ s) where
+  notPrefix p = not . any (p `isPrefixOf`) $ ss
+  
+  
+  
+
+
+combinations :: [a] -> [[[a]]]
+combinations = foldr prependToList [[[]]]
+
+prependItem :: a -> [[a]] -> [[[a]]]
+prependItem p [[]] = [[[p]]]
+prependItem p ((i:is):os) = ((p:i:is):os):([p]:(i:is):os):[]
+
+prependToList :: a -> [[[a]]] -> [[[a]]]
+prependToList = concatMap . prependItem
