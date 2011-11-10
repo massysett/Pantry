@@ -47,3 +47,10 @@ makeDoubleOpt :: [Char] -- ^ Short option names
                  -> String -- ^ Name of this option for the [ParsedOpt] list
                  -> OptDesc [ParsedOpt] SimpleErr
 makeDoubleOpt ss ls n = OptDesc ss ls (Double $ doubleParser n)
+
+combinations :: [a] -> [[[a]]]
+combinations = undefined
+
+prepend :: a -> [[a]] -> [[a]]
+prepend p [[]] = [[p]]
+prepend p ((i:is):os) = ((p:i:is):os) ++ ([p]:(i:is):os)
