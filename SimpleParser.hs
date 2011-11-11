@@ -2,16 +2,26 @@ module SimpleParser where
 
 import OptParse
 import Data.List
+import Control.Monad.Trans.Error
 
-data SimpleErr = SimpleErr String
+data SimpleErr = SimpleErr String deriving Show
 
 instance ParseErr SimpleErr where
   store = SimpleErr
+
+instance Error SimpleErr where
+  strMsg = SimpleErr
 
 data ParsedOpt = ParsedFlag String
                | ParsedSingle String String
                | ParsedDouble String String String
                deriving (Show, Eq)
+
+emptyParsedOpt :: [ParsedOpt]
+emptyParsedOpt = []
+
+posArgParser :: [(opts, String)] -> Either err [String]
+posArgParser os = Right $ map snd os
 
 flagParser :: String -- ^ Name to reprt in result
               -> [ParsedOpt]
@@ -49,6 +59,7 @@ makeDoubleOpt :: [Char] -- ^ Short option names
                  -> OptDesc [ParsedOpt] SimpleErr
 makeDoubleOpt ss ls n = OptDesc ss ls (Double $ doubleParser n)
 
+{-
 data NamedOptDesc opt err = NamedOptDesc String (OptDesc opt err)
 data CLItem opt err = ShortCLItem Char (NamedOptDesc opt err)
                     | LongCLItem String (NamedOptDesc opt err)
@@ -61,13 +72,33 @@ toCLItems :: NamedOptDesc opt err
 toCLItems no@(NamedOptDesc n (OptDesc ss ls a)) os = shorts ++ longs where
   shorts = map makeShort ss
   makeShort s = ShortCLItem s no
-  longs = map makeLong ls
+  longs = map makeLong uniqueLongs
   makeLong s = LongCLItem s no
+  uniqueLongs = concatMap (flip uniquePrefixes allLongs) ls
+  allLongs = filter (`elem` ls) (concatMap namedOptDescToLongs os)
+  namedOptDescToLongs (NamedOptDesc _ (OptDesc _ ss _)) = ss
+
+groupShorts :: [CLItem opt err] -> [CLGroup opt err]
+groupShorts cs = map CLGroup grouped where
+  grouped = groupBy equal cs
+  equal (ShortCLItem _ _) (ShortCLItem _ _) = True
+  equal _ _ = False
+
+clGroupToStrings :: CLGroup opt err -> [String]
+clGroupToStrings = undefined
+
+
+shortPermutations :: [CLItem opt err] -> [[[CLItem opt err]]]
+shortPermutations cs = filter (not . bad) combs where
+  combs = combinations cs
+  bad ls = any (notFlag) (init ls)
+  notFlag (ShortCLItem _ (NamedOptDesc _ (OptDesc _ _ (Flag _)))) = False
+  notFlag _ = True
 
 uniquePrefixes :: String -> [String] -> [String]
 uniquePrefixes s ss = filter notPrefix (tail . inits $ s) where
   notPrefix p = not . any (p `isPrefixOf`) $ ss
-  
+
   
   
 
@@ -81,3 +112,4 @@ prependItem p ((i:is):os) = ((p:i:is):os):([p]:(i:is):os):[]
 
 prependToList :: a -> [[[a]]] -> [[[a]]]
 prependToList = concatMap . prependItem
+-}
