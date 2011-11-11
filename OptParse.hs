@@ -516,11 +516,13 @@ parseArgsM :: (ParseErr err, Error err)
               -> ErrorT err (State (ParseState opts)) ()
 parseArgsM at co so = do
   st <- lift get
-  if (null . stLeft $ st)
-    then return ()
-    else pickParser at (head . stLeft $ st) co so
-  parseArgsM at co so
-
+  let loop
+        | (null . stLeft $ st) = return ()
+        | otherwise = do
+          pickParser at (head . stLeft $ st) co so
+          parseArgsM at co so
+  loop
+ 
 -- |Examines, but does not change, the next word in the ParseState to
 -- be parsed. Then calls the appropriate parser in to actually parse
 -- the word. This function does not actually change or remove the next
