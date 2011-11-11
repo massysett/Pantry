@@ -143,7 +143,7 @@ class ParseErr a where
                       -> [String]
                       -- ^ Number of arguments actually received
                       -> a
-  insufficientArgs e n r = 
+  insufficientArgs e n r =
     store $ "Insufficient number of option "
     ++ "arguments given. Option name: "
     ++ n' ++ " Number of arguments expected: "
@@ -324,7 +324,7 @@ parseOptsArgs :: (ParseErr err, Error err)
                  -- @opts@ element of the pair specifies the options
                  -- that were in force when the positional argument
                  -- was encountered on the command line.
-                 
+
                  -> [String]
                  -- ^ What to parse. Do not include the program name
                  -- in the list of options to parse (this is
@@ -522,7 +522,7 @@ parseArgsM at co so = do
           pickParser at (head . stLeft $ st) co so
           parseArgsM at co so
   loop
- 
+
 -- |Examines, but does not change, the next word in the ParseState to
 -- be parsed. Then calls the appropriate parser in to actually parse
 -- the word. This function does not actually change or remove the next
