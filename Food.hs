@@ -4,10 +4,12 @@ module Food where
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Decimal
-import Text.Regex.PCRE
 import Data.Maybe
 import Control.Monad
 import Control.Monad.Instances
+import Data.List
+import qualified Data.Foldable as F
+import qualified Data.Traversable as T
 
 newtype Name = Name String deriving (Eq, Ord, Show)
 newtype NutAmt = NutAmt Rational deriving (Eq, Ord, Show, Num, Real)
@@ -98,18 +100,34 @@ getTag n f = do
   v <- M.lookup n m
   return $ TagNameVal n v
 
-addTag :: TagNameVal -> Food -> Food
-addTag (TagNameVal n (TagVal v)) f = f {tags = new} where
+changeTag :: TagNameVal -> Food -> Food
+changeTag (TagNameVal n (TagVal v)) f = f {tags = new} where
   (TagNamesVals old) = tags f
   new = TagNamesVals (M.insert n (TagVal v) old)
 
--- | Delete tags whose name matches specified pattern.
-deleteTag :: Matcher m => m -> Food -> Food
-deleteTag m f = f {tags = new} where
+changeTags :: F.Foldable f => f TagNameVal -> Food -> Food
+changeTags ts f = F.foldl' (flip changeTag) f ts
+
+changeTagsInFoods :: (F.Foldable a, Functor b) =>
+                     a TagNameVal
+                     -> b Food
+                     -> b Food
+changeTagsInFoods ts = fmap (changeTags ts)
+
+deleteTag :: (Matcher m) => m -> Food -> Food
+deleteTag m f = f { tags = new } where
   (TagNamesVals old) = tags f
-  new = TagNamesVals $ M.fromList ns
-  ns = filter (not . matches m . tagName . fst) (M.assocs old)
-  tagName n = let (Name v) = n in v
+  new = TagNamesVals . M.fromList . filter p . M.assocs $ old
+  p (Name n, _) = not $ matches m n
+
+deleteTags :: (Matcher m, F.Foldable f) => f m -> Food -> Food
+deleteTags ms f = F.foldl' (flip deleteTag) f ms
+
+deleteTagsInFoods :: (Matcher m, F.Foldable a, Functor b)
+                     => a m
+                     -> b Food
+                     -> b Food
+deleteTagsInFoods ms fs = fmap (deleteTags ms) fs
 
 -- | True if food has a tag whose name matches the Name and whose
 -- value matches the second matcher.
@@ -125,6 +143,15 @@ addUnit (UnitNameAmt n a) f = f {units = new} where
   (UnitNamesAmts old) = units f
   new = UnitNamesAmts $ M.insert n a old
 
+addUnits :: F.Foldable f => f UnitNameAmt -> Food -> Food
+addUnits us f = F.foldl' (flip addUnit) f us
+
+addUnitsToFoods :: (F.Foldable f, Functor l)
+                   => f UnitNameAmt
+                   -> l Food
+                   -> l Food
+addUnitsToFoods us = fmap (addUnits us)
+
 -- | Delete arbitrary units whose name matches a matcher.
 deleteUnits :: Matcher m => m -> Food -> Food
 deleteUnits m f = f {units = new} where
@@ -132,6 +159,10 @@ deleteUnits m f = f {units = new} where
   new = UnitNamesAmts $ M.fromList ns
   ns = filter (not . matches m . unitName . fst) (M.assocs old)
   unitName n = let (Name v) = n in v
+
+deleteUnitsFromFoods :: (Matcher m, Functor f)
+                        => m -> f Food -> f Food
+deleteUnitsFromFoods m = fmap (deleteUnits m)
 
 allUnits :: UnitNamesAmts -> UnitNamesAmts
 allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
@@ -142,53 +173,52 @@ allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
 
 -- | Change current unit to the one matching a matcher.
 changeCurrUnit :: (Matcher m) => m -> Food -> Either Error Food
-changeCurrUnit m f = if' oneMatch (Right updateFood) (Left err) where
-  oneMatch = length matches == 1
-  allU = allUnits $ units f
-  matches = filter pred $ M.assocs allU
+changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
+  oneMatch = length ms == 1
+  (UnitNamesAmts allU) = allUnits $ units f
+  newFood = f {currUnit = newUnit}
+  newUnit = UnitNameAmt headMatchName headMatchGrams
+  headMatchName = fst . head $ ms
+  headMatchGrams = snd . head $ ms
+  ms = filter pred $ M.assocs allU
   pred ((Name n), _) = matches m n
-  updateFood = f {currUnit = head matches}
-  err = if' (null matches) NoMatchingUnit (MultipleMatchingUnits matches)
+  err = if' (null ms) NoMatchingUnit (MultipleMatchingUnits ms)
 
-{-
-changeCurrUnit :: String -> Food -> Either Error Food
-changeCurrUnit p f = if' oneMatch (Right updateFood) (Left err) where
-  oneMatch = length matches == 1
-  allU = allUnitsMap $ units f
-  matches = filter (=~ p) (M.keys allU)
-  newUnitWrapped = allU M.! head matches
-  newUnit = case newUnitWrapped of
-    (Left abs) -> Absolute abs
-    (Right arb) -> Arbitrary arb
-  updateFood = f {currUnit = newUnit}
-  err = if null matches
-        then NoMatchingUnit
-        else MultipleMatchingUnits matches
-
--- Nuts manipulations
-nutRatioToNutAmt :: Grams -> NutRatio -> NutAmt
-nutRatioToNutAmt (Grams g) (NutRatio r) = NutAmt $ g * r
-
-nut
-
-absUnitGrams :: AbsUnit -> Grams
-absUnitGrams AbsGrams = Grams $ 1 % 1
-absUnitGrams Ounces = Grams $ 2835 % 100
-absUnitGrams Pounds = Grams $ 4536 % 10
+changeCurrUnits :: (Matcher m, T.Traversable t)
+                   => m -> t Food -> Either Error (t Food)
+changeCurrUnits m = T.mapM (changeCurrUnit m)
 
 foodGrams :: Food -> Grams
-foodGrams f = Grams $ toRational (qty f) * toRational grams where
-  grams = case (currUnit f) of
-    (Absolute abs) -> absUnitGrams abs
-    (Arbitrary (Unit _ g)) -> g
+foodGrams f = Grams $ q * u where
+  (Qty quan) = qty f
+  q = toRational quan
+  (UnitNameAmt _ (Grams unit)) = currUnit f
+  u = toRational unit
 
+-- Nut manipulations
+addNut :: NutNameAmt -> Food -> Either Error Food
+addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
+  g = foodGrams f
+  notZero = g /= (Grams 0)
+  newFood = f {nutRatios = newRatios}
+  (NutNamesRatios oldRatios) = nutRatios f
+  newRatio = NutRatio $ rat / gr where
+    (NutAmt rat) = a
+    (Grams gr) = g
+  newRatios = NutNamesRatios $ M.insert n newRatio oldRatios
+  err = AddNutToZeroQty
 
-addNut :: Food -> Nut -> Either Error Food
-addNut f (Nut n v) = f {nuts = newNuts} where
--}
+addNuts :: (F.Foldable f) => f NutNameAmt -> Food -> Either Error Food
+addNuts ns f = F.foldlM (flip addNut) f ns
+
+addNutsToFoods :: (F.Foldable a, T.Traversable t)
+                  => a NutNameAmt
+                  -> t Food
+                  -> Either Error (t Food)
+addNutsToFoods ns = T.mapM (addNuts ns)
 
 data Error = NoMatchingUnit
-           | MultipleMatchingUnits [UnitNameAmt]
+           | MultipleMatchingUnits [(Name, Grams)]
            | AddNutToZeroQty
            | Other String
 
