@@ -55,9 +55,9 @@ instance Ord MixedNum where
 instance Real MixedNum where
   toRational (MixedNum d r) = toRational d + r
 
-newtype PctRefuse = PctRefuse Decimal deriving Show
+newtype PctRefuse = PctRefuse MixedNum deriving Show
 newtype Qty = Qty MixedNum deriving (Eq, Ord, Num, Real, Show)
-newtype Yield = Yield (Maybe Decimal) deriving Show
+newtype Yield = Yield (Maybe MixedNum) deriving Show
 newtype Ingr = Ingr [Food] deriving Show
 
 data Food = Food { tags :: TagNamesVals
@@ -83,7 +83,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , units = UnitNamesAmts M.empty
                  , nutRatios = NutNamesRatios M.empty
                  , currUnit = absGrams
-                 , pctRefuse = PctRefuse (Decimal 0 0)
+                 , pctRefuse = PctRefuse (MixedNum (Decimal 0 0) (0 % 1))
                  , qty = Qty (MixedNum (Decimal 0 100) (0 % 1))
                  , yield = Yield Nothing
                  , ingr = Ingr [] }
@@ -153,16 +153,22 @@ addUnitsToFoods :: (F.Foldable f, Functor l)
 addUnitsToFoods us = fmap (addUnits us)
 
 -- | Delete arbitrary units whose name matches a matcher.
-deleteUnits :: Matcher m => m -> Food -> Food
-deleteUnits m f = f {units = new} where
+deleteUnit :: Matcher m => m -> Food -> Food
+deleteUnit m f = f {units = new} where
   (UnitNamesAmts old) = units f
   new = UnitNamesAmts $ M.fromList ns
   ns = filter (not . matches m . unitName . fst) (M.assocs old)
   unitName n = let (Name v) = n in v
 
-deleteUnitsFromFoods :: (Matcher m, Functor f)
-                        => m -> f Food -> f Food
-deleteUnitsFromFoods m = fmap (deleteUnits m)
+deleteUnits :: (Matcher m, F.Foldable f)
+               => f m
+               -> Food
+               -> Food
+deleteUnits ms f = F.foldl' (flip deleteUnit) f ms
+
+deleteUnitsFromFoods :: (Matcher m, F.Foldable a, Functor b)
+                        => a m -> b Food -> b Food
+deleteUnitsFromFoods ms = fmap (deleteUnits ms)
 
 allUnits :: UnitNamesAmts -> UnitNamesAmts
 allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
@@ -216,6 +222,58 @@ addNutsToFoods :: (F.Foldable a, T.Traversable t)
                   -> t Food
                   -> Either Error (t Food)
 addNutsToFoods ns = T.mapM (addNuts ns)
+
+ratioToAmt :: Grams -> NutRatio -> NutAmt
+ratioToAmt (Grams g) (NutRatio r) = NutAmt $ g * r
+
+foodIngrNuts :: Food -> NutNamesAmts
+foodIngrNuts = foldFoodNuts . (\(Ingr fs) -> fs) . ingr
+
+foodNuts :: Food -> NutNamesAmts
+foodNuts f = NutNamesAmts new where
+  new = M.union abs ing
+  (NutNamesAmts abs) = foodAbsNuts f
+  (NutNamesAmts ing) = foodIngrNuts f
+
+foodAbsNuts :: Food -> NutNamesAmts
+foodAbsNuts f = NutNamesAmts $ M.map (ratioToAmt g) old where
+  g = foodGrams f
+  (NutNamesRatios old) = nutRatios f
+
+sumNuts :: NutNamesAmts -> NutNamesAmts -> NutNamesAmts
+sumNuts (NutNamesAmts l) (NutNamesAmts r) =
+  NutNamesAmts $ M.unionWith (+) l r
+
+foldNuts :: (F.Foldable f) => f NutNamesAmts -> NutNamesAmts
+foldNuts = F.foldl' sumNuts (NutNamesAmts M.empty)
+
+foldFoodNuts :: (F.Foldable f, Functor f) => f Food -> NutNamesAmts
+foldFoodNuts = foldNuts . fmap foodNuts
+
+setPctRefuse :: PctRefuse -> Food -> Food
+setPctRefuse p f = f {pctRefuse = p}
+
+minusPctRefuse :: Food -> Food
+minusPctRefuse f = f {qty = newQty} where
+  newQty = Qty (MixedNum 0 $ old - old * (pr / 100))
+  pr = toRational $ (\(PctRefuse d) -> d) (pctRefuse f)
+  old = toRational . qty $ f
+
+recipeYield :: Food -> Maybe Grams
+recipeYield f = if' (null ins) Nothing (Just g) where
+  (Ingr ins) = ingr f
+  g = if' (isNothing y) ingrSum (Grams $ toRational (fromJust y))
+  (Yield y) = yield f
+  ingrSum = sum . map foodGrams $ ins
+
+recipeAdjustedAmt :: Grams -- ^ Recipe yield
+                     -> Grams -- ^ Mass of all ingredients
+                     -> NutAmt
+                     -> NutAmt
+recipeAdjustedAmt y a n = NutAmt $ ag / yg * ng where
+  (Grams ag) = a
+  (Grams yg) = y
+  (NutAmt ng) = n
 
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
