@@ -17,10 +17,11 @@ addTag t@(TagNameVal (Name n) (TagVal v)) m = M.insert n vm' m where
   vm' = addValue v vmOld
   vmOld = M.findWithDefault M.empty n m
 
-data Key = Key Name Ordering
+data Direction = Descending | Ascending
+data Key = Key Name Direction
 
 pred :: [Key] -> Food -> Food -> Ordering
 pred = undefined
 
 keyPred :: TagMap -> Key -> Food -> Food -> Ordering
-keyPred = undefined
+keyPred ts (Key n d) 

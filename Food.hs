@@ -95,6 +95,9 @@ class Matcher a where
 
 -- Tag manipulations
 
+hasTag :: Name -> Food -> Bool
+hasTag n f = M.member n ts where (TagNamesVals ts) = tags f
+
 getTag :: Name -> Food -> Maybe TagNameVal
 getTag n f = do
   let (TagNamesVals m) = tags f
