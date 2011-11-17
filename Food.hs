@@ -10,6 +10,7 @@ import Control.Monad.Instances
 import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
+import qualified Data.Sequence as S
 
 newtype Name = Name String deriving (Eq, Ord, Show)
 newtype NutAmt = NutAmt Rational deriving (Eq, Ord, Show, Num, Real)
@@ -58,7 +59,7 @@ instance Real MixedNum where
 newtype PctRefuse = PctRefuse MixedNum deriving Show
 newtype Qty = Qty MixedNum deriving (Eq, Ord, Num, Real, Show)
 newtype Yield = Yield (Maybe MixedNum) deriving Show
-newtype Ingr = Ingr [Food] deriving Show
+newtype Ingr = Ingr (S.Seq Food) deriving Show
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
@@ -86,7 +87,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , pctRefuse = PctRefuse (MixedNum (Decimal 0 0) (0 % 1))
                  , qty = Qty (MixedNum (Decimal 0 100) (0 % 1))
                  , yield = Yield Nothing
-                 , ingr = Ingr [] }
+                 , ingr = Ingr S.empty }
 
 -- Matchers
 class Matcher a where
@@ -227,7 +228,18 @@ ratioToAmt :: Grams -> NutRatio -> NutAmt
 ratioToAmt (Grams g) (NutRatio r) = NutAmt $ g * r
 
 foodIngrNuts :: Food -> NutNamesAmts
-foodIngrNuts = foldFoodNuts . (\(Ingr fs) -> fs) . ingr
+foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
+  raw = (\(NutNamesAmts m) -> m) . foldFoodNuts
+        . (\(Ingr fs) -> fs) . ingr $ f
+  y = fromJust $ recipeYield f
+  im = ingredientMass f
+  ingrZero = im == (Grams 0)
+  (Ingr is) = ingr f
+  adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
+  recipeAdjustedAmt n = NutAmt $ ig / yg * ng where
+    (Grams ig) = im
+    (Grams yg) = y
+    (NutAmt ng) = n
 
 foodNuts :: Food -> NutNamesAmts
 foodNuts f = NutNamesAmts new where
@@ -250,6 +262,7 @@ foldNuts = F.foldl' sumNuts (NutNamesAmts M.empty)
 foldFoodNuts :: (F.Foldable f, Functor f) => f Food -> NutNamesAmts
 foldFoodNuts = foldNuts . fmap foodNuts
 
+-- PctRefuse functions
 setPctRefuse :: PctRefuse -> Food -> Food
 setPctRefuse p f = f {pctRefuse = p}
 
@@ -259,21 +272,43 @@ minusPctRefuse f = f {qty = newQty} where
   pr = toRational $ (\(PctRefuse d) -> d) (pctRefuse f)
   old = toRational . qty $ f
 
-recipeYield :: Food -> Maybe Grams
-recipeYield f = if' (null ins) Nothing (Just g) where
-  (Ingr ins) = ingr f
-  g = if' (isNothing y) ingrSum (Grams $ toRational (fromJust y))
-  (Yield y) = yield f
-  ingrSum = sum . map foodGrams $ ins
+-- Ingredient functions
 
-recipeAdjustedAmt :: Grams -- ^ Recipe yield
-                     -> Grams -- ^ Mass of all ingredients
-                     -> NutAmt
-                     -> NutAmt
-recipeAdjustedAmt y a n = NutAmt $ ag / yg * ng where
-  (Grams ag) = a
-  (Grams yg) = y
-  (NutAmt ng) = n
+-- | Returns total mass of all ingredients in the food. If there are
+-- no ingredients, or if all ingredients have mass of zero, returns
+-- zero.
+ingredientMass :: Food -> Grams
+ingredientMass f = F.foldl' (+) (Grams 0) (fmap foodGrams ins) where
+  (Ingr ins) = ingr f
+
+-- | Returns the yield - that is, the total mass when one recipe is
+-- prepared. If there is a Yield already set for the food, return
+-- that. Otherwise, if the food has ingredients and they have positive
+-- mass, return that. Otherwise, return Nothing.
+recipeYield :: Food -> Maybe Grams
+recipeYield f = if' (isJust y) (Just yG) i where
+  (Yield y) = yield f
+  yG = Grams $ toRational (fromJust y)
+  i = if' (mR > 0) (Just . Grams $ mR) Nothing
+  (Grams mR) = ingredientMass f
+
+-- Ingredient functions
+
+addIngredient :: Food -> Food -> Food
+addIngredient i f = f {ingr = Ingr new} where
+  (Ingr old) = ingr f
+  new = old S.|> i
+  
+addIngredients :: F.Foldable f =>
+                  f Food -> Food -> Food
+addIngredients fs f = F.foldl' (flip addIngredient) f fs
+
+addIngredientsToFoods :: (F.Foldable f, Functor u)
+                         => f Food -> u Food -> u Food
+addIngredientsToFoods fs = fmap (addIngredients fs)
+
+deleteIngredients :: Food -> Food
+deleteIngredients f = f {ingr = Ingr S.empty}
 
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
