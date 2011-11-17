@@ -1,6 +1,7 @@
 module Sorter( foodcmp
              , TagMap
              , addTag
+             , makeTagMap
              ) where
 
 import Food
