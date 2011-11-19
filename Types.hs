@@ -2,9 +2,12 @@
 module Types( NonNeg
             , NonNegMixed
             , Add(..)
+            , partialNewNonNeg
             , toNonNeg
             , strToNonNeg
-            , strToNonNegMixed ) where
+            , strToNonNegMixed
+            , zeroPercent
+            , zeroNonNegMixed ) where
 
 import Data.Ratio
 import Data.Decimal
@@ -12,10 +15,31 @@ import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.Monoid
 
+newtype BoundedPercent = BoundedPercent { unBoundedPercent :: Rational }
+                         deriving (Eq, Ord, Show)
+
+partialNewNonNeg :: Rational -> NonNeg
+partialNewNonNeg r = if r < 0 then e else NonNeg r where
+  e = error "partialNewNonNeg: value out of range"
+
+zeroPercent :: BoundedPercent
+zeroPercent = BoundedPercent $ 0 % 1
+
+strToBoundedPercent :: String -> Maybe BoundedPercent
+strToBoundedPercent s = do
+  m <- strToNonNegMixed s
+  let (NonNeg r) = toNonNeg m
+      p = r / 100
+  when (p < 0 || p > 100) $ fail "percent out of range"
+  return $ BoundedPercent p
+
 newtype NonNeg = NonNeg { unNonNeg :: Rational } deriving (Eq, Ord, Show)
 
 data NonNegMixed = NonNegMixed { mixedDec :: Decimal
                                , mixedRatio :: Rational } deriving Show
+
+zeroNonNegMixed :: NonNegMixed
+zeroNonNegMixed = NonNegMixed (Decimal 0 0) (0 % 1)
 
 instance Eq NonNegMixed where
   l == r = toNonNeg l == toNonNeg r

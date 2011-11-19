@@ -11,17 +11,18 @@ import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import qualified Data.Sequence as S
+import Types
 
 newtype Name = Name String deriving (Eq, Ord, Show)
-newtype NutAmt = NutAmt Rational deriving (Eq, Ord, Show, Num, Real)
+newtype NutAmt = NutAmt NonNeg deriving (Eq, Ord, Show, Add)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
-newtype NutRatio = NutRatio Rational deriving (Eq, Ord, Show, Num, Real)
+newtype NutRatio = NutRatio Rational deriving Show
 data NutNameRatio = NutNameRatio Name NutRatio deriving Show
 newtype NutNamesRatios = NutNamesRatios (M.Map Name NutRatio) deriving Show
 
-newtype Grams = Grams Rational deriving (Eq, Ord, Show, Num, Real)
+newtype Grams = Grams NonNeg deriving (Eq, Ord, Show, Add)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
 
@@ -32,33 +33,9 @@ newtype TagNamesVals = TagNamesVals (M.Map Name TagVal) deriving Show
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
-data MixedNum = MixedNum Decimal Rational deriving (Eq, Show)
-instance Num MixedNum where
-  (+) (MixedNum d1 r1) (MixedNum d2 r2) =
-    MixedNum (d1 + d2) (r1 + r2)
-  (-) (MixedNum d1 r1) (MixedNum d2 r2) =
-    MixedNum (d1 - d2) (r1 - r2)
-  (*) (MixedNum d1 r1) (MixedNum d2 r2) =
-    MixedNum (d1 * d2) (r1 * r2)
-  abs (MixedNum d r) = MixedNum (abs d) (abs r)
-  signum (MixedNum d r) = if' (s == 0) zero signed where
-    zero = MixedNum (Decimal 0 0) (0 % 1)
-    signed = if' (s < 0) negative positive
-    negative = MixedNum (Decimal 0 (-1)) (0 % 1)
-    positive = MixedNum (Decimal 0 1) (0 % 1)
-    s = toRational d + r
-  fromInteger i = MixedNum (fromInteger i) (0 % 1)
-
-instance Ord MixedNum where
-  (<=) (MixedNum d1 r1) (MixedNum d2 r2) =
-    (toRational d1 + r1) <= (toRational d2 + r2)
-
-instance Real MixedNum where
-  toRational (MixedNum d r) = toRational d + r
-
-newtype PctRefuse = PctRefuse MixedNum deriving (Show, Eq, Num, Ord, Real, Fractional, RealFrac)
-newtype Qty = Qty MixedNum deriving (Eq, Ord, Num, Real, Show)
-newtype Yield = Yield (Maybe MixedNum) deriving Show
+newtype PctRefuse = PctRefuse BoundedPercent deriving (Eq, Ord, Show)
+newtype Qty = Qty NonNegMixed deriving (Eq, Ord, Show)
+newtype Yield = Yield (Maybe NonNeg) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
 
 data Food = Food { tags :: TagNamesVals
@@ -72,21 +49,21 @@ data Food = Food { tags :: TagNamesVals
                  , foodId :: Integer } deriving Show
 
 absGrams :: UnitNameAmt
-absGrams = UnitNameAmt (Name "g") (Grams $ 1 % 1)
+absGrams = UnitNameAmt (Name "g") (Grams . partialNewNonNeg $ 1 % 1)
 
 absOunces :: UnitNameAmt
-absOunces = UnitNameAmt (Name "oz") (Grams $ 2835 % 1000)
+absOunces = UnitNameAmt (Name "oz") (Grams . partialNewNonNeg $ 2835 % 1000)
 
 absPounds :: UnitNameAmt
-absPounds = UnitNameAmt (Name "lb") (Grams $ 4536 % 10)
+absPounds = UnitNameAmt (Name "lb") (Grams . partialNewNonNeg $ 4536 % 10)
 
 emptyFood :: Food
 emptyFood = Food { tags = TagNamesVals M.empty
                  , units = UnitNamesAmts M.empty
                  , nutRatios = NutNamesRatios M.empty
                  , currUnit = absGrams
-                 , pctRefuse = PctRefuse (MixedNum (Decimal 0 0) (0 % 1))
-                 , qty = Qty (MixedNum (Decimal 0 100) (0 % 1))
+                 , pctRefuse = zeroPercent
+                 , qty = Qty zeroNonNegMixed
                  , yield = Yield Nothing
                  , ingr = Ingr S.empty
                  , foodId = 0 }
@@ -204,17 +181,16 @@ changeCurrUnits :: (Matcher m, T.Traversable t)
 changeCurrUnits m = T.mapM (changeCurrUnit m)
 
 foodGrams :: Food -> Grams
-foodGrams f = Grams $ q * u where
+foodGrams f = Grams $ q `mult` u where
   (Qty quan) = qty f
-  q = toRational quan
-  (UnitNameAmt _ (Grams unit)) = currUnit f
-  u = toRational unit
+  q = toNonNeg quan
+  (UnitNameAmt _ u) = currUnit f
 
 -- Nut manipulations
 addNut :: NutNameAmt -> Food -> Either Error Food
 addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
   g = foodGrams f
-  notZero = g /= (Grams 0)
+  notZero = g /= zero
   newFood = f {nutRatios = newRatios}
   (NutNamesRatios oldRatios) = nutRatios f
   newRatio = NutRatio $ rat / gr where
