@@ -56,7 +56,7 @@ instance Ord MixedNum where
 instance Real MixedNum where
   toRational (MixedNum d r) = toRational d + r
 
-newtype PctRefuse = PctRefuse MixedNum deriving Show
+newtype PctRefuse = PctRefuse MixedNum deriving (Show, Eq, Num, Ord, Real, Fractional, RealFrac)
 newtype Qty = Qty MixedNum deriving (Eq, Ord, Num, Real, Show)
 newtype Yield = Yield (Maybe MixedNum) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
@@ -68,7 +68,8 @@ data Food = Food { tags :: TagNamesVals
                  , pctRefuse :: PctRefuse
                  , qty :: Qty
                  , yield :: Yield
-                 , ingr :: Ingr } deriving Show
+                 , ingr :: Ingr
+                 , foodId :: Integer } deriving Show
 
 absGrams :: UnitNameAmt
 absGrams = UnitNameAmt (Name "g") (Grams $ 1 % 1)
@@ -87,7 +88,8 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , pctRefuse = PctRefuse (MixedNum (Decimal 0 0) (0 % 1))
                  , qty = Qty (MixedNum (Decimal 0 100) (0 % 1))
                  , yield = Yield Nothing
-                 , ingr = Ingr S.empty }
+                 , ingr = Ingr S.empty
+                 , foodId = 0 }
 
 -- Matchers
 class Matcher a where
@@ -173,6 +175,9 @@ deleteUnits ms f = F.foldl' (flip deleteUnit) f ms
 deleteUnitsFromFoods :: (Matcher m, F.Foldable a, Functor b)
                         => a m -> b Food -> b Food
 deleteUnitsFromFoods ms = fmap (deleteUnits ms)
+
+allAvailUnits :: Food -> UnitNamesAmts
+allAvailUnits = allUnits . units
 
 allUnits :: UnitNamesAmts -> UnitNamesAmts
 allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
