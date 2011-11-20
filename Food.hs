@@ -3,7 +3,7 @@ module Food where
 
 import qualified Data.Map as M
 import Data.Ratio
-import Data.Decimal
+import Data.Decimal hiding (divide)
 import Data.Maybe
 import Control.Monad
 import Control.Monad.Instances
@@ -18,7 +18,7 @@ newtype NutAmt = NutAmt NonNeg deriving (Eq, Ord, Show, Add)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
-newtype NutRatio = NutRatio Rational deriving Show
+newtype NutRatio = NutRatio NonNeg deriving Show
 data NutNameRatio = NutNameRatio Name NutRatio deriving Show
 newtype NutNamesRatios = NutNamesRatios (M.Map Name NutRatio) deriving Show
 
@@ -34,8 +34,8 @@ if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
 newtype PctRefuse = PctRefuse BoundedPercent deriving (Eq, Ord, Show)
-newtype Qty = Qty NonNegMixed deriving (Eq, Ord, Show)
-newtype Yield = Yield (Maybe NonNeg) deriving Show
+newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
+newtype Yield = Yield (Maybe Grams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
 
 data Food = Food { tags :: TagNamesVals
@@ -62,8 +62,8 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , units = UnitNamesAmts M.empty
                  , nutRatios = NutNamesRatios M.empty
                  , currUnit = absGrams
-                 , pctRefuse = zeroPercent
-                 , qty = Qty zeroNonNegMixed
+                 , pctRefuse = PctRefuse zeroPercent
+                 , qty = Qty (Left zero)
                  , yield = Yield Nothing
                  , ingr = Ingr S.empty
                  , foodId = 0 }
@@ -183,8 +183,10 @@ changeCurrUnits m = T.mapM (changeCurrUnit m)
 foodGrams :: Food -> Grams
 foodGrams f = Grams $ q `mult` u where
   (Qty quan) = qty f
-  q = toNonNeg quan
-  (UnitNameAmt _ u) = currUnit f
+  q = case quan of
+    (Left nn) -> nn
+    (Right mix) -> toNonNeg mix
+  (UnitNameAmt _ (Grams u)) = currUnit f
 
 -- Nut manipulations
 addNut :: NutNameAmt -> Food -> Either Error Food
@@ -193,7 +195,7 @@ addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
   notZero = g /= zero
   newFood = f {nutRatios = newRatios}
   (NutNamesRatios oldRatios) = nutRatios f
-  newRatio = NutRatio $ rat / gr where
+  newRatio = NutRatio $ rat `divide` gr where
     (NutAmt rat) = a
     (Grams gr) = g
   newRatios = NutNamesRatios $ M.insert n newRatio oldRatios
@@ -209,7 +211,7 @@ addNutsToFoods :: (F.Foldable a, T.Traversable t)
 addNutsToFoods ns = T.mapM (addNuts ns)
 
 ratioToAmt :: Grams -> NutRatio -> NutAmt
-ratioToAmt (Grams g) (NutRatio r) = NutAmt $ g * r
+ratioToAmt (Grams g) (NutRatio r) = NutAmt $ g `mult` r
 
 foodIngrNuts :: Food -> NutNamesAmts
 foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
@@ -217,10 +219,10 @@ foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
         . (\(Ingr fs) -> fs) . ingr $ f
   y = fromJust $ recipeYield f
   im = ingredientMass f
-  ingrZero = im == (Grams 0)
+  ingrZero = im == (Grams zero)
   (Ingr is) = ingr f
   adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
-  recipeAdjustedAmt n = NutAmt $ ig / yg * ng where
+  recipeAdjustedAmt n = NutAmt $ ig `divide` yg `mult` ng where
     (Grams ig) = im
     (Grams yg) = y
     (NutAmt ng) = n
@@ -238,7 +240,7 @@ foodAbsNuts f = NutNamesAmts $ M.map (ratioToAmt g) old where
 
 sumNuts :: NutNamesAmts -> NutNamesAmts -> NutNamesAmts
 sumNuts (NutNamesAmts l) (NutNamesAmts r) =
-  NutNamesAmts $ M.unionWith (+) l r
+  NutNamesAmts $ M.unionWith add l r
 
 foldNuts :: (F.Foldable f) => f NutNamesAmts -> NutNamesAmts
 foldNuts = F.foldl' sumNuts (NutNamesAmts M.empty)
@@ -252,9 +254,12 @@ setPctRefuse p f = f {pctRefuse = p}
 
 minusPctRefuse :: Food -> Food
 minusPctRefuse f = f {qty = newQty} where
-  newQty = Qty (MixedNum 0 $ old - old * (pr / 100))
-  pr = toRational $ (\(PctRefuse d) -> d) (pctRefuse f)
-  old = toRational . qty $ f
+  newQty = Qty (Left . subtractPercent q $ p)
+  (Qty quan) = qty f
+  q = case quan of
+    (Left nn) -> nn
+    (Right mx) -> toNonNeg mx
+  (PctRefuse p) = pctRefuse f
 
 -- Ingredient functions
 
@@ -262,7 +267,7 @@ minusPctRefuse f = f {qty = newQty} where
 -- no ingredients, or if all ingredients have mass of zero, returns
 -- zero.
 ingredientMass :: Food -> Grams
-ingredientMass f = F.foldl' (+) (Grams 0) (fmap foodGrams ins) where
+ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
   (Ingr ins) = ingr f
 
 -- | Returns the yield - that is, the total mass when one recipe is
@@ -270,10 +275,9 @@ ingredientMass f = F.foldl' (+) (Grams 0) (fmap foodGrams ins) where
 -- that. Otherwise, if the food has ingredients and they have positive
 -- mass, return that. Otherwise, return Nothing.
 recipeYield :: Food -> Maybe Grams
-recipeYield f = if' (isJust y) (Just yG) i where
+recipeYield f = if' (isJust y) y i where
   (Yield y) = yield f
-  yG = Grams $ toRational (fromJust y)
-  i = if' (mR > 0) (Just . Grams $ mR) Nothing
+  i = if' (mR > zero) (Just . Grams $ mR) Nothing
   (Grams mR) = ingredientMass f
 
 -- Ingredient functions

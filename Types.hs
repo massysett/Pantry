@@ -2,6 +2,10 @@
 module Types( NonNeg
             , NonNegMixed
             , Add(..)
+            , BoundedPercent
+            , Divide(..)
+            , strToBoundedPercent
+            , subtractPercent
             , partialNewNonNeg
             , toNonNeg
             , strToNonNeg
@@ -30,8 +34,11 @@ strToBoundedPercent s = do
   m <- strToNonNegMixed s
   let (NonNeg r) = toNonNeg m
       p = r / 100
-  when (p < 0 || p > 100) $ fail "percent out of range"
+  when (p < 0 || p >= 100) $ fail "percent out of range"
   return $ BoundedPercent p
+
+subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
+subtractPercent (NonNeg n) (BoundedPercent p) = NonNeg $ n - n * p
 
 newtype NonNeg = NonNeg { unNonNeg :: Rational } deriving (Eq, Ord, Show)
 
@@ -53,11 +60,17 @@ class Add a where
   mult :: a -> a -> a
   one :: a
 
+class Divide a where
+  divide :: a -> a -> a
+
 instance Add NonNeg where
   zero = NonNeg 0
   add (NonNeg l) (NonNeg r) = NonNeg $ l + r
   mult (NonNeg l) (NonNeg r) = NonNeg $ l * r
   one = NonNeg 1
+
+instance Divide NonNeg where
+  divide (NonNeg l) (NonNeg r) = NonNeg $ l / r
 
 strToNonNeg :: String -> Maybe NonNeg
 strToNonNeg s = strToNonNegMixed s >>= return . toNonNeg
