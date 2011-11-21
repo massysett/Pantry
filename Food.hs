@@ -12,8 +12,10 @@ import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import qualified Data.Sequence as S
 import Types
+import Data.Text hiding (filter, map, length, head, null)
+import qualified Data.Text as X
 
-newtype Name = Name String deriving (Eq, Ord, Show)
+newtype Name = Name Text deriving (Eq, Ord, Show)
 newtype NutAmt = NutAmt NonNeg deriving (Eq, Ord, Show, Add)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
@@ -26,7 +28,7 @@ newtype Grams = Grams NonNeg deriving (Eq, Ord, Show, Add)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
 
-newtype TagVal = TagVal String deriving (Eq, Ord, Show)
+newtype TagVal = TagVal Text deriving (Eq, Ord, Show)
 data TagNameVal = TagNameVal Name TagVal deriving Show
 newtype TagNamesVals = TagNamesVals (M.Map Name TagVal) deriving Show
 
@@ -49,13 +51,13 @@ data Food = Food { tags :: TagNamesVals
                  , foodId :: Integer } deriving Show
 
 absGrams :: UnitNameAmt
-absGrams = UnitNameAmt (Name "g") (Grams . partialNewNonNeg $ 1 % 1)
+absGrams = UnitNameAmt (Name . pack $ "g") (Grams . partialNewNonNeg $ 1 % 1)
 
 absOunces :: UnitNameAmt
-absOunces = UnitNameAmt (Name "oz") (Grams . partialNewNonNeg $ 2835 % 1000)
+absOunces = UnitNameAmt (Name . pack $ "oz") (Grams . partialNewNonNeg $ 2835 % 1000)
 
 absPounds :: UnitNameAmt
-absPounds = UnitNameAmt (Name "lb") (Grams . partialNewNonNeg $ 4536 % 10)
+absPounds = UnitNameAmt (Name . pack $ "lb") (Grams . partialNewNonNeg $ 4536 % 10)
 
 emptyFood :: Food
 emptyFood = Food { tags = TagNamesVals M.empty
@@ -70,7 +72,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
 
 -- Matchers
 class Matcher a where
-  matches :: a -> String -> Bool
+  matches :: a -> Text -> Bool
 
 -- Tag manipulations
 
