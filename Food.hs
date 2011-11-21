@@ -25,6 +25,7 @@ data NutNameRatio = NutNameRatio Name NutRatio deriving Show
 newtype NutNamesRatios = NutNamesRatios (M.Map Name NutRatio) deriving Show
 
 newtype Grams = Grams NonNeg deriving (Eq, Ord, Show, Add)
+newtype MixedGrams = MixedGrams NonNegMixed deriving Show
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
 
@@ -37,7 +38,7 @@ if' b x y = case b of True -> x; False -> y
 
 newtype PctRefuse = PctRefuse BoundedPercent deriving (Eq, Ord, Show)
 newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
-newtype Yield = Yield (Maybe Grams) deriving Show
+newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
 
 data Food = Food { tags :: TagNamesVals
@@ -277,7 +278,8 @@ ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
 -- that. Otherwise, if the food has ingredients and they have positive
 -- mass, return that. Otherwise, return Nothing.
 recipeYield :: Food -> Maybe Grams
-recipeYield f = if' (isJust y) y i where
+recipeYield f = if' (isJust y) gr i where
+  gr = Just . Grams . toNonNeg . (\(MixedGrams m) -> m) . fromJust $ y
   (Yield y) = yield f
   i = if' (mR > zero) (Just . Grams $ mR) Nothing
   (Grams mR) = ingredientMass f
