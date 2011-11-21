@@ -9,15 +9,19 @@ import Data.List.Split
 import qualified Data.Map as M
 import Data.Map hiding (map, (\\), null)
 import Data.Maybe
+import Data.Text hiding (map, null, drop, length, unlines, transpose,
+                         zip, replicate)
+import qualified Data.Text as X
 
-data Report = Report { header :: ReportOpts -> [Food] -> String
-                     , body :: ReportOpts -> [Food] -> Food -> String
-                     , footer :: ReportOpts -> [Food] -> String }
+
+data Report = Report { header :: ReportOpts -> [Food] -> Text
+                     , body :: ReportOpts -> [Food] -> Food -> Text
+                     , footer :: ReportOpts -> [Food] -> Text }
 
 emptyRpt :: Report
-emptyRpt = Report { header = \_ _ -> ""
-                  , body = \_ _ _ -> ""
-                  , footer = \_ _ -> "" }
+emptyRpt = Report { header = \_ _ -> X.empty
+                  , body = \_ _ _ -> X.empty
+                  , footer = \_ _ -> X.empty }
 
 data ReportOpts = ReportOpts { goals :: [NutNameAmt]
                              , showAllNuts :: Bool
@@ -34,18 +38,19 @@ defaultReportOpts = ReportOpts { goals = []
 
 name :: Report
 name = emptyRpt {body = b} where
-  b _ _ f = n ++ "\n" where
+  b _ _ f = snoc n '\n' where
     n = case getTag t f of
-      Nothing -> "(No name)"
-      (Just (TagNameVal _ (TagVal v))) -> show v
-    t = Name "name"
+      Nothing -> pack "(No name)"
+      (Just (TagNameVal _ (TagVal v))) -> v
+    t = Name . pack $ "name"
 
 tagRpt :: Report
 tagRpt = emptyRpt {body = b} where
   b o _ f = listToCols cs ss where
     cs = if oneColumn o then [] else [35]
     ss = map toString ts
-    toString (n, v) = show n ++ ": " ++ show v
+    toString ((Name n), (TagVal v)) =
+      n `append` (pack ": ") `append` v
     ts = orderedNV ++ restNV
     (TagNamesVals m) = tags f
     orderedNV = catMaybes . map (lookupPair m) . showTags $ o
@@ -64,36 +69,36 @@ columns n ls = transpose . splitEvery s $ ls where
   s = if r == 0 then q else q + 1
   (q, r) = length ls `divMod` n
 
-rpad :: Int -> String -> String
-rpad l s = s ++ p where
-  p | length s >= l = " "
-    | otherwise = replicate (l - length s) ' '
+rpad :: Int -> Text -> Text
+rpad l = justifyLeft l ' '
 
-colsToString :: [Int] -> [String] -> String
-colsToString is ss = firsts ++ lasts ++ "\n" where
-  firsts = concatMap (uncurry rpad) . zip is $ ss
-  lasts = concat . drop (length is) $ ss
+colsToString :: [Int] -> [Text] -> Text
+colsToString is ss = firsts `append` lasts `snoc` '\n' where
+  firsts = X.concat . map (uncurry rpad) . zip is $ ss
+  lasts = X.concat . drop (length is) $ ss
 
-colsListToString :: [Int] -> [[String]] -> String
-colsListToString = concatMap . colsToString
+colsListToString :: [Int] -> [[Text]] -> Text
+colsListToString is tss = X.concat . map (colsToString is) $ tss
 
-listToCols :: [Int] -> [String] -> String
+listToCols :: [Int] -> [Text] -> Text
 listToCols ls = colsListToString ls . columns (length ls + 1)
 
 blank :: Report
 blank = emptyRpt {body = b} where
-  b _ _ _ = "\n"
+  b _ _ _ = pack "\n"
 
 unitsRpt :: Report
 unitsRpt = emptyRpt {body = b} where
-  b _ _ f = concatMap toString (assocs m) where
-    toString (k, _) = replicate 3 ' ' ++ show k ++ "\n"
+  b _ _ f = X.concat . map toString $ (assocs m) where
+    toString ((Name k), _) =
+      (pack . replicate 3 $ ' ') `append` k `snoc` '\n'
     (UnitNamesAmts m) = allAvailUnits f
 
+{-
 propertiesRpt :: Report
 propertiesRpt = emptyRpt {body = b} where
   b o _ f = if oneColumn o then long else brief where
-    long = unlines [q, un, ua, r, y, i] where
+    long = X.unlines [q, un, ua, r, y, i] where
       q = "Quantity: " ++ show (qty f)
       un = "Unit name: " ++ show unitName where
         (UnitNameAmt unitName _) = currUnit f
@@ -107,3 +112,4 @@ propertiesRpt = emptyRpt {body = b} where
           (Just m) -> show m ++ " grams"
       i = "ID: " ++ show (foodId f)
     brief = undefined
+-}
