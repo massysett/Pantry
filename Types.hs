@@ -18,8 +18,12 @@ import Data.Decimal
 import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.Monoid
+import qualified Data.Text as X
 
-newtype BoundedPercent = BoundedPercent { unBoundedPercent :: Rational }
+class Render a where
+  render :: a -> X.Text
+
+newtype BoundedPercent = BoundedPercent NonNegMixed
                          deriving (Eq, Ord, Show)
 
 partialNewNonNeg :: Rational -> NonNeg
@@ -27,18 +31,20 @@ partialNewNonNeg r = if r < 0 then e else NonNeg r where
   e = error "partialNewNonNeg: value out of range"
 
 zeroPercent :: BoundedPercent
-zeroPercent = BoundedPercent $ 0 % 1
+zeroPercent = BoundedPercent zeroNonNegMixed
 
 strToBoundedPercent :: String -> Maybe BoundedPercent
 strToBoundedPercent s = do
   m <- strToNonNegMixed s
   let (NonNeg r) = toNonNeg m
       p = r / 100
-  when (p < 0 || p >= 100) $ fail "percent out of range"
-  return $ BoundedPercent p
+  when (p < 0 || p >= 1) $ fail "percent out of range"
+  return $ BoundedPercent m
 
 subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
-subtractPercent (NonNeg n) (BoundedPercent p) = NonNeg $ n - n * p
+subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
+  nn = NonNeg $ n - n * p
+  (NonNeg p) = toNonNeg pct
 
 newtype NonNeg = NonNeg { unNonNeg :: Rational } deriving (Eq, Ord, Show)
 
