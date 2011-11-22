@@ -1,6 +1,7 @@
 module Reports where
 
 import Food
+import Types
 import qualified Prelude as P
 import Prelude hiding (lookup)
 import qualified Data.List as L
@@ -12,7 +13,98 @@ import Data.Maybe
 import Data.Text hiding (map, null, drop, length, unlines, transpose,
                          zip, replicate)
 import qualified Data.Text as X
+import Data.Ratio
+import Data.Decimal
 
+class Render a where
+  render :: a -> Text
+
+instance Render NonNeg where
+  render = pack . show . round . nonNegToRational
+
+instance Render NonNegMixed where
+  render n = result where
+    result = case (d, r) of
+      (Just ds, Just rs) -> ds `snoc` ' ' `append` rs
+      (Just ds, Nothing) -> ds
+      (Nothing, Just rs) -> rs
+      (Nothing, Nothing) -> pack "0"
+    nd = mixedDec n
+    nr = mixedRatio n
+    d | nd == Decimal 0 0 = Nothing
+      | otherwise = Just . pack . show $ nd
+    r | nr == (0 % 1) = Nothing
+      | otherwise = Just . pack $ num ++ "/" ++ den where
+        num = show . numerator $ nr
+        den = show . denominator $ nr
+
+instance Render BoundedPercent where
+  render = render . pctToMixed
+
+instance Render Name where
+  render (Name t) = t
+
+instance Render NutAmt where render (NutAmt n) = render n
+
+instance Render Grams where render (Grams n) = render n
+instance Render MixedGrams where render (MixedGrams n) = render n
+
+instance Render UnitNameAmt where
+  render (UnitNameAmt n g) = txt where
+    txt = nt `append` open `append` gt `append` close
+    nt = render n
+    open = pack " ("
+    gt = render g
+    close = pack " g)"
+
+instance Render UnitNamesAmts where
+  render (UnitNamesAmts m) = r where
+    r = X.concat . map toLine . map toNameAmt . M.assocs $ m
+    toLine u = blank `append` render u `snoc` '\n' where
+      blank = pack . replicate 4 $ ' '
+    toNameAmt = uncurry UnitNameAmt
+
+instance Render TagVal where
+  render (TagVal t) = t
+
+instance Render TagNameVal where
+  render (TagNameVal n v) = r where
+    r = lbl `append` col `append` val `snoc` '\n'
+    lbl = render n
+    col = pack ": "
+    val = render v
+
+newtype PctRefuseShort = PctRefuseShort PctRefuse
+instance Render PctRefuseShort where
+  render (PctRefuseShort (PctRefuse b)) = l `append` v where
+    l = pack "%R: "
+    v = render b
+
+newtype PctRefuseLong = PctRefuseLong PctRefuse
+instance Render PctRefuseLong where
+  render (PctRefuseLong (PctRefuse b)) = l `append` v where
+    l = pack "Percent refuse: "
+    v = render b
+
+newtype TagNamesValsOneCol = TagNamesValsOneCol TagNamesVals
+
+instance Render TagNamesValsOneCol where
+  render (TagNamesValsOneCol (TagNamesVals m)) = r where
+    r = X.unlines
+        . map render
+        . map (uncurry TagNameVal)
+        . M.assocs $ m
+
+newtype TagNamesValsTwoCols = TagNamesValsTwoCols TagNamesVals
+
+instance Render TagNamesValsTwoCols where
+  render (TagNamesValsTwoCols (TagNamesVals m)) = r where
+    r = X.unlines
+        . map X.concat
+        . columns 2
+        . map render
+        . map (uncurry TagNameVal)
+        . M.assocs $ m
 
 data Report = Report { header :: ReportOpts -> [Food] -> Text
                      , body :: ReportOpts -> [Food] -> Food -> Text
