@@ -1,17 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Types( NonNeg
-            , NonNegMixed
-            , Add(..)
-            , BoundedPercent
-            , Divide(..)
-            , strToBoundedPercent
-            , subtractPercent
             , partialNewNonNeg
+            , NonNegMixed
             , toNonNeg
-            , strToNonNeg
-            , strToNonNegMixed
-            , zeroPercent
-            , zeroNonNegMixed ) where
+            , BoundedPercent
+            , subtractPercent
+            , HasZero(..)
+            , Add(..)
+            , Divide(..)
+            , FromStr(..) ) where
 
 import Data.Ratio
 import Data.Decimal
@@ -20,39 +17,14 @@ import Control.Monad
 import Data.Monoid
 import qualified Data.Text as X
 
-class Render a where
-  render :: a -> X.Text
-
-newtype BoundedPercent = BoundedPercent NonNegMixed
-                         deriving (Eq, Ord, Show)
+newtype NonNeg = NonNeg Rational deriving (Eq, Ord, Show)
 
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where
   e = error "partialNewNonNeg: value out of range"
 
-zeroPercent :: BoundedPercent
-zeroPercent = BoundedPercent zeroNonNegMixed
-
-strToBoundedPercent :: String -> Maybe BoundedPercent
-strToBoundedPercent s = do
-  m <- strToNonNegMixed s
-  let (NonNeg r) = toNonNeg m
-      p = r / 100
-  when (p < 0 || p >= 1) $ fail "percent out of range"
-  return $ BoundedPercent m
-
-subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
-subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
-  nn = NonNeg $ n - n * p
-  (NonNeg p) = toNonNeg pct
-
-newtype NonNeg = NonNeg { unNonNeg :: Rational } deriving (Eq, Ord, Show)
-
 data NonNegMixed = NonNegMixed { mixedDec :: Decimal
                                , mixedRatio :: Rational } deriving Show
-
-zeroNonNegMixed :: NonNegMixed
-zeroNonNegMixed = NonNegMixed (Decimal 0 0) (0 % 1)
 
 instance Eq NonNegMixed where
   l == r = toNonNeg l == toNonNeg r
@@ -60,32 +32,61 @@ instance Eq NonNegMixed where
 instance Ord NonNegMixed where
   compare l r = compare (toNonNeg l) (toNonNeg r)
 
-class Add a where
+toNonNeg :: NonNegMixed -> NonNeg
+toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
+
+newtype BoundedPercent = BoundedPercent NonNegMixed
+                         deriving (Eq, Ord, Show)
+
+subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
+subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
+  nn = NonNeg $ n - n * p
+  (NonNeg p) = toNonNeg pct
+
+class HasZero a where
   zero :: a
+
+instance HasZero BoundedPercent where
+  zero = BoundedPercent zero
+
+instance HasZero NonNegMixed where
+  zero = NonNegMixed (Decimal 0 0) (0 % 1)
+
+instance HasZero NonNeg where
+  zero = NonNeg $ 0 % 1
+
+class (HasZero a) => Add a where
   add :: a -> a -> a
   mult :: a -> a -> a
   one :: a
 
-class Divide a where
-  divide :: a -> a -> a
-
 instance Add NonNeg where
-  zero = NonNeg 0
   add (NonNeg l) (NonNeg r) = NonNeg $ l + r
   mult (NonNeg l) (NonNeg r) = NonNeg $ l * r
   one = NonNeg 1
 
+class Divide a where
+  divide :: a -> a -> a
+
 instance Divide NonNeg where
   divide (NonNeg l) (NonNeg r) = NonNeg $ l / r
 
-strToNonNeg :: String -> Maybe NonNeg
-strToNonNeg s = strToNonNegMixed s >>= return . toNonNeg
+class FromStr a where
+  fromStr :: String -> Maybe a
 
-toNonNeg :: NonNegMixed -> NonNeg
-toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
+instance FromStr NonNeg where
+  fromStr s = fromStr s >>= return . toNonNeg
 
-strToNonNegMixed :: String -> Maybe NonNegMixed
-strToNonNegMixed = either (const Nothing) Just . parse parseNonNegMixed ""
+instance FromStr NonNegMixed where
+  fromStr = either (const Nothing) Just . parse parseNonNegMixed ""
+
+instance FromStr BoundedPercent where
+  fromStr s = do
+    m <- fromStr s
+    let (NonNeg r) = toNonNeg m
+        p = r / 100
+    when (p < 0 || p >= 1) $ fail "percent out of range"
+    return $ BoundedPercent m
 
 parseNonNegMixed :: Parser NonNegMixed
 parseNonNegMixed = try frac <|> try decimalFraction <|> dec where
