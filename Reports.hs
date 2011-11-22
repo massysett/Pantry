@@ -17,13 +17,13 @@ import Data.Ratio
 import Data.Decimal
 
 class Render a where
-  render :: a -> Text
+  render :: ReportOpts -> a -> Text
 
 instance Render NonNeg where
-  render = pack . show . round . nonNegToRational
+  render _ = pack . show . round . nonNegToRational
 
 instance Render NonNegMixed where
-  render n = result where
+  render _ n = result where
     result = case (d, r) of
       (Just ds, Just rs) -> ds `snoc` ' ' `append` rs
       (Just ds, Nothing) -> ds
@@ -39,72 +39,62 @@ instance Render NonNegMixed where
         den = show . denominator $ nr
 
 instance Render BoundedPercent where
-  render = render . pctToMixed
+  render o = render o . pctToMixed
 
 instance Render Name where
-  render (Name t) = t
+  render _ (Name t) = t
 
-instance Render NutAmt where render (NutAmt n) = render n
+instance Render NutAmt where render o (NutAmt n) = render o n
 
-instance Render Grams where render (Grams n) = render n
-instance Render MixedGrams where render (MixedGrams n) = render n
+nutWidth :: Int
+nutWidth = 35
+
+instance Render NutNameAmt where
+  render o (NutNameAmt n a) = label `append` amt where
+    label = rpad nutWidth . render o $ n
+    amt = render o a
+
+instance Render Grams where render o (Grams n) = render o n
+instance Render MixedGrams where render o (MixedGrams n) = render o n
 
 instance Render UnitNameAmt where
-  render (UnitNameAmt n g) = txt where
+  render o (UnitNameAmt n g) = txt where
     txt = nt `append` open `append` gt `append` close
-    nt = render n
+    nt = render o n
     open = pack " ("
-    gt = render g
+    gt = render o g
     close = pack " g)"
 
 instance Render UnitNamesAmts where
-  render (UnitNamesAmts m) = r where
+  render o (UnitNamesAmts m) = r where
     r = X.concat . map toLine . map toNameAmt . M.assocs $ m
-    toLine u = blank `append` render u `snoc` '\n' where
+    toLine u = blank `append` (render o u) `snoc` '\n' where
       blank = pack . replicate 4 $ ' '
     toNameAmt = uncurry UnitNameAmt
 
 instance Render TagVal where
-  render (TagVal t) = t
+  render _ (TagVal t) = t
 
 instance Render TagNameVal where
-  render (TagNameVal n v) = r where
+  render o (TagNameVal n v) = r where
     r = lbl `append` col `append` val `snoc` '\n'
-    lbl = render n
+    lbl = render o n
     col = pack ": "
-    val = render v
+    val = render o v
 
-newtype PctRefuseShort = PctRefuseShort PctRefuse
-instance Render PctRefuseShort where
-  render (PctRefuseShort (PctRefuse b)) = l `append` v where
-    l = pack "%R: "
-    v = render b
+instance Render PctRefuse where
+  render o (PctRefuse b) = l `append` v where
+    l | oneColumn o = pack "Percent refuse: "
+      | otherwise = pack "%R: "
+    v = render o b
 
-newtype PctRefuseLong = PctRefuseLong PctRefuse
-instance Render PctRefuseLong where
-  render (PctRefuseLong (PctRefuse b)) = l `append` v where
-    l = pack "Percent refuse: "
-    v = render b
-
-newtype TagNamesValsOneCol = TagNamesValsOneCol TagNamesVals
-
-instance Render TagNamesValsOneCol where
-  render (TagNamesValsOneCol (TagNamesVals m)) = r where
-    r = X.unlines
-        . map render
-        . map (uncurry TagNameVal)
-        . M.assocs $ m
-
-newtype TagNamesValsTwoCols = TagNamesValsTwoCols TagNamesVals
-
-instance Render TagNamesValsTwoCols where
-  render (TagNamesValsTwoCols (TagNamesVals m)) = r where
-    r = X.unlines
-        . map X.concat
-        . columns 2
-        . map render
-        . map (uncurry TagNameVal)
-        . M.assocs $ m
+instance Render TagNamesVals where
+  render o (TagNamesVals m) = X.unlines . makeCols . makeLines $ m where
+    makeCols | oneColumn o = id
+             | otherwise = map X.concat . columns 2
+    makeLines = map (render o)
+                . map (uncurry TagNameVal)
+                . M.assocs
 
 data Report = Report { header :: ReportOpts -> [Food] -> Text
                      , body :: ReportOpts -> [Food] -> Food -> Text
@@ -119,14 +109,16 @@ data ReportOpts = ReportOpts { goals :: [NutNameAmt]
                              , showAllNuts :: Bool
                              , showTags :: [Name]
                              , showAllTags :: Bool
-                             , oneColumn :: Bool }
+                             , oneColumn :: Bool
+                             , totals :: NutNamesAmts }
 
 defaultReportOpts :: ReportOpts
 defaultReportOpts = ReportOpts { goals = []
                                , showAllNuts = False
                                , showTags = []
                                , showAllTags = False
-                               , oneColumn = False }
+                               , oneColumn = False
+                               , totals = NutNamesAmts M.empty }
 
 name :: Report
 name = emptyRpt {body = b} where
