@@ -1,9 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Types( NonNeg
+            , nonNegToRational
             , partialNewNonNeg
             , NonNegMixed
+            , mixedDec
+            , mixedRatio
             , toNonNeg
             , BoundedPercent
+            , pctToMixed
             , subtractPercent
             , HasZero(..)
             , Add(..)
@@ -15,9 +19,10 @@ import Data.Decimal
 import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.Monoid
-import qualified Data.Text as X
+import Data.Text as X
 
-newtype NonNeg = NonNeg Rational deriving (Eq, Ord, Show)
+newtype NonNeg = NonNeg { nonNegToRational :: Rational }
+               deriving (Eq, Ord, Show)
 
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where
@@ -35,8 +40,8 @@ instance Ord NonNegMixed where
 toNonNeg :: NonNegMixed -> NonNeg
 toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 
-newtype BoundedPercent = BoundedPercent NonNegMixed
-                         deriving (Eq, Ord, Show)
+newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
+                       deriving (Eq, Ord, Show)
 
 subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
 subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
@@ -87,6 +92,8 @@ instance FromStr BoundedPercent where
         p = r / 100
     when (p < 0 || p >= 1) $ fail "percent out of range"
     return $ BoundedPercent m
+
+-- Parsec basement
 
 parseNonNegMixed :: Parser NonNegMixed
 parseNonNegMixed = try frac <|> try decimalFraction <|> dec where

@@ -16,7 +16,8 @@ import Data.Text hiding (filter, map, length, head, null)
 import qualified Data.Text as X
 
 newtype Name = Name Text deriving (Eq, Ord, Show)
-newtype NutAmt = NutAmt NonNeg deriving (Eq, Ord, Show, Add)
+newtype NutAmt = NutAmt NonNeg
+                 deriving (Eq, Ord, Show, Add, HasZero)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
@@ -24,7 +25,8 @@ newtype NutRatio = NutRatio NonNeg deriving Show
 data NutNameRatio = NutNameRatio Name NutRatio deriving Show
 newtype NutNamesRatios = NutNamesRatios (M.Map Name NutRatio) deriving Show
 
-newtype Grams = Grams NonNeg deriving (Eq, Ord, Show, Add)
+newtype Grams = Grams NonNeg
+                deriving (Eq, Ord, Show, Add, HasZero)
 newtype MixedGrams = MixedGrams NonNegMixed deriving Show
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
@@ -36,7 +38,8 @@ newtype TagNamesVals = TagNamesVals (M.Map Name TagVal) deriving Show
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
-newtype PctRefuse = PctRefuse BoundedPercent deriving (Eq, Ord, Show)
+newtype PctRefuse = PctRefuse BoundedPercent
+                    deriving (Eq, Ord, Show, HasZero)
 newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
@@ -65,7 +68,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , units = UnitNamesAmts M.empty
                  , nutRatios = NutNamesRatios M.empty
                  , currUnit = absGrams
-                 , pctRefuse = PctRefuse zeroPercent
+                 , pctRefuse = zero
                  , qty = Qty (Left zero)
                  , yield = Yield Nothing
                  , ingr = Ingr S.empty
