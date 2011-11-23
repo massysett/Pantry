@@ -180,6 +180,10 @@ unitsRpt = emptyRpt {body = b} where
     (UnitNamesAmts m) = allAvailUnits f
 
 -- Nut rpt
+data GoalNameAmt = GoalNameAmt Name NutAmt
+data ActualFoodAmt = ActualFoodAmt (Maybe NutAmt)
+data ActualTotalAmt = ActualTotalAmt 
+data GoalNut = GoalNut GoalNameAmt (Maybe NutAmt) 
 
 {-
 propertiesRpt :: Report

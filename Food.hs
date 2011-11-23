@@ -21,9 +21,11 @@ newtype NutAmt = NutAmt NonNeg
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
+newtype NutsPerG = NutsPerG NonNeg deriving Show
+data NameNutsPerG = NameNutsPerG Name NutsPerG deriving Show
+newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG) deriving Show
+
 newtype NutRatio = NutRatio NonNeg deriving Show
-data NutNameRatio = NutNameRatio Name NutRatio deriving Show
-newtype NutNamesRatios = NutNamesRatios (M.Map Name NutRatio) deriving Show
 
 newtype Grams = Grams NonNeg
                 deriving (Eq, Ord, Show, Add, HasZero)
@@ -46,7 +48,7 @@ newtype Ingr = Ingr (S.Seq Food) deriving Show
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
-                 , nutRatios :: NutNamesRatios
+                 , nutsPerGs :: NutNamesPerGs
                  , currUnit :: UnitNameAmt
                  , pctRefuse :: PctRefuse
                  , qty :: Qty
@@ -66,7 +68,7 @@ absPounds = UnitNameAmt (Name . pack $ "lb") (Grams . partialNewNonNeg $ 4536 % 
 emptyFood :: Food
 emptyFood = Food { tags = TagNamesVals M.empty
                  , units = UnitNamesAmts M.empty
-                 , nutRatios = NutNamesRatios M.empty
+                 , nutsPerGs = NutNamesPerGs M.empty
                  , currUnit = absGrams
                  , pctRefuse = zero
                  , qty = Qty (Left zero)
@@ -199,12 +201,12 @@ addNut :: NutNameAmt -> Food -> Either Error Food
 addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
   g = foodGrams f
   notZero = g /= zero
-  newFood = f {nutRatios = newRatios}
-  (NutNamesRatios oldRatios) = nutRatios f
-  newRatio = NutRatio $ rat `divide` gr where
+  newFood = f {nutsPerGs = newPerGs}
+  (NutNamesPerGs oldPerGs) = nutsPerGs f
+  newPerG = NutsPerG . fromJust $ rat `divide` gr where
     (NutAmt rat) = a
     (Grams gr) = g
-  newRatios = NutNamesRatios $ M.insert n newRatio oldRatios
+  newPerGs = NutNamesPerGs $ M.insert n newPerG oldPerGs
   err = AddNutToZeroQty
 
 addNuts :: (F.Foldable f) => f NutNameAmt -> Food -> Either Error Food
@@ -216,8 +218,8 @@ addNutsToFoods :: (F.Foldable a, T.Traversable t)
                   -> Either Error (t Food)
 addNutsToFoods ns = T.mapM (addNuts ns)
 
-ratioToAmt :: Grams -> NutRatio -> NutAmt
-ratioToAmt (Grams g) (NutRatio r) = NutAmt $ g `mult` r
+nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
+nutsPerGToAmt (Grams g) (NutsPerG r) = NutAmt $ g `mult` r
 
 foodIngrNuts :: Food -> NutNamesAmts
 foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
@@ -228,7 +230,8 @@ foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
   ingrZero = im == (Grams zero)
   (Ingr is) = ingr f
   adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
-  recipeAdjustedAmt n = NutAmt $ ig `divide` yg `mult` ng where
+  recipeAdjustedAmt n = NutAmt $ quot `mult` ng where
+    quot = fromJust $ ig `divide` yg
     (Grams ig) = im
     (Grams yg) = y
     (NutAmt ng) = n
@@ -240,9 +243,9 @@ foodNuts f = NutNamesAmts new where
   (NutNamesAmts ing) = foodIngrNuts f
 
 foodAbsNuts :: Food -> NutNamesAmts
-foodAbsNuts f = NutNamesAmts $ M.map (ratioToAmt g) old where
+foodAbsNuts f = NutNamesAmts $ M.map (nutsPerGToAmt g) old where
   g = foodGrams f
-  (NutNamesRatios old) = nutRatios f
+  (NutNamesPerGs old) = nutsPerGs f
 
 sumNuts :: NutNamesAmts -> NutNamesAmts -> NutNamesAmts
 sumNuts (NutNamesAmts l) (NutNamesAmts r) =
@@ -253,6 +256,11 @@ foldNuts = F.foldl' sumNuts (NutNamesAmts M.empty)
 
 foldFoodNuts :: (F.Foldable f, Functor f) => f Food -> NutNamesAmts
 foldFoodNuts = foldNuts . fmap foodNuts
+
+nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio
+nutRatio (NutAmt x) (NutAmt y) = do
+  q <- divide x y
+  return $ NutRatio q
 
 -- PctRefuse functions
 setPctRefuse :: PctRefuse -> Food -> Food

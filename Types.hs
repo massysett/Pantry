@@ -71,10 +71,12 @@ instance Add NonNeg where
   one = NonNeg 1
 
 class Divide a where
-  divide :: a -> a -> a
+  divide :: a -> a -> Maybe a
 
 instance Divide NonNeg where
-  divide (NonNeg l) (NonNeg r) = NonNeg $ l / r
+  divide (NonNeg l) (NonNeg r)
+    | r == 0 = Nothing
+    | otherwise = Just . NonNeg $ l / r
 
 class FromStr a where
   fromStr :: String -> Maybe a
