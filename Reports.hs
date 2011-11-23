@@ -10,6 +10,7 @@ import Data.List.Split
 import qualified Data.Map as M
 import Data.Map hiding (map, (\\), null)
 import Data.Maybe
+import Data.Either
 import Data.Text hiding (map, null, drop, length, unlines, transpose,
                          zip, replicate)
 import qualified Data.Text as X
@@ -177,6 +178,8 @@ unitsRpt = emptyRpt {body = b} where
     toString ((Name k), _) =
       (pack . replicate 3 $ ' ') `append` k `snoc` '\n'
     (UnitNamesAmts m) = allAvailUnits f
+
+-- Nut rpt
 
 {-
 propertiesRpt :: Report
