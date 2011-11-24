@@ -206,8 +206,21 @@ data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutAmt :: Maybe NutAmt
                        , goalTotalAmt :: Maybe NutAmt }
 
+txtColWidth :: Int
+txtColWidth = 35
+
+numColWidth :: Int
+numColWidth = 6
+
 colWidths :: [Int]
-colWidths = [35, 6, 6]
+colWidths = [txtColWidth, numColWidth, numColWidth]
+
+nutRptHdr :: X.Text
+nutRptHdr = X.concat [first, second] where
+  first = colsToString colWidths
+          . map pack $ ["Name", "Amt", "%G", "%T"]
+  second = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
+  n = sum colWidths + numColWidth
 
 instance Render NutRatio where
   render _ (NutRatio nn) =
@@ -254,10 +267,11 @@ nonGoalNuts ts f = map toNonGoalNut $ M.assocs m where
   (NutNamesAmts m) = foodNuts f
   toNonGoalNut (n, a) = NonGoalNut n a (M.lookup n m)
 
-appendNonGoalIfNotDupe :: [GoalNut]
-                          -> NonGoalNut
-                          -> [NonGoalNut]
-                          -> [NonGoalNut]
+appendNonGoalIfNotDupe ::
+  [GoalNut]
+     -> NonGoalNut
+     -> [NonGoalNut]
+     -> [NonGoalNut]
 appendNonGoalIfNotDupe gns ngn ngns
   | isDupe = ngns
   | otherwise = ngn : ngns where
@@ -276,7 +290,7 @@ nutRptTxt :: NutNamesAmts -- ^ Totals
              -> ReportOpts
              -> Food
              -> X.Text
-nutRptTxt ts o f = txt where
+nutRptTxt ts o f = nutRptHdr `append` txt where
   txt
     | null . goals $ o = nonGoalTxt
     | otherwise = case showAllNuts o of
