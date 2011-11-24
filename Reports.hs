@@ -149,22 +149,42 @@ lookupPair m k = do
   return (k, v)
     
 
-columns :: Int -> [a] -> [[a]]
+-- | Arrange a single list of items into newspaper-style columns.
+columns :: Int      -- ^ How many columns
+           -> [a]   -- ^ List of items
+           -> [[a]] -- ^ Each inner list is a single line to display,
+                    -- containing mulitple columns.
 columns n ls = transpose . splitEvery s $ ls where
   s = if r == 0 then q else q + 1
   (q, r) = length ls `divMod` n
 
+-- | Pad a string on the right so that the result string is at least a
+-- given number of columns wide.
 rpad :: Int -> Text -> Text
 rpad l = justifyLeft l ' '
 
+-- | Formats a single line for columnar text. For colsToString is ts,
+-- is is the number of columns minus 1, and ts is the list of items to
+-- place into columns. Each column width (except the last column) is
+-- specified in is.
 colsToString :: [Int] -> [Text] -> Text
 colsToString is ss = firsts `append` lasts `snoc` '\n' where
   firsts = X.concat . map (uncurry rpad) . zip is $ ss
   lasts = X.concat . drop (length is) $ ss
 
+
+-- | For colsToString is ts, ts is a nested list of strings. Each
+-- inner list is a line of items that has already been placed into
+-- columns. is specifies the width of each column (except the last
+-- column).
 colsListToString :: [Int] -> [[Text]] -> Text
 colsListToString is tss = X.concat . map (colsToString is) $ tss
 
+-- | Takes a single list of items and formats it into newspaper
+-- columns. For listToCols is ts, the number of columns will be
+-- length is - 1. The width of each column, except for the last
+-- column, is specified in is. (The last column simply gets a newline
+-- appended to the end.)
 listToCols :: [Int] -> [Text] -> Text
 listToCols ls = colsListToString ls . columns (length ls + 1)
 
@@ -181,9 +201,38 @@ unitsRpt = emptyRpt {body = b} where
 
 -- Nut rpt
 data GoalNameAmt = GoalNameAmt Name NutAmt
-data ActualFoodAmt = ActualFoodAmt (Maybe NutAmt)
-data ActualTotalAmt = ActualTotalAmt 
-data GoalNut = GoalNut GoalNameAmt (Maybe NutAmt) 
+data MaybeNutAmt = MaybeFoodAmt (Maybe NutAmt)
+data ActualNutAmt = ActualFoodAmt NutAmt
+data MaybeTotalAmt = ActualTotalAmt (Maybe NutAmt)
+
+data GoalNut = GoalNut { goalNutName :: Name
+                       , goalNutGoal :: NutAmt
+                       , goalNutAmt :: Maybe NutAmt
+                       , goalTotalAmt :: Maybe NutAmt }
+
+colWidths :: [Int]
+colWidths = [35, 6, 6]
+
+instance Render GoalNut where
+  render o n = colsToString colWidths ts where
+    ts = [name, nutAmt, pctGoal, pctTot]
+    name = render o . goalNutName $ n
+    nutAmt = maybe X.empty (render o) (goalNutAmt n)
+    pctGoal = maybe X.empty id $ do
+      let g = goalNutGoal n
+      a <- goalNutAmt n
+      r <- nutRatio 
+      when (g == zero) $ fail "goal is zero"
+      (NutAmt a) <- goalNutAmt n
+      
+      
+
+
+data NonGoalNut = NonGoalNut ActualNutAmt MaybeTotalAmt
+
+data GoalNuts = GoalNuts [GoalNut]
+data NonGoalNuts = NonGoalNuts [NonGoalNut]
+
 
 {-
 propertiesRpt :: Report
