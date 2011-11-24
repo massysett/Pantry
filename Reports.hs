@@ -212,22 +212,22 @@ txtColWidth = 35
 numColWidth :: Int
 numColWidth = 6
 
-colWidths :: [Int]
-colWidths = [txtColWidth, numColWidth, numColWidth]
+nutRptColWidths :: [Int]
+nutRptColWidths = [txtColWidth, numColWidth, numColWidth]
 
 nutRptHdr :: X.Text
 nutRptHdr = X.concat [first, second] where
-  first = colsToString colWidths
+  first = colsToString nutRptColWidths
           . map pack $ ["Name", "Amt", "%G", "%T"]
   second = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
-  n = sum colWidths + numColWidth
+  n = sum nutRptColWidths + numColWidth
 
 instance Render NutRatio where
   render _ (NutRatio nn) =
     pack . show . round . (* 100) . nonNegToRational $ nn
 
 instance Render GoalNut where
-  render o n = colsToString colWidths ts where
+  render o n = colsToString nutRptColWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = render o . goalNutName $ n
     nutAmt = maybe X.empty (render o) (goalNutAmt n)
@@ -246,7 +246,7 @@ data NonGoalNut = NonGoalNut { nonGoalNutName :: Name
                              , nonGoalNutAmt :: NutAmt
                              , nonGoalTotalAmt :: Maybe NutAmt }
 instance Render NonGoalNut where
-  render o n = colsToString colWidths ts where
+  render o n = colsToString nutRptColWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = render o . nonGoalNutName $ n
     nutAmt = render o . nonGoalNutAmt $ n
@@ -308,9 +308,86 @@ nutRpt = emptyRpt { body = f } where
   f o fs food = X.concat . map (nutRptTxt ts o) $ fs where
     ts = foldFoodNuts fs
 
-data GoalNuts = GoalNuts [GoalNut]
-data NonGoalNuts = NonGoalNuts [NonGoalNut]
+data TotGoalNut = TotGoalNut { totGoalName :: Name
+                             , totGoalGoal :: NutAmt
+                             , totGoalTot :: Maybe NutAmt }
 
+-- Name, Goal, Tot, %G
+totRptColWidths :: [Int]
+totRptColWidths = txtColWidth : replicate 2 numColWidth
+
+totRptHdr :: X.Text
+totRptHdr = X.concat [first, second, third] where
+  first = pack "Total of all nutrients:\n"
+  second = colsToString totRptColWidths
+           . map pack $ ["Name", "Goal", "Tot", "%G"]
+  third = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
+  n = sum totRptColWidths + numColWidth
+
+instance Render TotGoalNut where
+  render o n = colsToString totRptColWidths ts where
+    ts = [name, goal, tot, pctG]
+    name = render o . totGoalName $ n
+    goal = render o . totGoalGoal $ n
+    tot = maybe X.empty (render o) (totGoalTot n)
+    pctG = maybe X.empty id $ do
+      let g = totGoalGoal n
+      t <- totGoalTot n
+      r <- nutRatio t g
+      return . render o $ r
+
+data TotNonGoalNut = TotNonGoalNut { totNonName :: Name
+                                   , totNonAmt :: NutAmt }
+
+instance Render TotNonGoalNut where
+  render o n = colsToString totRptColWidths ts where
+    ts = [name, goal, tot, pctG]
+    name = render o . totNonName $ n
+    goal = X.empty
+    tot = render o . totNonAmt $ n
+    pctG = X.empty
+
+getTotGoalNut :: NutNamesAmts -> GoalNameAmt -> TotGoalNut
+getTotGoalNut nna (GoalNameAmt n g) = TotGoalNut n g a where
+  (NutNamesAmts m) = nna
+  a = M.lookup n m
+
+getTotNonGoalNuts :: NutNamesAmts -> [TotNonGoalNut]
+getTotNonGoalNuts (NutNamesAmts m) =
+  map (uncurry TotNonGoalNut) $ M.assocs m
+
+appendTotIfNotDupe :: [TotGoalNut]
+                      -> TotNonGoalNut
+                      -> [TotNonGoalNut]
+                      -> [TotNonGoalNut]
+appendTotIfNotDupe gns ng ngs
+  | isDupe = ngs
+  | otherwise = ng : ngs where
+    isDupe = elemBy f gns
+    f gn = totGoalName gn == totNonName ng
+
+removeDupeTotNuts :: [TotGoalNut] -> [TotNonGoalNut] -> [TotNonGoalNut]
+removeDupeTotNuts gns = foldr (appendTotIfNotDupe gns) []
+
+totRptTxt :: NutNamesAmts -> ReportOpts -> X.Text
+totRptTxt ts o = hdr `append` txt `append` nl where
+  txt
+    | null . goals $ o = nonGoalTxt
+    | otherwise = case showAllNuts o of
+      True -> goalTxt `append` nonGoalTxt
+      False -> goalTxt
+  tgns = map (getTotGoalNut ts) (goals o)
+  tngns = getTotNonGoalNuts ts
+  nonDupes = removeDupeTotNuts tgns tngns
+  goalTxt = X.concat . map (render o) $ tgns
+  nonGoalTxt = X.concat . map (render o) $ tngns
+  hdr = totRptHdr
+  nl = pack "\n"
+
+totRpt :: Report
+totRpt = emptyRpt { footer = g } where
+  g o fs = totRptTxt ts o where
+    ts = foldFoodNuts fs
 
 {-
 propertiesRpt :: Report
