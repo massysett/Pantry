@@ -290,7 +290,7 @@ nutRptTxt :: NutNamesAmts -- ^ Totals
              -> ReportOpts
              -> Food
              -> X.Text
-nutRptTxt ts o f = nutRptHdr `append` txt where
+nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   txt
     | null . goals $ o = nonGoalTxt
     | otherwise = case showAllNuts o of
@@ -301,6 +301,7 @@ nutRptTxt ts o f = nutRptHdr `append` txt where
   nonDupes = removeDupeNonGoalNuts gns ngns
   goalTxt = X.concat . map (render o) $ gns
   nonGoalTxt = X.concat . map (render o) $ ngns
+  gap = pack "\n"
 
 -- TODO report still needs proper headings, spacings between
 -- reports. Then needs totals report.
