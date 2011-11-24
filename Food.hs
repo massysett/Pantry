@@ -242,6 +242,11 @@ foodNuts f = NutNamesAmts new where
   (NutNamesAmts abs) = foodAbsNuts f
   (NutNamesAmts ing) = foodIngrNuts f
 
+getNut :: Name -> Food -> Maybe NutAmt
+getNut n = M.lookup n
+           . (\(NutNamesAmts m) -> m)
+           . foodNuts
+
 foodAbsNuts :: Food -> NutNamesAmts
 foodAbsNuts f = NutNamesAmts $ M.map (nutsPerGToAmt g) old where
   g = foodGrams f

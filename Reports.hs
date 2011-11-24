@@ -12,7 +12,7 @@ import Data.Map hiding (map, (\\), null)
 import Data.Maybe
 import Data.Either
 import Data.Text hiding (map, null, drop, length, unlines, transpose,
-                         zip, replicate)
+                         zip, replicate, foldr)
 import qualified Data.Text as X
 import Data.Ratio
 import Data.Decimal
@@ -106,7 +106,7 @@ emptyRpt = Report { header = \_ _ -> X.empty
                   , body = \_ _ _ -> X.empty
                   , footer = \_ _ -> X.empty }
 
-data ReportOpts = ReportOpts { goals :: [NutNameAmt]
+data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool
                              , showTags :: [Name]
                              , showAllTags :: Bool
@@ -148,7 +148,6 @@ lookupPair m k = do
   v <- lookup k m
   return (k, v)
     
-
 -- | Arrange a single list of items into newspaper-style columns.
 columns :: Int      -- ^ How many columns
            -> [a]   -- ^ List of items
@@ -201,9 +200,6 @@ unitsRpt = emptyRpt {body = b} where
 
 -- Nut rpt
 data GoalNameAmt = GoalNameAmt Name NutAmt
-data MaybeNutAmt = MaybeFoodAmt (Maybe NutAmt)
-data ActualNutAmt = ActualFoodAmt NutAmt
-data MaybeTotalAmt = ActualTotalAmt (Maybe NutAmt)
 
 data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt
@@ -213,6 +209,10 @@ data GoalNut = GoalNut { goalNutName :: Name
 colWidths :: [Int]
 colWidths = [35, 6, 6]
 
+instance Render NutRatio where
+  render _ (NutRatio nn) =
+    pack . show . round . (* 100) . nonNegToRational $ nn
+
 instance Render GoalNut where
   render o n = colsToString colWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
@@ -221,14 +221,79 @@ instance Render GoalNut where
     pctGoal = maybe X.empty id $ do
       let g = goalNutGoal n
       a <- goalNutAmt n
-      r <- nutRatio 
-      when (g == zero) $ fail "goal is zero"
-      (NutAmt a) <- goalNutAmt n
-      
-      
+      r <- nutRatio a g
+      return . render o $ r
+    pctTot = maybe X.empty id $ do
+      t <- goalTotalAmt n
+      a <- goalNutAmt n
+      r <- nutRatio a t
+      return . render o $ r
 
+data NonGoalNut = NonGoalNut { nonGoalNutName :: Name 
+                             , nonGoalNutAmt :: NutAmt
+                             , nonGoalTotalAmt :: Maybe NutAmt }
+instance Render NonGoalNut where
+  render o n = colsToString colWidths ts where
+    ts = [name, nutAmt, pctGoal, pctTot]
+    name = render o . nonGoalNutName $ n
+    nutAmt = render o . nonGoalNutAmt $ n
+    pctGoal = X.empty
+    pctTot = maybe X.empty id $ do
+      t <- nonGoalTotalAmt n
+      let a = nonGoalNutAmt n
+      r <- nutRatio a t
+      return . render o $ r
 
-data NonGoalNut = NonGoalNut ActualNutAmt MaybeTotalAmt
+getGoalNut :: NutNamesAmts -> Food -> GoalNameAmt -> GoalNut
+getGoalNut t f (GoalNameAmt n ng) = GoalNut n ng gna gta where
+  gna = getNut n f
+  gta = M.lookup n . (\(NutNamesAmts m) -> m) $ t
+
+nonGoalNuts :: NutNamesAmts -> Food -> [NonGoalNut]
+nonGoalNuts ts f = map toNonGoalNut $ M.assocs m where
+  (NutNamesAmts m) = foodNuts f
+  toNonGoalNut (n, a) = NonGoalNut n a (M.lookup n m)
+
+appendNonGoalIfNotDupe :: [GoalNut]
+                          -> NonGoalNut
+                          -> [NonGoalNut]
+                          -> [NonGoalNut]
+appendNonGoalIfNotDupe gns ngn ngns
+  | isDupe = ngns
+  | otherwise = ngn : ngns where
+    isDupe = elemBy f gns
+    f gn = goalNutName gn == nonGoalNutName ngn
+
+removeDupeNonGoalNuts :: [GoalNut] -> [NonGoalNut] -> [NonGoalNut]
+removeDupeNonGoalNuts gns = foldr (appendNonGoalIfNotDupe gns) []
+
+elemBy :: (a -> Bool) -> [a] -> Bool
+elemBy f = foldr g False where
+  g _ True = True
+  g a False = f a
+
+nutRptTxt :: NutNamesAmts -- ^ Totals
+             -> ReportOpts
+             -> Food
+             -> X.Text
+nutRptTxt ts o f = txt where
+  txt
+    | null . goals $ o = nonGoalTxt
+    | otherwise = case showAllNuts o of
+      True -> goalTxt `append` nonGoalTxt
+      False -> goalTxt
+  ngns = nonGoalNuts ts f
+  gns = map (getGoalNut ts f) (goals o)
+  nonDupes = removeDupeNonGoalNuts gns ngns
+  goalTxt = X.concat . map (render o) $ gns
+  nonGoalTxt = X.concat . map (render o) $ ngns
+
+-- TODO report still needs proper headings, spacings between
+-- reports. Then needs totals report.
+nutRpt :: Report
+nutRpt = emptyRpt { body = f } where
+  f o fs food = X.concat . map (nutRptTxt ts o) $ fs where
+    ts = foldFoodNuts fs
 
 data GoalNuts = GoalNuts [GoalNut]
 data NonGoalNuts = NonGoalNuts [NonGoalNut]
