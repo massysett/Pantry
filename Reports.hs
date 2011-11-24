@@ -389,22 +389,19 @@ totRpt = emptyRpt { footer = g } where
   g o fs = totRptTxt ts o where
     ts = foldFoodNuts fs
 
-{-
-propertiesRpt :: Report
-propertiesRpt = emptyRpt {body = b} where
-  b o _ f = if oneColumn o then long else brief where
-    long = X.unlines [q, un, ua, r, y, i] where
-      q = "Quantity: " ++ show (qty f)
-      un = "Unit name: " ++ show unitName where
-        (UnitNameAmt unitName _) = currUnit f
-      ua = "Unit amount: " ++ amt ++ " grams" where
-        amt = show . round $ amtGr
-        (UnitNameAmt _ (Grams amtGr)) = currUnit f
-      r = "Percent refuse: " ++ show (round (pctRefuse f))
-      y = "Yield: " ++ yldStr where
-        yldStr = case yield f of
-          Nothing -> "(none)"
-          (Just m) -> show m ++ " grams"
-      i = "ID: " ++ show (foodId f)
-    brief = undefined
--}
+label :: (Render a) => String -> ReportOpts -> a -> X.Text
+label l o d = pack l `append` pack ": " `append` render o d
+
+-- Multi column property report:
+-- 2 1/2 cups (83 g)
+-- Refuse: .14    Yield: 240 g
+-- ID: 9898
+
+-- Single column property report:
+-- Quantity: 2 1/2
+-- Unit name: cups
+-- Unit amount: 34 g
+-- Total weight: 85 g
+-- Refuse ratio: .14
+-- Yield: 240 g
+-- ID: 9898
