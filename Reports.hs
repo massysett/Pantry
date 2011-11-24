@@ -303,8 +303,6 @@ nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   nonGoalTxt = X.concat . map (render o) $ ngns
   gap = pack "\n"
 
--- TODO report still needs proper headings, spacings between
--- reports. Then needs totals report.
 nutRpt :: Report
 nutRpt = emptyRpt { body = f } where
   f o fs food = X.concat . map (nutRptTxt ts o) $ fs where
