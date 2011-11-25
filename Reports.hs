@@ -17,6 +17,7 @@ import qualified Data.Text as X
 import Data.Ratio
 import Data.Decimal
 import Reports.Columns
+import Reports.Types
 
 class Render a where
   render :: ReportOpts -> a -> Text
@@ -98,57 +99,6 @@ instance Render TagNamesVals where
                 . map (uncurry TagNameVal)
                 . M.assocs
 
-data Report = Report { header :: ReportOpts -> [Food] -> Text
-                     , body :: ReportOpts -> [Food] -> Food -> Text
-                     , footer :: ReportOpts -> [Food] -> Text }
-
-emptyRpt :: Report
-emptyRpt = Report { header = \_ _ -> X.empty
-                  , body = \_ _ _ -> X.empty
-                  , footer = \_ _ -> X.empty }
-
-data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
-                             , showAllNuts :: Bool
-                             , showTags :: [Name]
-                             , showAllTags :: Bool
-                             , oneColumn :: Bool
-                             , totals :: NutNamesAmts }
-
-defaultReportOpts :: ReportOpts
-defaultReportOpts = ReportOpts { goals = []
-                               , showAllNuts = False
-                               , showTags = []
-                               , showAllTags = False
-                               , oneColumn = False
-                               , totals = NutNamesAmts M.empty }
-
-name :: Report
-name = emptyRpt {body = b} where
-  b _ _ f = snoc n '\n' where
-    n = case getTag t f of
-      Nothing -> pack "(No name)"
-      (Just (TagNameVal _ (TagVal v))) -> v
-    t = Name . pack $ "name"
-
-tagRpt :: Report
-tagRpt = emptyRpt {body = b} where
-  b o _ f = newspaper cs ss where
-    cs = if oneColumn o then [] else [35]
-    ss = map toString ts
-    toString ((Name n), (TagVal v)) =
-      n `append` (pack ": ") `append` v
-    ts = orderedNV ++ restNV
-    (TagNamesVals m) = tags f
-    orderedNV = catMaybes . map (lookupPair m) . showTags $ o
-    unorderedNV = assocs m \\ orderedNV
-    restNV | null (showTags o) || showAllTags o = unorderedNV
-           | otherwise = []
-    
-lookupPair ::(Ord k) => Map k v -> k -> Maybe (k, v)
-lookupPair m k = do
-  v <- lookup k m
-  return (k, v)
-    
 blank :: Report
 blank = emptyRpt {body = b} where
   b _ _ _ = pack "\n"
@@ -161,25 +111,17 @@ unitsRpt = emptyRpt {body = b} where
     (UnitNamesAmts m) = allAvailUnits f
 
 -- Nut rpt
-data GoalNameAmt = GoalNameAmt Name NutAmt
-
 data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt
                        , goalNutAmt :: Maybe NutAmt
                        , goalTotalAmt :: Maybe NutAmt }
-
-txtColWidth :: Int
-txtColWidth = 35
-
-numColWidth :: Int
-numColWidth = 6
 
 nutRptColWidths :: [Int]
 nutRptColWidths = [txtColWidth, numColWidth, numColWidth]
 
 nutRptHdr :: X.Text
 nutRptHdr = X.concat [first, second] where
-  first = colsToString nutRptColWidths
+  first = fmtColumnRow nutRptColWidths
           . map pack $ ["Name", "Amt", "%G", "%T"]
   second = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
   n = sum nutRptColWidths + numColWidth
@@ -189,7 +131,7 @@ instance Render NutRatio where
     pack . show . round . (* 100) . nonNegToRational $ nn
 
 instance Render GoalNut where
-  render o n = colsToString nutRptColWidths ts where
+  render o n = fmtColumnRow nutRptColWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = render o . goalNutName $ n
     nutAmt = maybe X.empty (render o) (goalNutAmt n)
@@ -208,7 +150,7 @@ data NonGoalNut = NonGoalNut { nonGoalNutName :: Name
                              , nonGoalNutAmt :: NutAmt
                              , nonGoalTotalAmt :: Maybe NutAmt }
 instance Render NonGoalNut where
-  render o n = colsToString nutRptColWidths ts where
+  render o n = fmtColumnRow nutRptColWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = render o . nonGoalNutName $ n
     nutAmt = render o . nonGoalNutAmt $ n
@@ -281,13 +223,13 @@ totRptColWidths = txtColWidth : replicate 2 numColWidth
 totRptHdr :: X.Text
 totRptHdr = X.concat [first, second, third] where
   first = pack "Total of all nutrients:\n"
-  second = colsToString totRptColWidths
+  second = fmtColumnRow totRptColWidths
            . map pack $ ["Name", "Goal", "Tot", "%G"]
   third = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
   n = sum totRptColWidths + numColWidth
 
 instance Render TotGoalNut where
-  render o n = colsToString totRptColWidths ts where
+  render o n = fmtColumnRow totRptColWidths ts where
     ts = [name, goal, tot, pctG]
     name = render o . totGoalName $ n
     goal = render o . totGoalGoal $ n
@@ -302,7 +244,7 @@ data TotNonGoalNut = TotNonGoalNut { totNonName :: Name
                                    , totNonAmt :: NutAmt }
 
 instance Render TotNonGoalNut where
-  render o n = colsToString totRptColWidths ts where
+  render o n = fmtColumnRow totRptColWidths ts where
     ts = [name, goal, tot, pctG]
     name = render o . totNonName $ n
     goal = X.empty

@@ -1,18 +1,19 @@
-module Reports.Columns where
+module Reports.Columns ( rpad
+                       , txtColWidth
+                       , numColWidth
+                       , fmtColumnRow
+                       , newspaper ) where
 
 import Data.Text hiding (length, map, transpose, zip, drop)
 import qualified Data.Text as X
 import Data.List
 import Data.List.Split
 
--- | Arrange a single list of items into newspaper-style columns.
-arrangeNews :: Int      -- ^ How many columns
-           -> [a]   -- ^ List of items
-           -> [[a]] -- ^ Each inner list is a single line to display,
-                    -- containing mulitple columns.
-arrangeNews n ls = transpose . splitEvery s $ ls where
-  s = if r == 0 then q else q + 1
-  (q, r) = length ls `divMod` n
+txtColWidth :: Int
+txtColWidth = 35
+
+numColWidth :: Int
+numColWidth = 6
 
 -- | Pad a string on the right so that the result string is at least a
 -- given number of columns wide.
@@ -23,8 +24,8 @@ rpad l = justifyLeft l ' '
 -- is is the number of columns minus 1, and ts is the list of items to
 -- place into columns. Each column width (except the last column) is
 -- specified in is.
-colsToString :: [Int] -> [Text] -> Text
-colsToString is ss = firsts `append` lasts `snoc` '\n' where
+fmtColumnRow :: [Int] -> [Text] -> Text
+fmtColumnRow is ss = firsts `append` lasts `snoc` '\n' where
   firsts = X.concat . map (uncurry rpad) . zip is $ ss
   lasts = X.concat . drop (length is) $ ss
 
@@ -34,7 +35,16 @@ colsToString is ss = firsts `append` lasts `snoc` '\n' where
 -- columns. is specifies the width of each column (except the last
 -- column).
 colsListToString :: [Int] -> [[Text]] -> Text
-colsListToString is tss = X.concat . map (colsToString is) $ tss
+colsListToString is tss = X.concat . map (fmtColumnRow is) $ tss
+
+-- | Arrange a single list of items into newspaper-style columns.
+arrangeNews :: Int      -- ^ How many columns
+           -> [a]   -- ^ List of items
+           -> [[a]] -- ^ Each inner list is a single line to display,
+                    -- containing mulitple columns.
+arrangeNews n ls = transpose . splitEvery s $ ls where
+  s = if r == 0 then q else q + 1
+  (q, r) = length ls `divMod` n
 
 -- | Takes a single list of items and formats it into newspaper
 -- columns. For listToCols is ts, the number of columns will be
