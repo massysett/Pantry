@@ -99,13 +99,6 @@ instance Render TagNamesVals where
                 . map (uncurry TagNameVal)
                 . M.assocs
 
-unitsRpt :: Report
-unitsRpt = emptyRpt {body = b} where
-  b _ _ f = X.concat . map toString $ (assocs m) where
-    toString ((Name k), _) =
-      (pack . replicate 3 $ ' ') `append` k `snoc` '\n'
-    (UnitNamesAmts m) = allAvailUnits f
-
 -- Nut rpt
 data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt
