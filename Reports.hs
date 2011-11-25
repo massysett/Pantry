@@ -99,10 +99,6 @@ instance Render TagNamesVals where
                 . map (uncurry TagNameVal)
                 . M.assocs
 
-blank :: Report
-blank = emptyRpt {body = b} where
-  b _ _ _ = pack "\n"
-
 unitsRpt :: Report
 unitsRpt = emptyRpt {body = b} where
   b _ _ f = X.concat . map toString $ (assocs m) where
