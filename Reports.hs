@@ -91,9 +91,9 @@ instance Render PctRefuse where
     v = render o b
 
 instance Render TagNamesVals where
-  render o (TagNamesVals m) = X.unlines . makeCols . makeLines $ m where
-    makeCols | oneColumn o = id
-             | otherwise = map X.concat . columns 2
+  render o (TagNamesVals m) = makeCols . makeLines $ m where
+    makeCols | oneColumn o = X.concat
+             | otherwise = newspaper [35]
     makeLines = map (render o)
                 . map (uncurry TagNameVal)
                 . M.assocs
@@ -132,7 +132,7 @@ name = emptyRpt {body = b} where
 
 tagRpt :: Report
 tagRpt = emptyRpt {body = b} where
-  b o _ f = listToCols cs ss where
+  b o _ f = newspaper cs ss where
     cs = if oneColumn o then [] else [35]
     ss = map toString ts
     toString ((Name n), (TagVal v)) =

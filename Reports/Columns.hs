@@ -6,11 +6,11 @@ import Data.List
 import Data.List.Split
 
 -- | Arrange a single list of items into newspaper-style columns.
-columns :: Int      -- ^ How many columns
+arrangeNews :: Int      -- ^ How many columns
            -> [a]   -- ^ List of items
            -> [[a]] -- ^ Each inner list is a single line to display,
                     -- containing mulitple columns.
-columns n ls = transpose . splitEvery s $ ls where
+arrangeNews n ls = transpose . splitEvery s $ ls where
   s = if r == 0 then q else q + 1
   (q, r) = length ls `divMod` n
 
@@ -41,6 +41,6 @@ colsListToString is tss = X.concat . map (colsToString is) $ tss
 -- length is - 1. The width of each column, except for the last
 -- column, is specified in is. (The last column simply gets a newline
 -- appended to the end.)
-listToCols :: [Int] -> [Text] -> Text
-listToCols ls = colsListToString ls . columns (length ls + 1)
+newspaper :: [Int] -> [Text] -> Text
+newspaper ls = colsListToString ls . arrangeNews (length ls + 1)
 
