@@ -1,4 +1,4 @@
-module Reports.Nuts where
+module Reports.Nuts (nuts) where
 
 import Data.Text hiding (map, foldr, null, replicate)
 import qualified Data.Text as X
@@ -9,6 +9,7 @@ import Data.Map hiding (map, null)
 import qualified Data.Map as M
 import Reports.Columns
 import qualified Data.List as L
+import Reports.ElemBy
 
 data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt
@@ -80,11 +81,6 @@ appendNonGoalIfNotDupe gns ngn ngns
 removeDupeNonGoalNuts :: [GoalNut] -> [NonGoalNut] -> [NonGoalNut]
 removeDupeNonGoalNuts gns = foldr (appendNonGoalIfNotDupe gns) []
 
-elemBy :: (a -> Bool) -> [a] -> Bool
-elemBy f = foldr g False where
-  g _ True = True
-  g a False = f a
-
 nutRptTxt :: NutNamesAmts -- ^ Totals
              -> ReportOpts
              -> Food
@@ -102,8 +98,8 @@ nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   nonGoalTxt = X.concat . map (render o) $ ngns
   gap = pack "\n"
 
-nutRpt :: Report
-nutRpt = emptyRpt { body = f } where
+nuts :: Report
+nuts = emptyRpt { body = f } where
   f o fs food = X.concat . map (nutRptTxt ts o) $ fs where
     ts = foldFoodNuts fs
 
