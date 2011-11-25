@@ -16,6 +16,7 @@ import Data.Text hiding (map, null, drop, length, unlines, transpose,
 import qualified Data.Text as X
 import Data.Ratio
 import Data.Decimal
+import Reports.Columns
 
 class Render a where
   render :: ReportOpts -> a -> Text
@@ -148,45 +149,6 @@ lookupPair m k = do
   v <- lookup k m
   return (k, v)
     
--- | Arrange a single list of items into newspaper-style columns.
-columns :: Int      -- ^ How many columns
-           -> [a]   -- ^ List of items
-           -> [[a]] -- ^ Each inner list is a single line to display,
-                    -- containing mulitple columns.
-columns n ls = transpose . splitEvery s $ ls where
-  s = if r == 0 then q else q + 1
-  (q, r) = length ls `divMod` n
-
--- | Pad a string on the right so that the result string is at least a
--- given number of columns wide.
-rpad :: Int -> Text -> Text
-rpad l = justifyLeft l ' '
-
--- | Formats a single line for columnar text. For colsToString is ts,
--- is is the number of columns minus 1, and ts is the list of items to
--- place into columns. Each column width (except the last column) is
--- specified in is.
-colsToString :: [Int] -> [Text] -> Text
-colsToString is ss = firsts `append` lasts `snoc` '\n' where
-  firsts = X.concat . map (uncurry rpad) . zip is $ ss
-  lasts = X.concat . drop (length is) $ ss
-
-
--- | For colsToString is ts, ts is a nested list of strings. Each
--- inner list is a line of items that has already been placed into
--- columns. is specifies the width of each column (except the last
--- column).
-colsListToString :: [Int] -> [[Text]] -> Text
-colsListToString is tss = X.concat . map (colsToString is) $ tss
-
--- | Takes a single list of items and formats it into newspaper
--- columns. For listToCols is ts, the number of columns will be
--- length is - 1. The width of each column, except for the last
--- column, is specified in is. (The last column simply gets a newline
--- appended to the end.)
-listToCols :: [Int] -> [Text] -> Text
-listToCols ls = colsListToString ls . columns (length ls + 1)
-
 blank :: Report
 blank = emptyRpt {body = b} where
   b _ _ _ = pack "\n"
@@ -394,7 +356,7 @@ label l o d = pack l `append` pack ": " `append` render o d
 
 -- Multi column property report:
 -- 2 1/2 cups (83 g)
--- Refuse: .14    Yield: 240 g
+-- %R: .14    Yield: 240 g
 -- ID: 9898
 
 -- Single column property report:
@@ -402,6 +364,15 @@ label l o d = pack l `append` pack ": " `append` render o d
 -- Unit name: cups
 -- Unit amount: 34 g
 -- Total weight: 85 g
--- Refuse ratio: .14
+-- Percent refuse: .14
 -- Yield: 240 g
 -- ID: 9898
+
+data QtyUnitProp = QtyUnitProp Food
+
+{-
+instance Render QtyUnitProp where
+  render o (QtyUnitProp f) = txt where
+    txt = if oneColumn o then oneCol else twoCol
+    oneCol = X.unlines [qty, unn, una, wei, pr, yld, id] where
+-}    

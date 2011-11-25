@@ -45,7 +45,7 @@ newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
 
 subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
 subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
-  nn = NonNeg $ n - n * p
+  nn = NonNeg $ n - n * p / 100
   (NonNeg p) = toNonNeg pct
 
 class HasZero a where
