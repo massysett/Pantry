@@ -90,3 +90,7 @@ instance Render TagNamesVals where
                 . map (uncurry TagNameVal)
                 . M.assocs
 
+instance Render NutRatio where
+  render _ (NutRatio nn) =
+    pack . show . round . (* 100) . nonNegToRational $ nn
+
