@@ -1,0 +1,25 @@
+Name: pantry
+Version: 0.1
+Cabal-version: >=1.6
+Build-Type: Simple
+License: BSD3
+Copyright: 2011 Omari Norman.
+author: Omari Norman
+maintainer: omari@smileystation.com
+stability: Experimental
+homepage: http://www.smileystation.com/pantry
+bug-reports: omari@smileystation.com
+synopsis: Nutrient analysis
+description: Nutrient analysis
+
+Executable pantry
+  Main-Is: pantry.hs
+  Build-depends: haskell2010 ==1.1.*
+  other-modules: Food, Reports, Sorter, Types,
+                 Reports.Blank, Reports.Columns,
+                 Reports.CountTags, Reports.ElemBy,
+                 Reports.Name, Reports.Nuts,
+                 Reports.Properties, Reports.Render,
+                 Reports.Tags, Reports.Total, Reports.Types,
+                 Reports.Units
+  ghc-options: -Wall
