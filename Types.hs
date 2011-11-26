@@ -53,7 +53,6 @@ class HasZero a where
 
 instance HasZero BoundedPercent where
   zero = BoundedPercent zero
-
 instance HasZero NonNegMixed where
   zero = NonNegMixed (Decimal 0 0) (0 % 1)
 

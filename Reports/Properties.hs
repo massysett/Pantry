@@ -11,7 +11,8 @@ import Types
 import Data.Decimal
 
 properties :: Report
-properties = undefined
+properties = emptyRpt { body = f } where
+  f o _ f = render o (Properties f)
 
 -- Multi column property report:
 -- 2 1/2 cups (83 g)
@@ -36,20 +37,26 @@ class Exact a where
   exact :: a -> Text
 
 instance (Integral a) => Exact (Ratio a) where
-  exact r = num `snoc` '/' `append` denom where
-    num = pack . show . numerator $ r
-    denom = pack . show . denominator $ r
+  exact r
+    | numerator r == 0 = num
+    | denominator r == 1 = denom
+    | otherwise = num `snoc` '/' `append` denom where
+      num = pack . show . numerator $ r
+      denom = pack . show . denominator $ r
 
 instance (Integral i) => Exact (DecimalRaw i) where
   exact = pack . show
 
+instance Exact NonNegMixed where
+  exact nnm = d `snoc` ' ' `append` r where
+    d = exact . mixedDec $ nnm
+    r = exact . mixedRatio $ nnm
+
+instance Exact NonNeg where
+  exact = exact . nonNegToRational
+
 instance Exact Qty where
-  exact (Qty q) = case q of
-    (Left nn) -> exact . nonNegToRational $ nn
-    (Right nnm) ->
-      let d = exact . mixedDec $ nnm
-          r = exact . mixedRatio $ nnm
-      in d `snoc` ' ' `append` r
+  exact (Qty q) = either exact exact q
 
 instance Exact Grams where
   exact (Grams nn) = exact . nonNegToRational $ nn
@@ -69,9 +76,29 @@ instance Render QtyUnitAmt where
                  qu = q `snoc` ' ' `append` u
              in qu `snoc` ' ' `append` g `snoc` '\n'
 
-{-
+instance Exact BoundedPercent where
+  exact = exact . pctToMixed
+
 data RefuseYield = RefuseYield Food
 instance Render RefuseYield where
-  render o (RefuseYield f) = case oneColumn o of
-    True -> let r = label "Percent refuse" 
--}
+  render o (RefuseYield f) =
+    let (PctRefuse p) = pctRefuse f
+        yn = case recipeYield f of
+          (Just g) -> exact g `append` (pack " g")
+          Nothing -> pack "(none)"
+        yl = label "Yield" yn
+    in case oneColumn o of
+      True -> let pl = label "Percent refuse" (exact p)
+              in pl `append` yl
+      False -> let pl = (pack "%R: ") `append` (exact p)
+               in pl `append` (pack "     ") `append` yl
+
+labelId :: Food -> Text
+labelId = label "ID" . pack . show . foodId
+
+data Properties = Properties Food
+instance Render Properties where
+  render o (Properties f) = q `append` r `append` i where
+    q = render o (QtyUnitAmt f)
+    r = render o (RefuseYield f)
+    i = labelId f
