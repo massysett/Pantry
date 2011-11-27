@@ -1,6 +1,5 @@
 module Reports.Types where
 
-import Types
 import Data.Text
 import qualified Data.Text as X
 import Food

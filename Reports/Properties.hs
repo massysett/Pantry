@@ -32,26 +32,6 @@ data QtyUnitAmt = QtyUnitAmt Food
 label :: String -> Text -> Text
 label s t = pack s `append` pack ": " `append` t `snoc` '\n'
 
--- | Render a number-like datatype exactly -- without rounding.
-class Exact a where
-  exact :: a -> Text
-
-instance (Integral a) => Exact (Ratio a) where
-  exact r
-    | numerator r == 0 = num
-    | denominator r == 1 = denom
-    | otherwise = num `snoc` '/' `append` denom where
-      num = pack . show . numerator $ r
-      denom = pack . show . denominator $ r
-
-instance (Integral i) => Exact (DecimalRaw i) where
-  exact = pack . show
-
-instance Exact NonNegMixed where
-  exact nnm = d `snoc` ' ' `append` r where
-    d = exact . mixedDec $ nnm
-    r = exact . mixedRatio $ nnm
-
 instance Exact NonNeg where
   exact = exact . nonNegToRational
 
@@ -75,9 +55,6 @@ instance Render QtyUnitAmt where
                  g = '(' `cons` a `append` (pack " g)")
                  qu = q `snoc` ' ' `append` u
              in qu `snoc` ' ' `append` g `snoc` '\n'
-
-instance Exact BoundedPercent where
-  exact = exact . pctToMixed
 
 data RefuseYield = RefuseYield Food
 instance Render RefuseYield where

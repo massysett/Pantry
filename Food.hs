@@ -1,39 +1,43 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Food where
 
+import Prelude (Eq, Ord, Show, Bool(True, False), (.),
+                ($), not, fst, snd, (/=), flip,
+                Either(Left, Right), Integer, String,
+                (==), (>))
 import qualified Data.Map as M
 import Data.Ratio
-import Data.Decimal hiding (divide)
 import Data.Maybe
 import Control.Monad
-import Control.Monad.Instances
 import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import qualified Data.Sequence as S
 import Types
-import Data.Text hiding (filter, map, length, head, null)
+import Data.Text(Text, pack)
 import qualified Data.Text as X
+import Exact(Exact)
 
-newtype Name = Name Text deriving (Eq, Ord, Show)
+newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
 newtype NutAmt = NutAmt NonNeg
                  deriving (Eq, Ord, Show, Add, HasZero)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
-newtype NutsPerG = NutsPerG NonNeg deriving Show
+newtype NutsPerG = NutsPerG NonNeg deriving (Show, Exact)
 data NameNutsPerG = NameNutsPerG Name NutsPerG deriving Show
 newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG) deriving Show
 
-newtype NutRatio = NutRatio NonNeg deriving Show
+newtype NutRatio = NutRatio NonNeg deriving (Show, Exact)
 
 newtype Grams = Grams NonNeg
-                deriving (Eq, Ord, Show, Add, HasZero)
-newtype MixedGrams = MixedGrams NonNegMixed deriving Show
+                deriving (Eq, Ord, Show, Add, HasZero, Exact)
+newtype MixedGrams = MixedGrams NonNegMixed
+                     deriving (Show, Exact)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
 
-newtype TagVal = TagVal Text deriving (Eq, Ord, Show)
+newtype TagVal = TagVal Text deriving (Eq, Ord, Show, Exact)
 data TagNameVal = TagNameVal Name TagVal deriving Show
 newtype TagNamesVals = TagNamesVals (M.Map Name TagVal) deriving Show
 
@@ -41,7 +45,7 @@ if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
 newtype PctRefuse = PctRefuse BoundedPercent
-                    deriving (Eq, Ord, Show, HasZero)
+                    deriving (Eq, Ord, Show, HasZero, Exact)
 newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
@@ -228,7 +232,6 @@ foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
   y = fromJust $ recipeYield f
   im = ingredientMass f
   ingrZero = im == (Grams zero)
-  (Ingr is) = ingr f
   adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
   recipeAdjustedAmt n = NutAmt $ quot `mult` ng where
     quot = fromJust $ ig `divide` yg

@@ -19,22 +19,6 @@ class Render a where
 instance Render NonNeg where
   render _ = pack . show . round . nonNegToRational
 
-instance Render NonNegMixed where
-  render _ n = result where
-    result = case (d, r) of
-      (Just ds, Just rs) -> ds `snoc` ' ' `append` rs
-      (Just ds, Nothing) -> ds
-      (Nothing, Just rs) -> rs
-      (Nothing, Nothing) -> pack "0"
-    nd = mixedDec n
-    nr = mixedRatio n
-    d | nd == Decimal 0 0 = Nothing
-      | otherwise = Just . pack . show $ nd
-    r | nr == (0 % 1) = Nothing
-      | otherwise = Just . pack $ num ++ "/" ++ den where
-        num = show . numerator $ nr
-        den = show . denominator $ nr
-
 instance Render BoundedPercent where
   render o = render o . pctToMixed
 
