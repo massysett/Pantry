@@ -9,6 +9,7 @@ import Food
 import Data.Ratio
 import Types
 import Data.Decimal
+import Exact
 
 properties :: Report
 properties = emptyRpt { body = f } where
@@ -31,15 +32,6 @@ data QtyUnitAmt = QtyUnitAmt Food
 
 label :: String -> Text -> Text
 label s t = pack s `append` pack ": " `append` t `snoc` '\n'
-
-instance Exact NonNeg where
-  exact = exact . nonNegToRational
-
-instance Exact Qty where
-  exact (Qty q) = either exact exact q
-
-instance Exact Grams where
-  exact (Grams nn) = exact . nonNegToRational $ nn
 
 instance Render QtyUnitAmt where
   render o (QtyUnitAmt f) = case oneColumn o of

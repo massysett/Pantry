@@ -1,46 +1,26 @@
 -- | Data types that have a Render instance that is universal across
 -- report types can be defined here. Other Render instances should be
 -- declared in the module in which they are used.
-module Reports.Render where
+module Reports.Render(Render(render)) where
 
 import Reports.Types
 import Types
 import Food
 import Data.Text hiding (map, replicate)
 import qualified Data.Map as M
-import Data.Ratio
-import Data.Decimal
 import qualified Data.Text as X
 import Reports.Columns
+import Exact(Exact(exact))
 
 class Render a where
   render :: ReportOpts -> a -> Text
 
-instance Render NonNeg where
-  render _ = pack . show . round . nonNegToRational
-
-instance Render BoundedPercent where
-  render o = render o . pctToMixed
-
-instance Render Name where
-  render _ (Name t) = t
-
-instance Render NutAmt where render o (NutAmt n) = render o n
-
-instance Render NutNameAmt where
-  render o (NutNameAmt n a) = label `append` amt where
-    label = rpad txtColWidth . render o $ n
-    amt = render o a
-
-instance Render Grams where render o (Grams n) = render o n
-instance Render MixedGrams where render o (MixedGrams n) = render o n
-
 instance Render UnitNameAmt where
-  render o (UnitNameAmt n g) = txt where
+  render _ (UnitNameAmt n g) = txt where
     txt = nt `append` open `append` gt `append` close
-    nt = render o n
+    nt = exact n
     open = pack " ("
-    gt = render o g
+    gt = exact g
     close = pack " g)"
 
 instance Render UnitNamesAmts where
@@ -54,17 +34,17 @@ instance Render TagVal where
   render _ (TagVal t) = t
 
 instance Render TagNameVal where
-  render o (TagNameVal n v) = r where
+  render _ (TagNameVal n v) = r where
     r = lbl `append` col `append` val `snoc` '\n'
-    lbl = render o n
+    lbl = exact n
     col = pack ": "
-    val = render o v
+    val = exact v
 
 instance Render PctRefuse where
   render o (PctRefuse b) = l `append` v where
     l | oneColumn o = pack "Percent refuse: "
       | otherwise = pack "%R: "
-    v = render o b
+    v = exact b
 
 instance Render TagNamesVals where
   render o (TagNamesVals m) = makeCols . makeLines $ m where
@@ -76,5 +56,7 @@ instance Render TagNamesVals where
 
 instance Render NutRatio where
   render _ (NutRatio nn) =
-    pack . show . round . (* 100) . nonNegToRational $ nn
+    pack . show . roundI . (* 100) . nonNegToRational $ nn
 
+roundI :: (RealFrac a) => a -> Integer
+roundI = round

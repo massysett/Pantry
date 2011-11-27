@@ -4,7 +4,7 @@ module Food where
 import Prelude (Eq, Ord, Show, Bool(True, False), (.),
                 ($), not, fst, snd, (/=), flip,
                 Either(Left, Right), Integer, String,
-                (==), (>))
+                (==), (>), either)
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Maybe
@@ -15,23 +15,23 @@ import qualified Data.Traversable as T
 import qualified Data.Sequence as S
 import Types
 import Data.Text(Text, pack)
-import qualified Data.Text as X
-import Exact(Exact)
+import Exact(Exact(exact))
+import Rounded(Rounded)
 
 newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
 newtype NutAmt = NutAmt NonNeg
-                 deriving (Eq, Ord, Show, Add, HasZero)
+                 deriving (Eq, Ord, Show, Add, HasZero, Exact, Rounded)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
-newtype NutsPerG = NutsPerG NonNeg deriving (Show, Exact)
+newtype NutsPerG = NutsPerG NonNeg deriving (Show, Exact, Rounded)
 data NameNutsPerG = NameNutsPerG Name NutsPerG deriving Show
 newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG) deriving Show
 
-newtype NutRatio = NutRatio NonNeg deriving (Show, Exact)
+newtype NutRatio = NutRatio NonNeg deriving (Show, Exact, Rounded)
 
 newtype Grams = Grams NonNeg
-                deriving (Eq, Ord, Show, Add, HasZero, Exact)
+                deriving (Eq, Ord, Show, Add, HasZero, Exact, Rounded)
 newtype MixedGrams = MixedGrams NonNegMixed
                      deriving (Show, Exact)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
@@ -47,6 +47,10 @@ if' b x y = case b of True -> x; False -> y
 newtype PctRefuse = PctRefuse BoundedPercent
                     deriving (Eq, Ord, Show, HasZero, Exact)
 newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
+
+instance Exact Qty where
+  exact (Qty q) = either exact exact q
+
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving Show
 

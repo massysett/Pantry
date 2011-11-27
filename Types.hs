@@ -26,9 +26,10 @@ import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
 import Control.Monad((>>=), return, when, fail)
 import Data.Text(snoc, append, pack)
+import Rounded(Rounded)
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
-               deriving (Eq, Ord, Show, Exact)
+               deriving (Eq, Ord, Show, Exact, Rounded)
 
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where

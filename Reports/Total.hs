@@ -9,6 +9,8 @@ import Data.Text hiding (null, replicate, map, foldr)
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.Text as X
+import Exact(exact)
+import Rounded(rounded)
 
 data TotGoalNut = TotGoalNut { totGoalName :: Name
                              , totGoalGoal :: NutAmt
@@ -29,9 +31,9 @@ totRptHdr = X.concat [first, second, third] where
 instance Render TotGoalNut where
   render o n = fmtColumnRow totRptColWidths ts where
     ts = [name, goal, tot, pctG]
-    name = render o . totGoalName $ n
-    goal = render o . totGoalGoal $ n
-    tot = maybe X.empty (render o) (totGoalTot n)
+    name = exact . totGoalName $ n
+    goal = rounded . totGoalGoal $ n
+    tot = maybe X.empty rounded (totGoalTot n)
     pctG = maybe X.empty id $ do
       let g = totGoalGoal n
       t <- totGoalTot n
@@ -42,11 +44,11 @@ data TotNonGoalNut = TotNonGoalNut { totNonName :: Name
                                    , totNonAmt :: NutAmt }
 
 instance Render TotNonGoalNut where
-  render o n = fmtColumnRow totRptColWidths ts where
+  render _ n = fmtColumnRow totRptColWidths ts where
     ts = [name, goal, tot, pctG]
-    name = render o . totNonName $ n
+    name = exact . totNonName $ n
     goal = X.empty
-    tot = render o . totNonAmt $ n
+    tot = rounded . totNonAmt $ n
     pctG = X.empty
 
 getTotGoalNut :: NutNamesAmts -> GoalNameAmt -> TotGoalNut
@@ -82,7 +84,7 @@ totRptTxt ts o = hdr `append` txt `append` nl where
   tngns = getTotNonGoalNuts ts
   nonDupes = removeDupeTotNuts tgns tngns
   goalTxt = X.concat . map (render o) $ tgns
-  nonGoalTxt = X.concat . map (render o) $ tngns
+  nonGoalTxt = X.concat . map (render o) $ nonDupes
   hdr = totRptHdr
   nl = pack "\n"
 
