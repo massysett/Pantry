@@ -81,8 +81,8 @@ totRptTxt ts o = hdr `append` txt `append` nl where
       True -> goalTxt `append` nonGoalTxt
       False -> goalTxt
   tgns = map (getTotGoalNut ts) (goals o)
-  tngns = getTotNonGoalNuts ts
-  nonDupes = removeDupeTotNuts tgns tngns
+  tans = getTotNonGoalNuts ts
+  nonDupes = removeDupeTotNuts tgns tans
   goalTxt = X.concat . map (render o) $ tgns
   nonGoalTxt = X.concat . map (render o) $ nonDupes
   hdr = totRptHdr
