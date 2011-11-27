@@ -1,4 +1,4 @@
-module Exact where
+module Exact(Exact(exact)) where
 
 import Prelude(show, (.), ($), (==), Integral,
                otherwise, id)

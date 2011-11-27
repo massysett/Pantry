@@ -52,7 +52,7 @@ instance Exact Qty where
   exact (Qty q) = either exact exact q
 
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
-newtype Ingr = Ingr (S.Seq Food) deriving Show
+newtype Ingr = Ingr (S.Seq Food) deriving (Show)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
