@@ -1,9 +1,16 @@
-module Reports.Types where
+module Reports.Types (GoalNameAmt(GoalNameAmt),
+                      Report(Report, header, body, footer),
+                      emptyRpt,
+                      ReportOpts(ReportOpts, goals, showAllNuts,
+                                 showTags, showAllTags,
+                                 oneColumn, totals),
+                      defaultReportOpts) where
 
-import Data.Text
-import qualified Data.Text as X
-import Food
-import qualified Data.Map as M
+import Prelude(Bool(False))
+import Data.Text(Text)
+import qualified Data.Text as X (empty)
+import Food(Food, Name, NutNamesAmts(NutNamesAmts), NutAmt)
+import qualified Data.Map as M (empty)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt
 
