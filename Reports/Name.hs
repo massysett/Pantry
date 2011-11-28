@@ -1,9 +1,10 @@
-module Reports.Name where
+module Reports.Name (name) where
 
-import Food
-import Reports.Types
-import Data.Text
-import qualified Data.Text as X
+import Prelude((.), ($), Maybe(Nothing, Just))
+import Food(TagNameVal(TagNameVal), TagVal(TagVal),
+            Name(Name), getTag)
+import Reports.Types(Report, emptyRpt, body)
+import Data.Text(snoc, pack)
 
 name :: Report
 name = emptyRpt {body = b} where
