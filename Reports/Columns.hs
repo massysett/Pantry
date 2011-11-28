@@ -4,10 +4,11 @@ module Reports.Columns ( rpad
                        , fmtColumnRow
                        , newspaper ) where
 
-import Data.Text hiding (length, map, transpose, zip, drop)
-import qualified Data.Text as X
-import Data.List
-import Data.List.Split
+import Prelude(Int, map, zip, ($), (.), divMod, uncurry,
+               length, (==), (+), drop)
+import Data.Text (Text, append, snoc, justifyLeft, concat)
+import Data.List (transpose)
+import Data.List.Split (splitEvery)
 
 txtColWidth :: Int
 txtColWidth = 35
@@ -26,8 +27,8 @@ rpad l = justifyLeft l ' '
 -- specified in is.
 fmtColumnRow :: [Int] -> [Text] -> Text
 fmtColumnRow is ss = firsts `append` lasts `snoc` '\n' where
-  firsts = X.concat . map (uncurry rpad) . zip is $ ss
-  lasts = X.concat . drop (length is) $ ss
+  firsts = concat . map (uncurry rpad) . zip is $ ss
+  lasts = concat . drop (length is) $ ss
 
 
 -- | For colsToString is ts, ts is a nested list of strings. Each
@@ -35,7 +36,7 @@ fmtColumnRow is ss = firsts `append` lasts `snoc` '\n' where
 -- columns. is specifies the width of each column (except the last
 -- column).
 colsListToString :: [Int] -> [[Text]] -> Text
-colsListToString is tss = X.concat . map (fmtColumnRow is) $ tss
+colsListToString is tss = concat . map (fmtColumnRow is) $ tss
 
 -- | Arrange a single list of items into newspaper-style columns.
 arrangeNews :: Int      -- ^ How many columns

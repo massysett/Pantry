@@ -1,7 +1,7 @@
-module Reports.Blank where
+module Reports.Blank (blank) where
 
-import Reports.Types
-import Data.Text
+import Reports.Types (Report, emptyRpt, body)
+import Data.Text (pack)
 
 blank :: Report
 blank = emptyRpt {body = b} where
