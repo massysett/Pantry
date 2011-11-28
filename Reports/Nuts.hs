@@ -1,14 +1,19 @@
 module Reports.Nuts (nuts) where
 
-import Data.Text hiding (map, foldr, null, replicate)
-import qualified Data.Text as X
-import Food
-import Reports.Render
-import Reports.Types
-import qualified Data.Map as M
-import Reports.Columns
-import qualified Data.List as L
-import Reports.ElemBy
+import Prelude((.), ($), maybe, return, Int, (==), map,
+               Maybe, id, replicate, sum, (+), otherwise,
+               foldr, null, Bool(True, False))
+import Data.Text (empty, pack, append, Text, concat)
+import Food(Name, NutAmt, nutRatio, Food, getNut,
+            NutNamesAmts(NutNamesAmts), foodNuts)
+import Reports.Render(Render(render))
+import Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
+                     goals, showAllNuts, Report,
+                     emptyRpt, body)
+import Data.Map (lookup, assocs)
+import Reports.Columns(fmtColumnRow, txtColWidth, numColWidth)
+import qualified Data.List as L (concat)
+import Reports.ElemBy(elemBy)
 import Rounded(rounded)
 import Exact(exact)
 
@@ -21,13 +26,13 @@ instance Render GoalNut where
   render o n = fmtColumnRow nutRptColWidths ts where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = exact . goalNutName $ n
-    nutAmt = maybe X.empty rounded (goalNutAmt n)
-    pctGoal = maybe X.empty id $ do
+    nutAmt = maybe empty rounded (goalNutAmt n)
+    pctGoal = maybe empty id $ do
       let g = goalNutGoal n
       a <- goalNutAmt n
       r <- nutRatio a g
       return . render o $ r
-    pctTot = maybe X.empty id $ do
+    pctTot = maybe empty id $ do
       t <- goalTotalAmt n
       a <- goalNutAmt n
       r <- nutRatio a t
@@ -36,8 +41,8 @@ instance Render GoalNut where
 nutRptColWidths :: [Int]
 nutRptColWidths = [txtColWidth, numColWidth, numColWidth]
 
-nutRptHdr :: X.Text
-nutRptHdr = X.concat [first, second] where
+nutRptHdr :: Text
+nutRptHdr = concat [first, second] where
   first = fmtColumnRow nutRptColWidths
           . map pack $ ["Name", "Amt", "%G", "%T"]
   second = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
@@ -51,8 +56,8 @@ instance Render AnyNut where
     ts = [name, nutAmt, pctGoal, pctTot]
     name = exact . nonGoalNutName $ n
     nutAmt = rounded . nonGoalNutAmt $ n
-    pctGoal = X.empty
-    pctTot = maybe X.empty id $ do
+    pctGoal = empty
+    pctTot = maybe empty id $ do
       t <- nonGoalTotalAmt n
       let a = nonGoalNutAmt n
       r <- nutRatio a t
@@ -61,15 +66,15 @@ instance Render AnyNut where
 getGoalNut :: NutNamesAmts -> Food -> GoalNameAmt -> GoalNut
 getGoalNut t f (GoalNameAmt n ng) = GoalNut n ng gna gta where
   gna = getNut n f
-  gta = M.lookup n . (\(NutNamesAmts m) -> m) $ t
+  gta = lookup n . (\(NutNamesAmts m) -> m) $ t
 
 -- | Returns all nutrients from a food, whether they have a goal or not.
 anyNuts :: NutNamesAmts -- ^ Totals
            -> Food
            -> [AnyNut]
-anyNuts (NutNamesAmts ts) f = map toAnyNut . M.assocs $ m where
+anyNuts (NutNamesAmts ts) f = map toAnyNut . assocs $ m where
   (NutNamesAmts m) = foodNuts f
-  toAnyNut (n, a) = AnyNut n a (M.lookup n ts)
+  toAnyNut (n, a) = AnyNut n a (lookup n ts)
 
 appendAnyIfNotDupe ::
   [GoalNut]
@@ -88,7 +93,7 @@ removeDupeAnyNuts gns = foldr (appendAnyIfNotDupe gns) []
 nutRptTxt :: NutNamesAmts -- ^ Totals
              -> ReportOpts
              -> Food
-             -> X.Text
+             -> Text
 nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   txt
     | null . goals $ o = nonGoalTxt
@@ -98,12 +103,12 @@ nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   ngns = anyNuts ts f
   gns = map (getGoalNut ts f) (goals o)
   nonDupes = removeDupeAnyNuts gns ngns
-  goalTxt = X.concat . map (render o) $ gns
-  nonGoalTxt = X.concat . map (render o) $ nonDupes
+  goalTxt = concat . map (render o) $ gns
+  nonGoalTxt = concat . map (render o) $ nonDupes
   gap = pack "\n"
 
 nuts :: Report
 nuts = emptyRpt { body = f } where
-  f o fs food = nutRptTxt ts o food where
-    ts = foldFoodNuts fs
+  f o ts food = nutRptTxt ts o food
+
 
