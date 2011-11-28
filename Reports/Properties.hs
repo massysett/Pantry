@@ -1,19 +1,20 @@
 module Reports.Properties (properties) where
 
-import Reports.Types (Report(..), emptyRpt,
-                      ReportOpts(..))
-import Reports.Render
-import Data.Text
-import qualified Data.Text as X
-import Food
-import Data.Ratio
-import Types
-import Data.Decimal
-import Exact
+import Prelude(Bool(True, False), (.), ($), Maybe(Just, Nothing),
+               String, show)
+import Reports.Types (Report(body), emptyRpt,
+                      ReportOpts(oneColumn))
+import Reports.Render(Render(render))
+import Data.Text(Text, pack, append, snoc, concat, cons)
+import Food(Food(qty, foodId, currUnit, pctRefuse),
+            UnitNameAmt(UnitNameAmt),
+            Name(Name), recipeYield, foodGrams,
+            PctRefuse(PctRefuse))
+import Exact(Exact(exact))
 
 properties :: Report
 properties = emptyRpt { body = f } where
-  f o _ f = render o (Properties f)
+  f o _ food = render o (Properties food)
 
 -- Multi column property report:
 -- 2 1/2 cups (83 g)
@@ -40,7 +41,7 @@ instance Render QtyUnitAmt where
                 u = label "Unit name" unit
                 a = label "Unit amount" (exact amt)
                 g = label "Total weight" (exact . foodGrams $ f)
-            in X.concat [q, u, a, g]
+            in concat [q, u, a, g]
     False -> let q = exact . qty $ f
                  (UnitNameAmt (Name u) _) = currUnit f
                  a = exact . foodGrams $ f
