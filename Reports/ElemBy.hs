@@ -1,4 +1,6 @@
-module Reports.ElemBy where
+module Reports.ElemBy (elemBy) where
+
+import Prelude (Bool(True, False), foldr)
 
 elemBy :: (a -> Bool) -> [a] -> Bool
 elemBy f = foldr g False where
