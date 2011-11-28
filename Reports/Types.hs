@@ -3,38 +3,37 @@ module Reports.Types (GoalNameAmt(GoalNameAmt),
                       emptyRpt,
                       ReportOpts(ReportOpts, goals, showAllNuts,
                                  showTags, showAllTags,
-                                 oneColumn, totals),
+                                 oneColumn),
                       defaultReportOpts) where
 
 import Prelude(Bool(False))
 import Data.Text(Text)
 import qualified Data.Text as X (empty)
-import Food(Food, Name, NutNamesAmts(NutNamesAmts), NutAmt)
-import qualified Data.Map as M (empty)
+import Food(Food, Name, NutNamesAmts, NutAmt)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt
 
-data Report = Report { header :: ReportOpts -> [Food] -> Text
-                     , body :: ReportOpts -> [Food] -> Food -> Text
-                     , footer :: ReportOpts -> [Food] -> Text }
+data Report =
+  Report { header :: ReportOpts -> NutNamesAmts -> [Food] -> Text
+         , body :: ReportOpts -> NutNamesAmts -> Food -> Text
+         , footer :: ReportOpts -> NutNamesAmts -> [Food] -> Text }
 
 emptyRpt :: Report
-emptyRpt = Report { header = \_ _ -> X.empty
+emptyRpt = Report { header = \_ _ _ -> X.empty
                   , body = \_ _ _ -> X.empty
-                  , footer = \_ _ -> X.empty }
+                  , footer = \_ _ _ -> X.empty }
 
 data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool
                              , showTags :: [Name]
                              , showAllTags :: Bool
-                             , oneColumn :: Bool
-                             , totals :: NutNamesAmts }
+                             , oneColumn :: Bool }
 
 defaultReportOpts :: ReportOpts
 defaultReportOpts = ReportOpts { goals = []
                                , showAllNuts = False
                                , showTags = []
                                , showAllTags = False
-                               , oneColumn = False
-                               , totals = NutNamesAmts M.empty }
+                               , oneColumn = False }
+
 
