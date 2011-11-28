@@ -1,6 +1,6 @@
 module Reports.CountTags (countTags) where
 
-import Prelude(undefined, Int, Ord, succ, show,
+import Prelude(Int, Ord, succ, show,
                ($), (.), Maybe(Just, Nothing), flip,
                zip, (==), Bool(True, False))
 import Data.Maybe (catMaybes)
@@ -9,7 +9,7 @@ import Food(Food, tags, TagNamesVals(TagNamesVals),
             Name(Name), TagVal(TagVal))
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
-import Reports.Types(Report(Report), emptyRpt, ReportOpts(ReportOpts),
+import Reports.Types(Report, emptyRpt,
                      showAllTags, showTags, footer)
 import Data.Text(Text, pack, replicate, singleton,
                  append, snoc, concat)
@@ -19,7 +19,7 @@ import Data.Functor(fmap)
 
 countTags :: Report
 countTags = emptyRpt { footer = f } where
-  f o = count (showAllTags o) (showTags o)
+  f o _ = count (showAllTags o) (showTags o)
 
 type ValMap = Map TagVal Int
 type NameMap = Map Name ValMap
@@ -73,7 +73,7 @@ orderedWithLeftovers m ks = (orig, left) where
     f (k1, _) (k2, _) = k1 == k2
     origVals = catMaybes . fmap sndToVal $ orig where
       sndToVal (k, (Just v)) = Just (k, v)
-      sndToVal (k, Nothing) = Nothing
+      sndToVal (_, Nothing) = Nothing
 
 count :: Bool      -- ^ If true, show all tags. If false, only show all
                    -- tags if next list is empty.
