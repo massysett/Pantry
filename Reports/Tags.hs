@@ -39,7 +39,7 @@ tagsToShow showAll ns f
     ordered = orderedTags ns f
     rest = removeRedundantTags ordered (allTags f)
 
-tags :: Report
+tags :: Report f
 tags = emptyRpt {body = b} where
   b o _ f = newspaper cs ss where
     cs = if oneColumn o then [] else [35]

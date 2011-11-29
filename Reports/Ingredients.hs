@@ -9,7 +9,7 @@ import Food(Food, ingr, UnitNameAmt(UnitNameAmt), currUnit,
             Ingr(Ingr))
 import Data.Foldable(Foldable, foldr)
 
-ingredients :: Report
+ingredients :: Report f
 ingredients = emptyRpt { body = f } where
   f _ _ = unlines
           . (foldr (:) [])

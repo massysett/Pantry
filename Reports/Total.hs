@@ -88,7 +88,7 @@ totRptTxt ts o = hdr `append` txt `append` nl where
   hdr = totRptHdr
   nl = pack "\n"
 
-total :: Report
+total :: Report f
 total = emptyRpt { footer = g } where
   g o ts _ = totRptTxt ts o
 

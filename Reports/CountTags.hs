@@ -14,10 +14,10 @@ import Reports.Types(Report, emptyRpt,
 import Data.Text(Text, pack, replicate, singleton,
                  append, snoc, concat)
 import qualified Data.Text as X
-import Data.Foldable(foldr, sum)
+import Data.Foldable(Foldable, foldr, sum)
 import Data.Functor(fmap)
 
-countTags :: Report
+countTags :: (Foldable f) => Report f
 countTags = emptyRpt { footer = f } where
   f o _ = count (showAllTags o) (showTags o)
 
@@ -34,7 +34,7 @@ countFood :: Food -> NameMap -> NameMap
 countFood f ns = foldr countValue ns (assocs m) where
   (TagNamesVals m) = tags f
 
-nameMap :: [Food] -> NameMap
+nameMap :: (Foldable f) => f Food -> NameMap
 nameMap = foldr countFood empty
 
 showValPair :: (TagVal, Int) -> Text
@@ -75,10 +75,11 @@ orderedWithLeftovers m ks = (orig, left) where
       sndToVal (k, (Just v)) = Just (k, v)
       sndToVal (_, Nothing) = Nothing
 
-count :: Bool      -- ^ If true, show all tags. If false, only show all
+count :: (Foldable f) => 
+         Bool      -- ^ If true, show all tags. If false, only show all
                    -- tags if next list is empty.
          -> [Name] -- ^ Tags to show
-         -> [Food] -- ^ Foods whose tags to show
+         -> f Food -- ^ Foods whose tags to show
          -> Text
 count a ns fs = firsts `append` rests where
   nm = nameMap fs

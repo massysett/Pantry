@@ -10,7 +10,7 @@ import Food(Food, Name(Name), TagNamesVals(TagNamesVals), tags,
             TagVal(TagVal))
 import Data.Map(lookup, keys)
 
-paste :: Report
+paste :: Report f
 paste = emptyRpt { body = f } where
   f _ _ food = printFood food
 

@@ -7,7 +7,7 @@ import qualified Food as F (units, UnitNamesAmts(UnitNamesAmts))
 import Exact(Exact(exact))
 import Data.Text(unlines, pack, append)
 
-units :: Report
+units :: Report f
 units = emptyRpt { body = b } where
   b _ _ = unlines . map toLine . assocs . toMap where
     toMap = (\(F.UnitNamesAmts m) -> m) . F.units

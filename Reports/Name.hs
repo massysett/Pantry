@@ -6,7 +6,7 @@ import Food(TagNameVal(TagNameVal), TagVal(TagVal),
 import Reports.Types(Report, emptyRpt, body)
 import Data.Text(snoc, pack)
 
-name :: Report
+name :: Report f
 name = emptyRpt {body = b} where
   b _ _ f = snoc n '\n' where
     n = case getTag t f of

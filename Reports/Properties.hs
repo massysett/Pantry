@@ -12,7 +12,7 @@ import Food(Food(qty, foodId, currUnit, pctRefuse),
             PctRefuse(PctRefuse))
 import Exact(Exact(exact))
 
-properties :: Report
+properties :: Report f
 properties = emptyRpt { body = f } where
   f o _ food = render o (Properties food)
 

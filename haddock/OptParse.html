@@ -1,0 +1,290 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>OptParse</title><link href="ocean.css" rel="stylesheet" type="text/css" title="Ocean" /><script src="haddock-util.js" type="text/javascript"></script><script type="text/javascript">//<![CDATA[
+window.onload = function () {pageLoad();setSynopsis("mini_OptParse.html");};
+//]]>
+</script></head><body><div id="package-header"><ul class="links" id="page-menu"><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul><p class="caption" class="empty">&nbsp;</p></div><div id="content"><div id="module-header"><p class="caption">OptParse</p></div><div id="description"><p class="caption">Description</p><div class="doc"><p>A full-featured command line arguments parser. Features:
+</p><ul><li> Parses both short options (<code>-i</code>) and long options (<code>--ignore</code>)
+</li><li> Allows short options to be combined with other short options (<code>ls
+ -lh</code> rather than <code>ls -l -h</code>) and with arguments (<code>foocmd -oarg</code>
+ rather than <code>foocmd -o arg</code> and even <code>foocmd -ioarg</code> assuming that
+ <code>-i</code> is an option that takes no arguments)
+</li><li> Allows long option to be combined with its argument with an equal
+ sign (GNU style, like <code>head --lines=20</code>). However this is optional;
+ having the long option and the argument in separate words is also
+ permitted (like <code>head --lines 20</code>).
+</li><li> Parses &quot;commands&quot;. Examples include <code>git clone</code> or <code>cvs up</code>,
+ where <code>clone</code> and <code>up</code> are the commands, respectively. Each command
+ might take different options and handle positional arguments
+ differently.
+</li><li> Both commands and options can be abbreviated to the shortest
+ unambiguous abbreviation. For example, instead of <code>--ignore-case</code>
+ you could use <code>--igno</code> or even <code>--i</code> if either of those is
+ unambiguous.
+</li><li> Options, option arguments, commands, and positional arguments are
+ all parsed using user-provided functions. For example, you can use
+ this to change option arguments to different datatypes (an Int,
+ say) or to make sure there is a particular number of positional
+ arguments. You could make sure some options only appear on the
+ command line once, or you can make implement an option that toggles
+ an option on and off.
+</li><li> Full error reporting using Either and a user-defined error
+ object. Parsing stops when an error is found, and that error is
+ reported. The user can define her own errors, which can be used if
+ an error is encountered when parsing options, option arguments,
+ commands, or positional arguments.
+</li><li> Positional arguments and options can be freely interspersed.
+</li><li> Recognizes <code>--</code> by itself and then stops parsing options. All
+ subsequent words are then treated as positional arguments, even if
+ they begin with dashes.
+</li><li> Options can take zero, one, or two arguments.
+</li></ul><p>Non-features / disadvantages:
+</p><ul><li> Complicated.
+</li><li> Some parsers, like System.Console.GetOpt, automatically generate
+ help messages; this does not.
+</li><li> Options must take a set number of arguments. Unlike
+ System.Console.GetOpt, you cannot specify that an option takes an
+ optional argument.
+</li><li> Short options (those specified with a single dash) must be only
+ one character long. So you will not be able to use this to write a
+ clone of the Unix <code>find(1)</code> command.
+</li><li> Although short options can be combined (e.g. <code>-isn</code> assuming <code>-i</code>
+ and <code>-s</code> take no option arguments and that <code>-n</code> is an option) the
+ first option must be preceded with a dash. That is, this does not
+ support the style of options you find in BSD-like <code>ps(1)</code> commands,
+ for example.
+</li><li> Positional arguments and options may always be freely
+ interspersed; this cannot be turned off.
+</li></ul></div></div><div id="synopsis"><p id="control.syn" class="caption expander" onclick="toggleSection('syn')">Synopsis</p><ul id="section.syn" class="hide" onclick="toggleSection('syn')"><li class="src short"><span class="keyword">class</span>  <a href="#t:ParseErr">ParseErr</a> a  <span class="keyword">where</span><ul class="subs"><li><a href="#v:badLongOpt">badLongOpt</a> :: String -&gt; a</li><li><a href="#v:ambiguousLongOpt">ambiguousLongOpt</a> :: String -&gt; [String] -&gt; a</li><li><a href="#v:badShortOpt">badShortOpt</a> :: Char -&gt; a</li><li><a href="#v:badEqualsOpt">badEqualsOpt</a> :: String -&gt; String -&gt; a</li><li><a href="#v:insufficientArgs">insufficientArgs</a> :: Either String Char -&gt; Int -&gt; [String] -&gt; a</li><li><a href="#v:longOptWithoutName">longOptWithoutName</a> :: a</li><li><a href="#v:noMatchingCmd">noMatchingCmd</a> :: String -&gt; a</li><li><a href="#v:ambiguousCmd">ambiguousCmd</a> :: String -&gt; [String] -&gt; a</li><li><a href="#v:noCmd">noCmd</a> :: a</li><li><a href="#v:posArgsNotAllowed">posArgsNotAllowed</a> :: String -&gt; a</li></ul></li><li class="src short"><span class="keyword">data</span>  <a href="#t:PosDesc">PosDesc</a> opts posargs err<ul class="subs"><li>= <a href="#v:NoPosArgs">NoPosArgs</a> posargs  </li><li>| <a href="#v:PosArgs">PosArgs</a> ([(opts, String)] -&gt; Either err posargs)  </li></ul></li><li class="src short"><span class="keyword">data</span>  <a href="#t:ArgDesc">ArgDesc</a> opts err<ul class="subs"><li>= <a href="#v:Flag">Flag</a> (opts -&gt; Either err opts)  </li><li>| <a href="#v:Single">Single</a> (opts -&gt; String -&gt; Either err opts)  </li><li>| <a href="#v:Double">Double</a> (opts -&gt; String -&gt; String -&gt; Either err opts)  </li></ul></li><li class="src short"><span class="keyword">data</span>  <a href="#t:OptDesc">OptDesc</a> opts err = <a href="#v:OptDesc">OptDesc</a> {<ul class="subs"><li><a href="#v:optShort">optShort</a> :: [Char]</li><li><a href="#v:optLong">optLong</a> :: [String]</li><li><a href="#v:optArgDesc">optArgDesc</a> :: <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err</li></ul>}</li><li class="src short"><span class="keyword">data</span>  <a href="#t:CmdDesc">CmdDesc</a> cmd opts posargs err = <a href="#v:CmdDesc">CmdDesc</a> {<ul class="subs"><li><a href="#v:cmdName">cmdName</a> :: String</li><li><a href="#v:cmdF">cmdF</a> :: String -&gt; cmd</li><li><a href="#v:cmdOpts">cmdOpts</a> :: [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err]</li><li><a href="#v:cmdPos">cmdPos</a> :: <a href="OptParse.html#t:PosDesc">PosDesc</a> opts posargs err</li></ul>}</li><li class="src short"><a href="#v:parse">parse</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err] -&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err] -&gt; opts -&gt; [String] -&gt; Either err (cmd, opts, posargs)</li><li class="src short"><span class="keyword">type</span> <a href="#t:CharOpts">CharOpts</a> opts err = Map Char (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</li><li class="src short"><span class="keyword">type</span> <a href="#t:StringOpts">StringOpts</a> opts err = Map String (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</li><li class="src short"><a href="#v:addCharOpt">addCharOpt</a> ::  <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; Char -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</li><li class="src short"><a href="#v:addStringOpt">addStringOpt</a> ::  <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; String -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</li><li class="src short"><a href="#v:addCharOpts">addCharOpts</a> ::  <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:OptDesc">OptDesc</a> opts err -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</li><li class="src short"><a href="#v:addStringOpts">addStringOpts</a> ::  <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; <a href="OptParse.html#t:OptDesc">OptDesc</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</li><li class="src short"><a href="#v:addOptsToLookups">addOptsToLookups</a> ::  [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err] -&gt; (<a href="OptParse.html#t:CharOpts">CharOpts</a> opts err, <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err)</li><li class="src short"><a href="#v:addCmdToLookups">addCmdToLookups</a> ::  <a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err -&gt; (<a href="OptParse.html#t:CharOpts">CharOpts</a> opts err, <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err)</li><li class="src short"><span class="keyword">data</span>  <a href="#t:ParseState">ParseState</a> opts = <a href="#v:ParseState">ParseState</a> {<ul class="subs"><li><a href="#v:stOpts">stOpts</a> :: opts</li><li><a href="#v:stPos">stPos</a> :: [(opts, String)]</li><li><a href="#v:stLeft">stLeft</a> :: [String]</li></ul>}</li><li class="src short"><a href="#v:isLongOpt">isLongOpt</a> :: String -&gt; Bool</li><li class="src short"><a href="#v:isShortOpt">isShortOpt</a> :: String -&gt; Bool</li><li class="src short"><a href="#v:parseCmdDesc">parseCmdDesc</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err -&gt; [String] -&gt; opts -&gt; Either err (opts, [(opts, String)])</li><li class="src short"><span class="keyword">data</span>  <a href="#t:AtNonOpt">AtNonOpt</a> <ul class="subs"><li>= <a href="#v:StopParsing">StopParsing</a>  </li><li>| <a href="#v:ResumeParsing">ResumeParsing</a>  </li></ul></li><li class="src short"><a href="#v:parseArgs">parseArgs</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a> -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; [String] -&gt; opts -&gt; Either err (opts, [(opts, String)])</li><li class="src short"><a href="#v:parseArgsM">parseArgsM</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a> -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:pickParser">pickParser</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a> -&gt; String -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:isStopper">isStopper</a> :: String -&gt; Bool</li><li class="src short"><a href="#v:parseStopper">parseStopper</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseLongOpt">parseLongOpt</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:pickLongParser">pickLongParser</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseLongFlag">parseLongFlag</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseLongSingle">parseLongSingle</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseLongDouble">parseLongDouble</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; String -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:breakLongWord">breakLongWord</a> :: (Error err, <a href="OptParse.html#t:ParseErr">ParseErr</a> err) =&gt; String -&gt; Either err (String, Maybe String)</li><li class="src short"><a href="#v:bestLongArgDesc">bestLongArgDesc</a> :: <a href="OptParse.html#t:ParseErr">ParseErr</a> err =&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; String -&gt; Either err (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</li><li class="src short"><a href="#v:parseShortOpt">parseShortOpt</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:innerParseShort">innerParseShort</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseShortFlag">parseShortFlag</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; Either err opts) -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseShortSingle">parseShortSingle</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; Either err opts) -&gt; Char -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseShortDouble">parseShortDouble</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; String -&gt; Either err opts) -&gt; Char -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseOnePosArg">parseOnePosArg</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseRemainingPosArgs">parseRemainingPosArgs</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</li><li class="src short"><a href="#v:parseCmds">parseCmds</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err] -&gt; opts -&gt; [String] -&gt; Either err (cmd, opts, posargs)</li><li class="src short"><a href="#v:pickCmd">pickCmd</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err] -&gt; [String] -&gt; Either err (<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err)</li><li class="src short"><a href="#v:throwOnLeft">throwOnLeft</a> :: MonadError e m =&gt; Either e b -&gt; m ()</li><li class="src short"><a href="#v:fromRight">fromRight</a> ::  Either a b -&gt; b</li></ul></div><div id="interface"><h1>Documentation</h1><div class="top"><p class="src"><span class="keyword">class</span>  <a name="t:ParseErr" class="def">ParseErr</a> a  <span class="keyword">where</span></p><div class="doc"><p>Instances of the ParseErr class can be used with the <code><a href="OptParse.html#v:parse">parse</a></code>
+ function to report errors. In addition, ParseErr can be used to
+ report custom errors. For example, one of the argument processing
+ functions in <code><a href="OptParse.html#t:ArgDesc">ArgDesc</a></code> can refurn a Left err to indicate that the
+ user passed an incorrect value. This will terminate all further
+ processing and report the error. Though options are typically
+ preceded with one or two dashes, none of the arguments passed to
+ the ParseErr functions are passed with leading dashes.
+</p></div><div class="subs methods"><p class="caption">Methods</p><p class="src"><a name="v:badLongOpt" class="def">badLongOpt</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>The bad input
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>A long option string was not recognized.
+</p></div><p class="src"><a name="v:ambiguousLongOpt" class="def">ambiguousLongOpt</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>The string the user passed
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>Possible matches
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>A long option string was short but has more than one match. For
+ instance the user passed the string <code>--he</code> as an option, but the
+ program has options for both <code>--hello</code> and <code>--head</code>.
+</p></div><p class="src"><a name="v:badShortOpt" class="def">badShortOpt</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: Char</td><td class="doc"><p>Unrecognized character
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>A short option character has no recognized matches.
+</p></div><p class="src"><a name="v:badEqualsOpt" class="def">badEqualsOpt</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>The option name
+</p></td></tr><tr><td class="src">-&gt; String</td><td class="doc"><p>The option argument the user passed
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>Long options can be passed GNU style, where the option and the
+ option argument appear in the same word, as in <code>--number=4</code>. This
+ works when the option has one or two arguments. When an option
+ argument is passed for an option that does not take any
+ arguments, this function is called.
+</p></div><p class="src"><a name="v:insufficientArgs" class="def">insufficientArgs</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: Either String Char</td><td class="doc"><p>The option name (short or long)
+</p></td></tr><tr><td class="src">-&gt; Int</td><td class="doc"><p>The number of arguments expected
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>Number of arguments actually received
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>The user did not give enough option arguments.
+</p></div><p class="src"><a name="v:longOptWithoutName" class="def">longOptWithoutName</a> :: a</p><div class="doc"><p>Long option was passed, and it has an equal sign and an option
+ argument, but no name (e.g. <code>--=yes</code>)
+</p></div><p class="src"><a name="v:noMatchingCmd" class="def">noMatchingCmd</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>name of unrecognized command
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>An unrecognized command name was used.
+</p></div><p class="src"><a name="v:ambiguousCmd" class="def">ambiguousCmd</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>The string the user passed
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>Possible matches
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>A command name matches more than one possible command name, for
+ instance the user passed <code>fin</code> but there are commands named
+ <code>find</code> and <code>finagle</code>.
+</p></div><p class="src"><a name="v:noCmd" class="def">noCmd</a> :: a</p><div class="doc"><p>The user did not provide any command at all.
+</p></div><p class="src"><a name="v:posArgsNotAllowed" class="def">posArgsNotAllowed</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: String</td><td class="doc"><p>Positional argument the user gave
+</p></td></tr><tr><td class="src">-&gt; a</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>The user passed a positional argument where one is not allowed
+ (e.g. for a command for which positional arguments are not
+ allowed).
+</p></div></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:PosDesc" class="def">PosDesc</a> opts posargs err </p><div class="doc"><p>Describes a positional argument. For example, in the command
+ <code>pantry find -i name hello</code>, the positional arguments are <code>name</code>
+ and <code>hello</code> (<code>-i</code> is an option, not a positional argument).
+</p></div><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:NoPosArgs" class="def">NoPosArgs</a> posargs</td><td class="doc"><p>Use if this command does not accept any positional
+ arguments. However you still must give a function that takes no
+ arguments; this function is called when and will be suppled as
+ one of the elements of the tuple that <a href="parse.html">parse</a> returns. (Possible
+ change: have <a href="parse.html">parse</a> return a Nothing instead in cases like
+ this?)
+</p></td></tr><tr><td class="src"><a name="v:PosArgs" class="def">PosArgs</a> ([(opts, String)] -&gt; Either err posargs)</td><td class="doc"><p><a href="parse.html">parse</a> parses all the positional arguments after the rest of
+ the command line is processed. You supply the function that will
+ be called here. This way the function can see all the command
+ line arguments rather than seeing them just one at a time. Each
+ element of this is a tuple, with the first part of the tuple
+ being the options that were selected at the time this positional
+ argument appeared, and the second being the positional argument
+ itself. This way the output of the function can depend on what
+ the command line options were. The function should return Left
+ err if there was some problem.
+</p></td></tr></table></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:ArgDesc" class="def">ArgDesc</a> opts err </p><div class="doc"><p>Describes the arguments that an option accepts. For example, the
+ command <code>head</code> takes an option named <code>-n</code>, which accepts a single
+ argument for the number of lines to print. Each of these
+ constructors takes one argument, which is a function. The first
+ argument of the function is always the command line options as they
+ existed before this argument is parsed. This allows each option
+ behave differently depending upon what options preceded it. For
+ instance, this could be used to implement toggling behavior. Next
+ the function accepts zero or more string arguments, with each
+ string representing a command-line argument for the option. Finally
+ each function returns an Either. Return Left err if there was some
+ problem with the parse, or a Right opts with the new state of the
+ command-line options.
+</p></div><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:Flag" class="def">Flag</a> (opts -&gt; Either err opts)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src"><a name="v:Single" class="def">Single</a> (opts -&gt; String -&gt; Either err opts)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src"><a name="v:Double" class="def">Double</a> (opts -&gt; String -&gt; String -&gt; Either err opts)</td><td class="doc empty">&nbsp;</td></tr></table></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:OptDesc" class="def">OptDesc</a> opts err </p><div class="doc"><p>Describes a command line option. For example, in the command line
+ <code>pantry find -i name Chex</code>, a command line option is <code>-i</code>.
+</p></div><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:OptDesc" class="def">OptDesc</a></td><td class="doc empty">&nbsp;</td></tr><tr><td colspan="2"><div class="subs fields"><p class="caption">Fields</p><dl><dt class="src"><a name="v:optShort" class="def">optShort</a> :: [Char]</dt><dd class="doc"><p>Short option names, without the leading dash.
+</p></dd><dt class="src"><a name="v:optLong" class="def">optLong</a> :: [String]</dt><dd class="doc"><p>Long option names, without the leading dashes.
+</p></dd><dt class="src"><a name="v:optArgDesc" class="def">optArgDesc</a> :: <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err</dt><dd class="doc"><p>Whether this option takes any arguments and, if so, how many.
+</p></dd></dl><div class="clear"></div></div></td></tr></table></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:CmdDesc" class="def">CmdDesc</a> cmd opts posargs err </p><div class="doc"><p>Describes a command. For instance, from the command line <code>pantry
+ find -i name Chex</code>, the command is <code>find</code>.
+</p></div><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:CmdDesc" class="def">CmdDesc</a></td><td class="doc empty">&nbsp;</td></tr><tr><td colspan="2"><div class="subs fields"><p class="caption">Fields</p><dl><dt class="src"><a name="v:cmdName" class="def">cmdName</a> :: String</dt><dd class="doc"><p>The command name, such as <code>find</code>.
+</p></dd><dt class="src"><a name="v:cmdF" class="def">cmdF</a> :: String -&gt; cmd</dt><dd class="doc"><p>Takes the full name of the command, returns something
+ to indicate which command was called.
+</p></dd><dt class="src"><a name="v:cmdOpts" class="def">cmdOpts</a> :: [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err]</dt><dd class="doc"><p>A list of all the options that the command takes.
+</p></dd><dt class="src"><a name="v:cmdPos" class="def">cmdPos</a> :: <a href="OptParse.html#t:PosDesc">PosDesc</a> opts posargs err</dt><dd class="doc"><p>How to parse positional arguments for this command.
+</p></dd></dl><div class="clear"></div></div></td></tr></table></div></div><div class="top"><p class="src"><a name="v:parse" class="def">parse</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err]</td><td class="doc"><p>Global options. For example, in the command <code>pantry -i
+ find name pretzels</code>, <code>-i</code> is a global option because it
+ appears before the command.
+</p></td></tr><tr><td class="src">-&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err]</td><td class="doc"><p>All command descriptions
+</p></td></tr><tr><td class="src">-&gt; opts</td><td class="doc"><p>Default options. When the command line is parsed, each
+ option receives the options that have already been
+ parsed. The first option will receive this item.
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>What to parse
+</p></td></tr><tr><td class="src">-&gt; Either err (cmd, opts, posargs)</td><td class="doc"><p>Left if an error occurred; Right if everything
+ succeeded. The tuple has the command that was seen, the
+ final state of the options item, and any positional
+ arguments.
+</p></td></tr></table></div><div class="doc"><p>Parse a command line. Presumably you got it from
+ System.Environment.getArgs. Do not include the program name as the
+ first string to parse (consistent with System.Environment.getArgs).
+</p></div></div><div class="top"><p class="src"><span class="keyword">type</span> <a name="t:CharOpts" class="def">CharOpts</a> opts err = Map Char (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</p><div class="doc"><p>An ArgDesc describes an argument, but the ArgDesc itself does not
+ specify the name of the short or long option that is used on the
+ command line to trigger the argument. For example, a program might
+ have a flag option (one that does not take any option
+ arguments). The flag option might be invoked using <code>-f</code> or with
+ <code>--flag</code>. To parse these flags, add appropriate key-value pairs to
+ the CharOpts and StringOpts maps.
+</p></div></div><div class="top"><p class="src"><span class="keyword">type</span> <a name="t:StringOpts" class="def">StringOpts</a> opts err = Map String (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</p></div><div class="top"><p class="src"><a name="v:addCharOpt" class="def">addCharOpt</a> ::  <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; Char -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</p><div class="doc"><p>Adds a single argument description to a map of CharOpts, which
+ will be triggered by the given char.
+</p></div></div><div class="top"><p class="src"><a name="v:addStringOpt" class="def">addStringOpt</a> ::  <a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; String -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</p><div class="doc"><p>Adds a single argument description to a map of StringOpts.
+</p></div></div><div class="top"><p class="src"><a name="v:addCharOpts" class="def">addCharOpts</a> ::  <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:OptDesc">OptDesc</a> opts err -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</p><div class="doc"><p>Adds the list of short option names found in an OptDesc to the
+ CharOpts, with each short option name being associated with the
+ ArgDesc given in the OptDesc.
+</p></div></div><div class="top"><p class="src"><a name="v:addStringOpts" class="def">addStringOpts</a> ::  <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; <a href="OptParse.html#t:OptDesc">OptDesc</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</p><div class="doc"><p>Adds the list of long argument names found in an OptDesc to
+ the StringOpts, with each long argument name being associated
+ with the ArgDesc given in the OptDesc.
+</p></div></div><div class="top"><p class="src"><a name="v:addOptsToLookups" class="def">addOptsToLookups</a> ::  [<a href="OptParse.html#t:OptDesc">OptDesc</a> opts err] -&gt; (<a href="OptParse.html#t:CharOpts">CharOpts</a> opts err, <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err)</p><div class="doc"><p>Applies addStringOpts and addCharOpts repeatedly to a list of
+ OptDesc items.
+</p></div></div><div class="top"><p class="src"><a name="v:addCmdToLookups" class="def">addCmdToLookups</a> ::  <a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err -&gt; (<a href="OptParse.html#t:CharOpts">CharOpts</a> opts err, <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err)</p><div class="doc"><p>A simple wrapper around addOptsToLookups for CmdDesc items.
+</p></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:ParseState" class="def">ParseState</a> opts </p><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:ParseState" class="def">ParseState</a></td><td class="doc empty">&nbsp;</td></tr><tr><td colspan="2"><div class="subs fields"><p class="caption">Fields</p><dl><dt class="src"><a name="v:stOpts" class="def">stOpts</a> :: opts</dt><dd class="doc"><p>Options parsed so far
+</p></dd><dt class="src"><a name="v:stPos" class="def">stPos</a> :: [(opts, String)]</dt><dd class="doc"><p>Positional arguments so far. These are not truly
+ parsed; they are simply paired with the options that
+ were in force when the positional argument was
+ encountered on the command line.
+</p></dd><dt class="src"><a name="v:stLeft" class="def">stLeft</a> :: [String]</dt><dd class="doc"><p>Words remaining to be parsed
+</p></dd></dl><div class="clear"></div></div></td></tr></table></div></div><div class="top"><p class="src"><a name="v:isLongOpt" class="def">isLongOpt</a> :: String -&gt; Bool</p></div><div class="top"><p class="src"><a name="v:isShortOpt" class="def">isShortOpt</a> :: String -&gt; Bool</p></div><div class="top"><p class="src"><a name="v:parseCmdDesc" class="def">parseCmdDesc</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; <a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err</td><td class="doc"><p>The CmdDesc of the command to parse, which
+ includes all the options and how to parse the
+ positional arguments.
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>What to parse. Using the example given above, this would be
+</p><pre> [&quot;-i&quot;, &quot;name&quot;, &quot;beans&quot;]
+</pre></td></tr><tr><td class="src">-&gt; opts</td><td class="doc"><p>Default options. Each time a set of option
+ arguments is parsed (which happens even for options
+ that take no arguments) a function is called that
+ takes the set of options as it has been modified by
+ the command line so far. The value if this
+ parameter is passed to the first option.
+</p></td></tr><tr><td class="src">-&gt; Either err (opts, [(opts, String)])</td><td class="doc"><p>This will be <code>Left err</code> if an error occurred, or
+ <code>Right</code> if everything succeeded. The first element
+ of the tuple is the options after all have been
+ parsed. The second is a list of positional
+ arguments. The first element of each tuple in this
+ list is the state of the options when the argument
+ was encountered; the second element is the argument
+ itself.
+</p></td></tr></table></div><div class="doc"><p>Parses a single command description. At this point, the command
+ itself has already been removed from the command line. For example,
+ if the command line is <code>pantry find -i name beans</code>, then the
+ command is <a href="find.html">find</a>. However, the line has already been parsed
+ through <code>find</code>.
+</p></div></div><div class="top"><p class="src"><span class="keyword">data</span>  <a name="t:AtNonOpt" class="def">AtNonOpt</a>  </p><div class="doc"><p>What to do when the args parser encounters a non-option argument?
+ Both of these options will properly respect a &quot;stopper&quot;
+ (<code>--</code>). The stopper will be parsed and then the remaining arguments
+ will be returned unparsed.
+</p></div><div class="subs constructors"><p class="caption">Constructors</p><table><tr><td class="src"><a name="v:StopParsing" class="def">StopParsing</a></td><td class="doc"><p>Stop parsing, do not parse the non-option argument, and
+ return the remaining arguments unparsed
+</p></td></tr><tr><td class="src"><a name="v:ResumeParsing" class="def">ResumeParsing</a></td><td class="doc"><p>Add the non-option argument to the list of remaining
+ arguments that will be returned, then resume parsing at the
+ next word
+</p></td></tr></table></div></div><div class="top"><p class="src"><a name="v:parseArgs" class="def">parseArgs</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a></td><td class="doc"><p>See documentation for <a href="AtNonOpt.html">AtNonOpt</a> for details
+</p></td></tr><tr><td class="src">-&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</td><td class="doc"><p>The short options
+</p></td></tr><tr><td class="src">-&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</td><td class="doc"><p>The long options
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>What to parse
+</p></td></tr><tr><td class="src">-&gt; opts</td><td class="doc"><p>Initial state of the options
+</p></td></tr><tr><td class="src">-&gt; Either err (opts, [(opts, String)])</td><td class="doc"><p>This will be <code>Left err</code> if an error occurred, or
+ <code>Right</code> if everything succeeded. The first element
+ of the tuple is the options after all have been
+ parsed. The second is a list of positional
+ arguments. The first element of each tuple in this
+ list is the state of the options when the argument
+ was encountered; the second element is the argument
+ itself.
+</p></td></tr></table></div><div class="doc"><p>Parses a list of options and positional arguments.
+</p></div></div><div class="top"><p class="src"><a name="v:parseArgsM" class="def">parseArgsM</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a> -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p><div class="doc"><p>Monad that carries out the parsing of options and positional
+ arguments. This function recurses until all the command line
+ arguments are parsed (either because they are options, or because
+ they are positional arguments).
+</p></div></div><div class="top"><p class="src"><a name="v:pickParser" class="def">pickParser</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:AtNonOpt">AtNonOpt</a> -&gt; String -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p><div class="doc"><p>Examines, but does not change, the next word in the ParseState to
+ be parsed. Then calls the appropriate parser in to actually parse
+ the word. This function does not actually change or remove the next
+ word to be parsed because the parser itself might need to examine
+ the word (for instance, it might be a long option that also has the
+ option argument).
+</p></div></div><div class="top"><p class="src"><a name="v:isStopper" class="def">isStopper</a> :: String -&gt; Bool</p><div class="doc"><p>A &quot;stopper&quot; is a double dash and means &quot;stop processing
+ options; everything that follows is a positional argument.&quot;
+</p></div></div><div class="top"><p class="src"><a name="v:parseStopper" class="def">parseStopper</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p><div class="doc"><p>Removes the stopper from the list of arguments remaining to be
+ parsed, then parses all the remaining arguments as positional
+ arguments.
+</p></div></div><div class="top"><p class="src"><a name="v:parseLongOpt" class="def">parseLongOpt</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p><div class="doc"><p>Parse a long option. pickParser has already figured out that the
+ next word to be parsed is a long option; parseLongOpt examines the
+ next word, examines StringOpts to determine how many option
+ arguments it takes, and parses the option arguments. This uses
+ breakLongWord to split the long option into the option itself and
+ any argument that may have been passed in the same word. If the
+ long option is not found, this calls throwError.
+</p></div></div><div class="top"><p class="src"><a name="v:pickLongParser" class="def">pickLongParser</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">-&gt; (String, Maybe String)</td><td class="doc"><p>The result from breakLongWord. fst is the name
+ of the long option. snd is the option argument
+ that was passed in the same word, or Nothing if
+ there wasn't one. See breakLongWord for details.
+</p></td></tr><tr><td class="src">-&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>There are three different functions to parse long flag options,
+ long single options, and long double options; this function picks
+ the right one.
+</p></div></div><div class="top"><p class="src"><a name="v:parseLongFlag" class="def">parseLongFlag</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseLongSingle" class="def">parseLongSingle</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseLongDouble" class="def">parseLongDouble</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; String -&gt; Either err opts) -&gt; (String, Maybe String) -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:breakLongWord" class="def">breakLongWord</a> :: (Error err, <a href="OptParse.html#t:ParseErr">ParseErr</a> err) =&gt; String -&gt; Either err (String, Maybe String)</p><div class="doc"><p>Applied to a string that is a long option, such as <code>--hello=yes</code>,
+ returns the long option name and the argument given, if any. For
+ example, for <code>--hello=yes</code>, returns <code>(<a href="hello.html">hello</a>, Just <a href="yes.html">yes</a>)</code>. For
+ <code>--hello</code>, returns <code>(<a href="hello.html">hello</a>, Nothing)</code>. Returns an error if there
+ is no long option name (e.g. <code>--=yes</code>).
+</p></div></div><div class="top"><p class="src"><a name="v:bestLongArgDesc" class="def">bestLongArgDesc</a> :: <a href="OptParse.html#t:ParseErr">ParseErr</a> err =&gt; <a href="OptParse.html#t:StringOpts">StringOpts</a> opts err -&gt; String -&gt; Either err (<a href="OptParse.html#t:ArgDesc">ArgDesc</a> opts err)</p><div class="doc"><p>Finds the ArgDesc that is the best match for a string. If there is
+ an exact match, use that. Otherwise, if there is exactly one option
+ that starts with the word given, use that. Otherwise, returns an
+ error.
+</p></div></div><div class="top"><p class="src"><a name="v:parseShortOpt" class="def">parseShortOpt</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p><div class="doc"><p>With short options, multiple options can be combined into one
+ word, and an option and its argument might be combined in the same
+ word. parseShortOpt pops the first word off from the list of words
+ to be parsed (pickParser already ensured that the first word is
+ indeed a short option). parseShortOpt peels the single dash off the
+ front of the word and then passes the word to innerParseShort for
+ parsing.
+ BUG - FIXME - no recursion for innerParseShort
+</p></div></div><div class="top"><p class="src"><a name="v:innerParseShort" class="def">innerParseShort</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">-&gt; [Char]</td><td class="doc"><p>The word with the option - prefix omitted
+</p></td></tr><tr><td class="src">-&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</td><td class="doc empty">&nbsp;</td></tr></table></div></div><div class="top"><p class="src"><a name="v:parseShortFlag" class="def">parseShortFlag</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; Either err opts) -&gt; <a href="OptParse.html#t:CharOpts">CharOpts</a> opts err -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseShortSingle" class="def">parseShortSingle</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; Either err opts) -&gt; Char -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseShortDouble" class="def">parseShortDouble</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; (opts -&gt; String -&gt; String -&gt; Either err opts) -&gt; Char -&gt; [Char] -&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseOnePosArg" class="def">parseOnePosArg</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseRemainingPosArgs" class="def">parseRemainingPosArgs</a> :: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err) =&gt; ErrorT err (State (<a href="OptParse.html#t:ParseState">ParseState</a> opts)) ()</p></div><div class="top"><p class="src"><a name="v:parseCmds" class="def">parseCmds</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err]</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">-&gt; opts</td><td class="doc"><p>Default opts
+</p></td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>To parse
+</p></td></tr><tr><td class="src">-&gt; Either err (cmd, opts, posargs)</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>Applied to a list of command descriptions, a set of default
+ options, and a list of strings to parse, returns either an error or
+ the resulting command, the resulting options, and the resulting
+ posargs.
+</p></div></div><div class="top"><p class="src"><a name="v:pickCmd" class="def">pickCmd</a></p><div class="subs arguments"><p class="caption">Arguments</p><table><tr><td class="src">:: (<a href="OptParse.html#t:ParseErr">ParseErr</a> err, Error err)</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">=&gt; [<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err]</td><td class="doc empty">&nbsp;</td></tr><tr><td class="src">-&gt; [String]</td><td class="doc"><p>To parse
+</p></td></tr><tr><td class="src">-&gt; Either err (<a href="OptParse.html#t:CmdDesc">CmdDesc</a> cmd opts posargs err)</td><td class="doc empty">&nbsp;</td></tr></table></div><div class="doc"><p>Given a list of CmdDesc and a list of command line arguments
+ waiting to be parsed, returns the appropriate CmdDesc for the
+ argument at the head of the list. Assumes there is at least one
+ argument in the list; blows up if there isn't one.
+</p></div></div><div class="top"><p class="src"><a name="v:throwOnLeft" class="def">throwOnLeft</a> :: MonadError e m =&gt; Either e b -&gt; m ()</p><div class="doc"><p>Throws an error if applied to an Either which is Left.
+ Otherwise, does nothing.
+</p></div></div><div class="top"><p class="src"><a name="v:fromRight" class="def">fromRight</a> ::  Either a b -&gt; b</p><div class="doc"><p>Extracts the Right value from an Either. Bombs if there is no Right value.
+</p></div></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.9.2</p></div></body></html>

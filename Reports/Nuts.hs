@@ -107,7 +107,7 @@ nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   nonGoalTxt = concat . map (render o) $ nonDupes
   gap = pack "\n"
 
-nuts :: Report
+nuts :: Report f
 nuts = emptyRpt { body = f } where
   f o ts food = nutRptTxt ts o food
 

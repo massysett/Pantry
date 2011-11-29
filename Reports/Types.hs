@@ -10,15 +10,16 @@ import Prelude(Bool(False))
 import Data.Text(Text)
 import qualified Data.Text as X (empty)
 import Food(Food, Name, NutNamesAmts, NutAmt)
+import Control.Applicative(Applicative)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt
 
-data Report =
-  Report { header :: ReportOpts -> NutNamesAmts -> [Food] -> Text
+data Report f =
+  Report { header :: ReportOpts -> NutNamesAmts -> f Food -> Text
          , body :: ReportOpts -> NutNamesAmts -> Food -> Text
-         , footer :: ReportOpts -> NutNamesAmts -> [Food] -> Text }
+         , footer :: ReportOpts -> NutNamesAmts -> f Food -> Text }
 
-emptyRpt :: Report
+emptyRpt :: Report f
 emptyRpt = Report { header = \_ _ _ -> X.empty
                   , body = \_ _ _ -> X.empty
                   , footer = \_ _ _ -> X.empty }
