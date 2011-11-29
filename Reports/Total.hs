@@ -90,6 +90,5 @@ totRptTxt ts o = hdr `append` txt `append` nl where
 
 total :: Report
 total = emptyRpt { footer = g } where
-  g o fs = totRptTxt ts o where
-    ts = foldFoodNuts fs
+  g o ts _ = totRptTxt ts o
 
