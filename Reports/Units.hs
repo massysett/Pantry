@@ -1,17 +1,16 @@
-module Reports.Units where
+module Reports.Units(units) where
 
-import Data.Text hiding (map, replicate)
-import qualified Data.Text as X
-import Reports.Types
-import Food
-import Data.Map hiding (map)
+import Prelude((.), map)
+import Data.Map(assocs)
+import Reports.Types(Report(body), emptyRpt)
+import qualified Food as F (units, UnitNamesAmts(UnitNamesAmts))
+import Exact(Exact(exact))
+import Data.Text(unlines, pack, append)
 
-
--- | TODO add grams to units report
-unitsRpt :: Report
-unitsRpt = emptyRpt {body = b} where
-  b _ _ f = X.concat . map toString $ (assocs m) where
-    toString ((Name k), _) =
-      (pack . replicate 3 $ ' ') `append` k `snoc` '\n'
-    (UnitNamesAmts m) = allAvailUnits f
-
+units :: Report
+units = emptyRpt { body = b } where
+  b _ _ = unlines . map toLine . assocs . toMap where
+    toMap = (\(F.UnitNamesAmts m) -> m) . F.units
+    toLine (n, a) = pack "    " `append` na `append` amt where
+      na = exact n
+      amt = pack " (" `append` exact a `append` pack " g)"
