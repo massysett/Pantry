@@ -57,7 +57,11 @@ reports = M.fromList $ [
 bestReport :: (F.Foldable f) => String -> Either [String] (Report f)
 bestReport s = bestMatch s reports
 
-runReports :: (F.Foldable f, Applicative f) => f (Report f) -> ReportOpts -> f Food -> X.Text
+runReports :: (F.Foldable f, Applicative f) =>
+              f (Report f)
+              -> ReportOpts
+              -> f Food
+              -> X.Text
 runReports rs o fs = h `X.append` b `X.append` f where
   h = concat $ header <$> rs <*> pure o <*> pure t <*> pure fs
   b = concat $ body <$> rs <*> pure o <*> pure t <*> fs
