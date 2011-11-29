@@ -10,10 +10,13 @@ import Reports.Properties(properties)
 import Reports.Tags(tags)
 import Reports.Total(total)
 import Reports.Units(units)
-import Reports.Types(Report)
+import Reports.Types(Report, ReportOpts, header, body, footer)
+import Food(Food, foldFoodNuts)
+import qualified Data.Text as X
 
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
+import Control.Applicative
 
 -- | Given a string, and a map with string keys, find the best match
 -- for the input string. If there is one exact match, use
@@ -50,3 +53,10 @@ reports = M.fromList $ [
 
 bestReport :: String -> Either [String] Report
 bestReport s = bestMatch s reports
+
+runReports :: [Report] -> ReportOpts -> [Food] -> X.Text
+runReports rs o fs = h `X.append` b `X.append` f where
+  h = X.concat $ header <$> rs <*> pure o <*> pure t <*> pure fs
+  b = X.concat $ body <$> rs <*> pure o <*> pure t <*> fs
+  f = X.concat $ footer <$> rs <*> pure o <*> pure t <*> pure fs
+  t = foldFoodNuts fs
