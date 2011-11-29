@@ -10,3 +10,43 @@ import Reports.Properties(properties)
 import Reports.Tags(tags)
 import Reports.Total(total)
 import Reports.Units(units)
+import Reports.Types(Report)
+
+import Data.List(isPrefixOf)
+import qualified Data.Map as M
+
+-- | Given a string, and a map with string keys, find the best match
+-- for the input string. If there is one exact match, use
+-- that. Otherwise, if there is a single match that starts with the
+-- input string, use that. Otherwise, return a Left with the matches
+-- (might be zero, might be two or more.)
+
+bestMatch :: Ord a => [a] -> M.Map [a] b -> Either [[a]] b
+bestMatch k m = case M.lookup k m of
+  (Just v) -> Right v
+  Nothing -> case ms of
+      x:[] -> Right $ snd x
+      x -> Left (map fst x)
+  where
+    ms = map snd
+         . filter fst
+         . zip (map (k `isPrefixOf`) (M.keys m))
+         . M.assocs
+         $ m
+
+reports :: M.Map String Report
+reports = M.fromList $ [
+  ("blank", blank)
+  , ("count-tags", countTags)
+  , ("ingredients", ingredients)
+  , ("name", name)
+  , ("nutrients", nuts)  
+  , ("paste", paste)
+  , ("properties", properties)
+  , ("tags", tags)
+  , ("total", total)
+  , ("units", units)
+  ]
+
+bestReport :: String -> Either [String] Report
+bestReport s = bestMatch s reports
