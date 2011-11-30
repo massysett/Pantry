@@ -1,0 +1,171 @@
+Usage: pantry command [options] arguments
+
+COMMANDS THAT ACCEPT OPTIONS
+============================
+find tag-name pattern [ tag-name pattern... ]
+       Search for foods using specified tag names and patterns
+all
+       Select all foods in database
+create
+       Create a new food
+id id [ id... ]
+       Select foods with specified IDs
+
+Options for the find, all, create, and id commands
+==================================================
+
+PATTERN CONTROL
+    -i, --ignore-case
+        makes all patterns case insensitive
+    -v, --invert
+        invert ordinary matching behavior
+    --within
+        use "within" matcher (default)
+    --posix
+        use POSIX regular expression matcher
+    --pcre
+        use PCRE regular expression matcher
+    --exact
+        use "exact" matcher
+
+CHANGE TAGS AND PROPERTIES
+    -c tag-name string, --change-tag tag-name string
+        Set tag equal to string
+    -u pattern, --change-unit pattern
+        Change current unit to the one matching pattern
+    -q number,  --change-quantity number
+        Change quantity to number, which may be floating point,
+        a fraction, or a mixed number
+    --change-percent-refuse number
+        Change percent refuse to number (between 0 and 100 inclusive)
+    --change-yield number
+        Change yield to number, which is a floating-point number
+
+    --by-nutrient nut-name qty
+        set quantity of foods so amount of nut-name = qty
+    -r, --refuse
+        reduce quantity of foods by percent refuse
+
+CHANGING NUTRIENTS, AVAILABLE UNITS, AND INGREDIENTS
+    --change-nutrient pattern value
+        change nutrient value
+    --rename-nutrient pattern new-name
+        rename nutrient to new-name
+    --delete-nutrients pattern
+        delete nutrients matching pattern
+
+    --change-available-unit pattern value
+        change available unit value
+    --rename-available-unit pattern new-name
+        rename available unit matching pattern to new-name
+    --delete-available-units pattern
+        delete available units matching regexp
+
+    --add-as-ingredients id
+        Add selected foods as ingredients to food with id
+
+ADDING CHANGED FOODS
+    -a, --append
+        Add changed foods to the end of the database
+    --prepend
+        Add changed foods to the beginning of the database
+
+REPORTING
+    -p REPORT, --print REPORT
+        print REPORT, where REPORT is one of:
+            name - name tag, if food has one
+            properties - all non-tag properties
+            units - available units
+            paste - name, available units, and IDs for cut-and-paste
+            count-tags - summary of tag information
+            nutrients - nutrients of each food
+            total - total nutrients
+            ingredients - a food's ingredients
+            tags - the food's tags
+            blank - a blank line
+            xml - XML output (maybe for XSLT, or XSL-FO, or . . . )
+
+    -g nutrient-name number, --goal nutrient-name number
+        Show nutrient-name in nutrients and Nutrients reports, with
+        number used as a goal
+    --show-all-nutrients
+        Show all nutrients in nutrients and Nutrients reports,
+        even if --goal is used
+    --show-tag tag-name, -t tag-name
+        Show tag-name in tags and summarize-tags reports
+    --show-all-tags
+        Show all tags in tags and summarize-tags reports,
+        even if --show-tag is used
+    --one-column
+        Print values in one column for tags and properties reports
+
+Additional options for the all, find, and id commands
+=====================================================
+In addition to the options shown above, these
+options are available for the all, find, and id
+commands. (They are not available for the create
+command.)
+
+SORTING OPTIONS
+    -k tag-name, --key-ascending tag-name
+        Sort by tag-name in ascending order
+    -K tag-name, --key-descending tag-name
+        Sort by tag-name in descending order
+    -O tag-name value, --key-order tag-name value
+        Show values for tag-name in a particular order
+
+EDITING AND DELETING FOODS
+    --edit
+        Edit foods in place
+    --delete
+        delete matching foods
+
+INGREDIENTS
+    --export-ingredients
+	Add ingredients of selected foods to database
+    --remove-ingredients
+        Remove all ingredients of selected foods
+
+Additional options for the all and find commands
+================================================
+In addition to the options shown above, these
+options are available for the all and find commands.
+
+    --head n
+        Remove all but the first n foods from the
+        selection
+    --tail n
+        Remove all but the last n foods from the
+        selection
+
+COMMANDS THAT DO NOT ACCEPT OPTIONS
+===================================
+These commands do not accept any of the options
+shown above. Some of these commands do accept (or require)
+arguments following the name of the command.
+
+open filename
+	Close current file and open new one
+append-file filename
+       Add contents of filename to end of the database
+prepend-file filename
+       Add contents of filename to the beginning of the database
+close
+	Close currently open file
+save {filename}
+	Save contents of current file
+quit
+	Shut down server
+status
+       Current server status
+help
+       show this help message
+version
+       Print version information
+copyright
+       Print copyright and license information
+move id id [ id... ]
+       Rearrange foods with specified IDs into specified sequence
+
+Pantry home page: http://www.smileystation.com/pantry
+Report bugs to omari@smileystation.com.
