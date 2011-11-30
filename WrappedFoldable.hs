@@ -1,33 +1,20 @@
 module WrappedFoldable where
 
+import Prelude((.), ($))
 import Control.Monad
-import Data.Foldable
+import qualified Data.Foldable as F
+import Control.Applicative
 
 newtype WrappedFoldable f a =
-  WrappedFoldable { unwrap :: f a } deriving Show
+  WrappedFoldable { unwrap :: f a }
 
 instance Monad f => Functor (WrappedFoldable f) where
   fmap f (WrappedFoldable a) = WrappedFoldable (liftM f a)
 
+instance Monad m => Applicative (WrappedFoldable m) where
+    pure = WrappedFoldable . return
+    WrappedFoldable f <*> WrappedFoldable v = WrappedFoldable (f `ap` v)
 
-{-
-instance Monad f => Monad (WrappedFoldable f) where
-  m >>= g = (WrappedFoldable (unwrap m)) >>= g
-  return = WrappedFoldable . return
-
-
-instance Monad f => Monad (WrappedFoldable f) where
-  (WrappedFoldable m) >>= f = (WrappedFoldable m) >>= f
-  return = WrappedFoldable . return
-
--}
-instance Monad f => Monad (WrappedFoldable f) where
-  m >>= f = m >>= f
-  return = return
-
-mything = WrappedFoldable [1,2,3]
-
-myfunc :: Int -> Maybe Int
-myfunc 3 = Just 5
-myfunc _ = Nothing
+instance F.Foldable f => F.Foldable (WrappedFoldable f) where
+  foldr f b = F.foldr f b . unwrap
 
