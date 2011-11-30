@@ -18,6 +18,9 @@ import Data.Text(Text, pack)
 import Exact(Exact(exact))
 import Rounded(Rounded)
 
+type Matcher = (Text -> Food)
+type Xform = (Food -> Either Error Food)
+
 newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
 newtype NutAmt = NutAmt NonNeg
                  deriving (Eq, Ord, Show, Add, HasZero, Exact, Rounded)
@@ -84,10 +87,6 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , ingr = Ingr S.empty
                  , foodId = 0 }
 
--- Matchers
-class Matcher a where
-  matches :: a -> Text -> Bool
-
 -- Tag manipulations
 
 hasTag :: Name -> Food -> Bool
@@ -113,27 +112,28 @@ changeTagsInFoods :: (F.Foldable a, Functor b) =>
                      -> b Food
 changeTagsInFoods ts = fmap (changeTags ts)
 
-deleteTag :: (Matcher m) => m -> Food -> Food
+deleteTag :: (Text -> Bool) -> Food -> Food
 deleteTag m f = f { tags = new } where
   (TagNamesVals old) = tags f
   new = TagNamesVals . M.fromList . filter p . M.assocs $ old
-  p (Name n, _) = not $ matches m n
+  p (Name n, _) = not $ m n
 
-deleteTags :: (Matcher m, F.Foldable f) => f m -> Food -> Food
+deleteTags :: (F.Foldable f)
+              => f (Text -> Bool) -> Food -> Food
 deleteTags ms f = F.foldl' (flip deleteTag) f ms
 
-deleteTagsInFoods :: (Matcher m, F.Foldable a, Functor b)
-                     => a m
+deleteTagsInFoods :: (F.Foldable a, Functor b)
+                     => a (Text -> Bool)
                      -> b Food
                      -> b Food
 deleteTagsInFoods ms fs = fmap (deleteTags ms) fs
 
 -- | True if food has a tag whose name matches the Name and whose
 -- value matches the second matcher.
-foodMatch :: Matcher m => Name -> m -> Food -> Bool
+foodMatch :: Name -> (Text -> Bool) -> Food -> Bool
 foodMatch n v f = isJust $ do
   (TagNameVal _ (TagVal val)) <- getTag n f
-  guard $ matches v val
+  guard $ v val
 
 -- Units manipulations
 -- |Add an arbitrary unit to a food.
@@ -152,21 +152,21 @@ addUnitsToFoods :: (F.Foldable f, Functor l)
 addUnitsToFoods us = fmap (addUnits us)
 
 -- | Delete arbitrary units whose name matches a matcher.
-deleteUnit :: Matcher m => m -> Food -> Food
+deleteUnit :: (Text -> Bool) -> Food -> Food
 deleteUnit m f = f {units = new} where
   (UnitNamesAmts old) = units f
   new = UnitNamesAmts $ M.fromList ns
-  ns = filter (not . matches m . unitName . fst) (M.assocs old)
+  ns = filter (not . m . unitName . fst) (M.assocs old)
   unitName n = let (Name v) = n in v
 
-deleteUnits :: (Matcher m, F.Foldable f)
-               => f m
+deleteUnits :: (F.Foldable f)
+               => f (Text -> Bool)
                -> Food
                -> Food
 deleteUnits ms f = F.foldl' (flip deleteUnit) f ms
 
-deleteUnitsFromFoods :: (Matcher m, F.Foldable a, Functor b)
-                        => a m -> b Food -> b Food
+deleteUnitsFromFoods :: (F.Foldable a, Functor b)
+                        => a (Text -> Bool) -> b Food -> b Food
 deleteUnitsFromFoods ms = fmap (deleteUnits ms)
 
 allAvailUnits :: Food -> UnitNamesAmts
@@ -180,7 +180,7 @@ allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
         [absGrams, absOunces, absPounds]
 
 -- | Change current unit to the one matching a matcher.
-changeCurrUnit :: (Matcher m) => m -> Food -> Either Error Food
+changeCurrUnit :: (Text -> Bool) -> Food -> Either Error Food
 changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
   oneMatch = length ms == 1
   (UnitNamesAmts allU) = allUnits $ units f
@@ -189,11 +189,11 @@ changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
   headMatchName = fst . head $ ms
   headMatchGrams = snd . head $ ms
   ms = filter pred $ M.assocs allU
-  pred ((Name n), _) = matches m n
+  pred ((Name n), _) = m n
   err = if' (null ms) NoMatchingUnit (MultipleMatchingUnits ms)
 
-changeCurrUnits :: (Matcher m, T.Traversable t)
-                   => m -> t Food -> Either Error (t Food)
+changeCurrUnits :: (T.Traversable t)
+                   => (Text -> Bool) -> t Food -> Either Error (t Food)
 changeCurrUnits m = T.mapM (changeCurrUnit m)
 
 foodGrams :: Food -> Grams

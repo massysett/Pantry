@@ -40,6 +40,8 @@ CHANGE TAGS AND PROPERTIES
         Change percent refuse to number (between 0 and 100 inclusive)
     --change-yield number
         Change yield to number, which is a floating-point number
+    --remove-yield
+        Let Pantry determine the yield for you
 
     --by-nutrient nut-name qty
         set quantity of foods so amount of nut-name = qty
