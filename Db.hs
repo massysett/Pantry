@@ -2,7 +2,7 @@ module Db where
 
 import Prelude(undefined, Either, ($), (.), id, Monad,
                (>>=), return, String, Bool, Maybe, IO,
-               Ordering, Integer)
+               Ordering, Integer, flip)
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 import Control.Applicative(Applicative, (<*>), pure)
@@ -89,7 +89,7 @@ tail :: Integer -> Foods -> Foods
 tail = undefined
 
 compose :: F.Foldable f => f (a -> a) -> a -> a
-compose = F.foldl (.) id
+compose = F.foldl (flip (.)) id
 
 composeM :: (F.Foldable f, Monad m)
             => f (a -> m a)

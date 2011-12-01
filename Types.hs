@@ -6,9 +6,12 @@ module Types( NonNeg
             , mixedDec
             , mixedRatio
             , toNonNeg
+            , NonNegInteger
+            , PosInteger
             , BoundedPercent
             , pctToMixed
             , subtractPercent
+            , Next(..)
             , HasZero(..)
             , Add(..)
             , Divide(..)
@@ -18,7 +21,7 @@ import Prelude(Eq, Ord, Show, (==), (-), ($), (+), compare,
                (<), error, toRational, (*), (/),
                Maybe(Nothing, Just), (.), either, const,
                (||), (>=), fromInteger, read, show, String,
-               (++), otherwise, Integer)
+               (++), otherwise, Integer, succ)
 import Data.Ratio(Rational, (%), numerator, denominator)
 import Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
@@ -64,6 +67,12 @@ instance Ord NonNegMixed where
 toNonNeg :: NonNegMixed -> NonNeg
 toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 
+newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
+                        deriving (Eq, Ord, Show)
+
+newtype PosInteger = PosInteger { unPosInteger :: Integer }
+                     deriving (Eq, Ord, Show)
+
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
                        deriving (Eq, Ord, Show, Exact)
 
@@ -72,6 +81,15 @@ subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
   nn = NonNeg $ n - n * p / 100
   (NonNeg p) = toNonNeg pct
 
+class Next a where
+  next :: a -> a
+
+instance Next NonNegInteger where
+  next = NonNegInteger . succ . unNonNegInteger
+
+instance Next PosInteger where
+  next = PosInteger . succ . unPosInteger
+
 class HasZero a where
   zero :: a
 
@@ -79,6 +97,8 @@ instance HasZero BoundedPercent where
   zero = BoundedPercent zero
 instance HasZero NonNegMixed where
   zero = NonNegMixed (Decimal 0 0) (0 % 1)
+instance HasZero NonNegInteger where
+  zero = NonNegInteger 0
 
 instance HasZero NonNeg where
   zero = NonNeg $ 0 % 1

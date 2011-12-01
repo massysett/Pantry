@@ -10,8 +10,6 @@ import qualified Control.Monad.Error as E
 import Food(Error(RegexComp))
 import Data.Bits((.|.))
 
--- TODO is caseless being done correctly in different matchers?
-
 newtype CaseSensitive = CaseSensitive { sensitive :: Bool }
 
 tdfa :: CaseSensitive -> String -> Either Error (X.Text -> Bool)
@@ -31,8 +29,8 @@ pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
   where
     comp = RL.defaultCompOpt .|. PCRE.compUTF8 .|. caseless
     caseless = case (sensitive c) of
-      True -> PCRE.compCaseless
-      False -> 0
+      False -> PCRE.compCaseless
+      True -> 0
     exec = RL.defaultExecOpt
 
 within :: CaseSensitive -> String -> X.Text -> Bool
