@@ -17,8 +17,9 @@ import Types
 import Data.Text(Text, pack)
 import Exact(Exact(exact))
 import Rounded(Rounded)
+import qualified Control.Monad.Error as E
 
-type Matcher = (Text -> Food)
+type Matcher = (Text -> Bool)
 type Xform = (Food -> Either Error Food)
 
 newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
@@ -56,6 +57,8 @@ instance Exact Qty where
 
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving (Show)
+newtype FoodId = FoodId { unFoodId :: Integer }
+                 deriving (Show, Eq, Ord)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
@@ -65,7 +68,7 @@ data Food = Food { tags :: TagNamesVals
                  , qty :: Qty
                  , yield :: Yield
                  , ingr :: Ingr
-                 , foodId :: Integer } deriving Show
+                 , foodId :: FoodId } deriving Show
 
 absGrams :: UnitNameAmt
 absGrams = UnitNameAmt (Name . pack $ "g") (Grams . partialNewNonNeg $ 1 % 1)
@@ -85,7 +88,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , qty = Qty (Left zero)
                  , yield = Yield Nothing
                  , ingr = Ingr S.empty
-                 , foodId = 0 }
+                 , foodId = FoodId 0 }
 
 -- Tag manipulations
 
@@ -97,6 +100,11 @@ getTag n f = do
   let (TagNamesVals m) = tags f
   v <- M.lookup n m
   return $ TagNameVal n v
+
+tagPred :: Name -> Matcher -> Food -> Bool
+tagPred n m f = case getTag n f of
+  Nothing -> False
+  (Just (TagNameVal _ (TagVal x))) -> m x
 
 changeTag :: TagNameVal -> Food -> Food
 changeTag (TagNameVal n (TagVal v)) f = f {tags = new} where
@@ -328,6 +336,8 @@ deleteIngredients f = f {ingr = Ingr S.empty}
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
            | AddNutToZeroQty
+           | RegexComp String
            | Other String
 
-
+instance E.Error Error where
+  strMsg = Other
