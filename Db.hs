@@ -2,13 +2,14 @@ module Db where
 
 import Prelude(undefined, Either, ($), (.), id, Monad,
                (>>=), return, String, Bool, Maybe, IO,
-               Ordering, Integer, flip)
+               Ordering, Integer, flip, Either(Left, Right))
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 import Control.Applicative(Applicative, (<*>), pure)
-import qualified Control.Monad.Error as E (ErrorT)
+import qualified Control.Monad.Error as E
 import qualified Data.Traversable as T
 import qualified Data.Text as X
+import Types(NonNegInteger, PosInteger)
 
 import Food(Food, Error, FoodId, Xform)
 
@@ -96,3 +97,8 @@ composeM :: (F.Foldable f, Monad m)
             -> a
             -> m a
 composeM fs a = F.foldl (>>=) (return a) fs
+
+liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
+liftToErrorT e = case e of
+  (Left err) -> E.throwError err
+  (Right good) -> return good

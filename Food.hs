@@ -57,7 +57,7 @@ instance Exact Qty where
 
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving (Show)
-newtype FoodId = FoodId { unFoodId :: Integer }
+newtype FoodId = FoodId { unFoodId :: NonNegInteger }
                  deriving (Show, Eq, Ord)
 
 data Food = Food { tags :: TagNamesVals
@@ -88,7 +88,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , qty = Qty (Left zero)
                  , yield = Yield Nothing
                  , ingr = Ingr S.empty
-                 , foodId = FoodId 0 }
+                 , foodId = FoodId . partialNewNonNegInteger $ 0 }
 
 -- Tag manipulations
 

@@ -7,7 +7,9 @@ module Types( NonNeg
             , mixedRatio
             , toNonNeg
             , NonNegInteger
+            , partialNewNonNegInteger
             , PosInteger
+            , partialNewPosInteger
             , BoundedPercent
             , pctToMixed
             , subtractPercent
@@ -21,7 +23,8 @@ import Prelude(Eq, Ord, Show, (==), (-), ($), (+), compare,
                (<), error, toRational, (*), (/),
                Maybe(Nothing, Just), (.), either, const,
                (||), (>=), fromInteger, read, show, String,
-               (++), otherwise, Integer, succ)
+               (++), otherwise, Integer, succ,
+               Integral, fromIntegral, (<=))
 import Data.Ratio(Rational, (%), numerator, denominator)
 import Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
@@ -70,8 +73,22 @@ toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
                         deriving (Eq, Ord, Show)
 
+partialNewNonNegInteger :: (Integral i) => i -> NonNegInteger
+partialNewNonNegInteger i
+  | ii < 0 = error "partialNewNonNegInteger: integer is negative."
+  | otherwise = NonNegInteger $ ii
+    where
+      ii = fromIntegral i
+
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
                      deriving (Eq, Ord, Show)
+
+partialNewPosInteger :: (Integral i) => i -> PosInteger
+partialNewPosInteger i
+  | ii <= 0 = error "partialNewPosInteger: integer is not positive."
+  | otherwise = PosInteger $ ii
+    where
+      ii = fromIntegral i
 
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
                        deriving (Eq, Ord, Show, Exact)
@@ -137,6 +154,17 @@ instance FromStr BoundedPercent where
         p = r / 100
     when (p < 0 || p >= 1) $ fail "percent out of range"
     return $ BoundedPercent m
+
+instance FromStr NonNegInteger where
+  fromStr = either (const Nothing) (Just . NonNegInteger)
+              . parse integer ""
+
+instance FromStr PosInteger where
+  fromStr s = case fromStr s of
+    (Just (NonNegInteger i)) ->
+      case i of 0 -> Nothing
+                n -> Just . PosInteger $ i
+    _ -> Nothing
 
 -- Parsec basement
 
