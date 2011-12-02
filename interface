@@ -15,10 +15,14 @@ Options for the find, all, create, and id commands
 ==================================================
 
 PATTERN CONTROL
-    -i, --ignore-case
-        makes all patterns case insensitive
+    -i, --case-insensitive
+        makes patterns case insensitive
+    --case-sensitive
+        makes patterns case sensitive (default)
     -v, --invert
         invert ordinary matching behavior
+    --no-invert
+        do not invert matching behavior (default)
     --within
         use "within" matcher (default)
     --posix

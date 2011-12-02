@@ -23,6 +23,8 @@ data Db = Db { dbNextId :: NextId
              , dbUnsaved :: Unsaved
              , dbFoods :: Foods }
 
+-- COMMANDS
+
 prepend :: Foods -> Db -> Db
 prepend = undefined
 

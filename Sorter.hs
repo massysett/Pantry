@@ -1,4 +1,5 @@
 module Sorter( foodcmp
+             , Key
              , TagMap
              , addTag
              , makeTagMap
