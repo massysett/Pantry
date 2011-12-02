@@ -18,8 +18,8 @@ data SetYield = NoChange
                 | SetYield MixedGrams
 
 -- Use for create command
-data BaseOpts f = BaseOpts {
-  -- Pattern control
+data Opts f = Opts {
+  -- Options for create, all, find, id
   ignoreCase :: Bool
   , invert :: Bool
   , matcher :: (Text -> Bool)
@@ -32,22 +32,14 @@ data BaseOpts f = BaseOpts {
   , reports :: [Report f]
     
   , reportOpts :: ReportOpts
-  }
-
--- Export and remove ingredients are handled by adding to the
--- xformDb list.
--- Use for id command
-data AllFindIdOpts f = AllFindIdOpts {
-  allFindIdBase :: BaseOpts f
+    
+    -- Options for all, find, id
   , tagMap :: TagMap
   , keys :: [Key]
   , edit :: Bool
   , delete :: Bool
-  }
 
--- Use for all and find commands
-data AllFindOpts f = AllFindOpts {
-  allFindBase :: AllFindIdOpts f
+    -- Options for all, find
   , xformFoods :: Foods -> Foods
   }
 
@@ -57,6 +49,23 @@ data OutputAndDb = OutputAndDb { odbNewDb :: Db
                                , odbOutput :: Output }
 data Quit = Quit
 
+data ResultWrap = WrappedNewDb NewDb
+                  | WrappedOutput Output
+                  | WrappedOutputAndDb OutputAndDb
+
+class Result a where
+  wrap :: a -> ResultWrap
+
+instance Result NewDb where
+  wrap = WrappedNewDb
+instance Result Output where
+  wrap = WrappedOutput
+instance Result OutputAndDb where
+  wrap = WrappedOutputAndDb
+
+sendResult :: Handle -> Either Error ResultWrap -> IO ()
+sendResult = undefined
+
 data Done = Done | NotDone
 
 processMessage :: Handle -> Db -> IO (Maybe Db)
@@ -64,23 +73,23 @@ processMessage = undefined
 
 -- COMMANDS
 find :: (Food -> Bool)
-        -> AllFindOpts f
+        -> Opts f
         -> Db
         -> Either Error OutputAndDb
 find = undefined
 
-all :: AllFindOpts f
+all :: Opts f
        -> Db
        -> Either Error OutputAndDb
 all = find (\_ -> True)
 
-create :: BaseOpts f
+create :: Opts f
           -> Db
           -> Either Error OutputAndDb
 create = undefined
 
 id :: (Food -> Bool)
-      -> AllFindIdOpts f
+      -> Opts f
       -> Db
       -> Either Error OutputAndDb
 id = undefined
