@@ -1,5 +1,6 @@
 module Commands where
 
+import System.IO(Handle)
 import Data.Text(Text)
 import Food(TagNameVal, PctRefuse, MixedGrams, Name,
             NutAmt, NutNameAmt, Matcher, Xform,
@@ -55,6 +56,11 @@ newtype Output = Output { unOutput :: Text }
 data OutputAndDb = OutputAndDb { odbNewDb :: Db
                                , odbOutput :: Output }
 data Quit = Quit
+
+data Done = Done | NotDone
+
+processMessage :: Handle -> Db -> IO (Maybe Db)
+processMessage = undefined
 
 -- COMMANDS
 find :: (Food -> Bool)

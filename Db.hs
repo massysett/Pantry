@@ -23,6 +23,11 @@ data Db = Db { dbNextId :: NextId
              , dbUnsaved :: Unsaved
              , dbFoods :: Foods }
 
+blankDb :: Db
+blankDb = undefined
+
+data Done = Done | NotDone
+
 -- COMMANDS
 
 prepend :: Foods -> Db -> Db
@@ -45,15 +50,6 @@ load = undefined
 
 status :: Db -> X.Text
 status = undefined
-
-data MoveId = First | Pos FoodId
-
-move :: MoveId -- ^ First one
-        -> FoodId -- ^ Second one
-        -> [FoodId] -- ^ Subsequent foods
-        -> Db
-        -> Either Error Db
-move = undefined
 
 xform :: Xform -> Db -> Either Error Db
 xform f d = do
