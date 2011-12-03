@@ -2,20 +2,18 @@ module Reports.Ingredients(ingredients) where
 
 import Prelude(($), (.), Maybe(Just, Nothing), fmap)
 import Exact(exact)
-import Reports.Types(Report, body, emptyRpt)
 import Data.Text(Text, unwords, pack, unlines)
 import Food(Food, ingr, UnitNameAmt(UnitNameAmt), currUnit,
             Name(Name), TagNameVal(TagNameVal), qty, getTag,
             Ingr(Ingr))
 import Data.Foldable(Foldable, foldr)
 
-ingredients :: Report f
-ingredients = emptyRpt { body = f } where
-  f _ _ = unlines
-          . (foldr (:) [])
-          . fmap showIngr
-          . (\(Ingr i) -> i)
-          . ingr
+ingredients :: Food -> Text
+ingredients = unlines
+              . (foldr (:) [])
+              . fmap showIngr
+              . (\(Ingr i) -> i)
+              . ingr
 
 showIngr :: Food -> Text
 showIngr f = unwords [q, u, n] where

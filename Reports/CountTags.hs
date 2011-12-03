@@ -9,17 +9,15 @@ import Food(Food, tags, TagNamesVals(TagNamesVals),
             Name(Name), TagVal(TagVal))
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
-import Reports.Types(Report, emptyRpt,
-                     showAllTags, showTags, footer)
+import Reports.Types(showAllTags, showTags, TotalRpt, ReportOpts)
 import Data.Text(Text, pack, replicate, singleton,
                  append, snoc, concat)
 import qualified Data.Text as X
 import Data.Foldable(Foldable, foldr, sum)
 import Data.Functor(fmap)
 
-countTags :: (Foldable f) => Report f
-countTags = emptyRpt { footer = f } where
-  f o _ = count (showAllTags o) (showTags o)
+countTags :: (Foldable f) => ReportOpts -> f Food -> Text
+countTags o = count (showAllTags o) (showTags o)
 
 type ValMap = Map TagVal Int
 type NameMap = Map Name ValMap

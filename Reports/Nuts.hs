@@ -8,8 +8,7 @@ import Food(Name, NutAmt, nutRatio, Food, getNut,
             NutNamesAmts(NutNamesAmts), foodNuts)
 import Reports.Render(Render(render))
 import Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
-                     goals, showAllNuts, Report,
-                     emptyRpt, body)
+                     goals, showAllNuts)
 import Data.Map (lookup, assocs)
 import Reports.Columns(fmtColumnRow, txtColWidth, numColWidth)
 import qualified Data.List as L (concat)
@@ -90,11 +89,11 @@ appendAnyIfNotDupe gns ngn ngns
 removeDupeAnyNuts :: [GoalNut] -> [AnyNut] -> [AnyNut]
 removeDupeAnyNuts gns = foldr (appendAnyIfNotDupe gns) []
 
-nutRptTxt :: NutNamesAmts -- ^ Totals
-             -> ReportOpts
+nuts :: ReportOpts
+             -> NutNamesAmts
              -> Food
              -> Text
-nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
+nuts o ts f = nutRptHdr `append` txt `append` gap where
   txt
     | null . goals $ o = nonGoalTxt
     | otherwise = case showAllNuts o of
@@ -106,9 +105,3 @@ nutRptTxt ts o f = nutRptHdr `append` txt `append` gap where
   goalTxt = concat . map (render o) $ gns
   nonGoalTxt = concat . map (render o) $ nonDupes
   gap = pack "\n"
-
-nuts :: Report f
-nuts = emptyRpt { body = f } where
-  f o ts food = nutRptTxt ts o food
-
-

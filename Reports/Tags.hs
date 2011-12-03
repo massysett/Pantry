@@ -8,6 +8,7 @@ import Data.Maybe
 import Data.Map hiding (map, null, (\\))
 import Data.List hiding (lookup)
 import Prelude hiding (lookup)
+import Data.Text(Text)
 
 allTags :: Food -> [(Name, TagVal)]
 allTags f = assocs m where
@@ -39,12 +40,11 @@ tagsToShow showAll ns f
     ordered = orderedTags ns f
     rest = removeRedundantTags ordered (allTags f)
 
-tags :: Report f
-tags = emptyRpt {body = b} where
-  b o _ f = newspaper cs ss where
-    cs = if oneColumn o then [] else [35]
-    ss = map toString ts
-    toString ((Name n), (TagVal v)) =
-      n `append` (pack ": ") `append` v
-    ts = tagsToShow (showAllTags o) (showTags o) f
+tags :: ReportOpts -> Food -> Text
+tags o f = newspaper cs ss where
+  cs = if oneColumn o then [] else [35]
+  ss = map toString ts
+  toString ((Name n), (TagVal v)) =
+    n `append` (pack ": ") `append` v
+  ts = tagsToShow (showAllTags o) (showTags o) f
     

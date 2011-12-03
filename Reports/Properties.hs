@@ -2,8 +2,7 @@ module Reports.Properties (properties) where
 
 import Prelude(Bool(True, False), (.), ($), Maybe(Just, Nothing),
                String, show)
-import Reports.Types (Report(body), emptyRpt,
-                      ReportOpts(oneColumn))
+import Reports.Types (ReportOpts(oneColumn))
 import Reports.Render(Render(render))
 import Data.Text(Text, pack, append, snoc, concat, cons)
 import Food(Food(qty, foodId, currUnit, pctRefuse),
@@ -12,9 +11,9 @@ import Food(Food(qty, foodId, currUnit, pctRefuse),
             PctRefuse(PctRefuse))
 import Exact(Exact(exact))
 
-properties :: Report f
-properties = emptyRpt { body = f } where
-  f o _ food = render o (Properties food)
+properties :: ReportOpts -> Food -> Text
+properties o f = render o (Properties f)
+
 
 -- Multi column property report:
 -- 2 1/2 cups (83 g)

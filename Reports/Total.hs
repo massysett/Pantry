@@ -73,8 +73,8 @@ appendTotIfNotDupe gns ng ngs
 removeDupeTotNuts :: [TotGoalNut] -> [TotNonGoalNut] -> [TotNonGoalNut]
 removeDupeTotNuts gns = foldr (appendTotIfNotDupe gns) []
 
-totRptTxt :: NutNamesAmts -> ReportOpts -> X.Text
-totRptTxt ts o = hdr `append` txt `append` nl where
+total :: ReportOpts -> NutNamesAmts -> X.Text
+total o ts = hdr `append` txt `append` nl where
   txt
     | null . goals $ o = nonGoalTxt
     | otherwise = case showAllNuts o of
@@ -88,7 +88,4 @@ totRptTxt ts o = hdr `append` txt `append` nl where
   hdr = totRptHdr
   nl = pack "\n"
 
-total :: Report f
-total = emptyRpt { footer = g } where
-  g o ts _ = totRptTxt ts o
 

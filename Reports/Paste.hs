@@ -2,19 +2,18 @@ module Reports.Paste(paste) where
 
 import Prelude(show, (.), ($), Integer,
                maybe, return, id, fmap)
-import Reports.Types(Report, body, emptyRpt)
 import Data.Text(Text, append, pack, snoc, replace, singleton,
                  empty, concat)
+import Types(NonNegInteger)
 import Food(Food, Name(Name), TagNamesVals(TagNamesVals), tags,
             units, UnitNamesAmts(UnitNamesAmts), foodId,
-            TagVal(TagVal))
+            TagVal(TagVal), unFoodId)
 import Data.Map(lookup, keys)
 
-paste :: Report f
-paste = emptyRpt { body = f } where
-  f _ _ food = printFood food
+paste :: Food -> Text
+paste = printFood
 
-printLine :: Integer -> Name -> Text
+printLine :: NonNegInteger -> Name -> Text
 printLine i (Name n) = cmd `append` iTxt `append` unit where
   cmd = pack "pantry id "
   iTxt = pack . show $ i
@@ -29,6 +28,6 @@ printFood f = com `append` us `snoc` '\n' where
     let (TagNamesVals m) = tags f
     name <- lookup (Name . pack $ "name") m
     return name
-  us = concat . fmap (printLine i) $ ns
+  us = concat . fmap (printLine . unFoodId $ i) $ ns
   ns = keys . (\(UnitNamesAmts m) -> m) . units $ f
   i = foodId f
