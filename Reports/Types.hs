@@ -10,11 +10,12 @@ import Data.Text(Text)
 import qualified Data.Text as X (empty)
 import Food(Food, Name, NutNamesAmts, NutAmt)
 import Control.Applicative(Applicative)
+import Db(Db)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt
 
 type FoodRpt = ReportOpts -> NutNamesAmts -> Food -> Text
-type TotalRpt f = ReportOpts -> NutNamesAmts -> f Food -> Text
+type TotalRpt f = ReportOpts -> NutNamesAmts -> Db -> f Food -> Text
 
 data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool

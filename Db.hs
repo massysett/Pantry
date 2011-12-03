@@ -28,36 +28,10 @@ blankDb = undefined
 
 data Done = Done | NotDone
 
--- COMMANDS
-
-prepend :: Foods -> Db -> Db
-prepend = undefined
-
-append :: Foods -> Db -> Db
-append = undefined
-
-select :: (Food -> Bool) -> Db -> Foods
-select f = Foods . S.filter f . unFoods . dbFoods
-
-save :: Db -> E.ErrorT Error IO Db
-save = undefined
-
-saveAs :: Filename -> Db -> E.ErrorT Error IO Db
-saveAs = undefined
-
-load :: Filename -> E.ErrorT Error IO Db
-load = undefined
-
-status :: Db -> X.Text
-status = undefined
-
 xform :: Xform -> Db -> Either Error Db
 xform f d = do
   newSeq <- T.mapM f . unFoods . dbFoods $ d
   return $ d { dbFoods = Foods newSeq }
-
-addAsIngredients :: Foods -> Db -> Either Error Db
-addAsIngredients = undefined
 
 sortDb :: (Food -> Food -> Ordering) -> Db -> Db
 sortDb c d = d { dbFoods = newFoods } where
@@ -69,32 +43,6 @@ composePreds :: (F.Foldable f, Applicative f)
                 -> a
                 -> Bool
 composePreds ps a = F.and $ ps <*> pure a
-
-edit :: (Food -> Bool) -> Xform -> Db -> Either Error Db
-edit = undefined
-
-delete :: (Food -> Bool) -> Db -> Db
-delete = undefined
-
-exportIngr :: Foods -> Db -> Db
-exportIngr = undefined
-
--- TODO define NonNegInt
-head :: Integer -> Foods -> Foods
-head = undefined
-
--- TODO define NonNegInt
-tail :: Integer -> Foods -> Foods
-tail = undefined
-
-compose :: F.Foldable f => f (a -> a) -> a -> a
-compose = F.foldl (flip (.)) id
-
-composeM :: (F.Foldable f, Monad m)
-            => f (a -> m a)
-            -> a
-            -> m a
-composeM fs a = F.foldl (>>=) (return a) fs
 
 liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
 liftToErrorT e = case e of

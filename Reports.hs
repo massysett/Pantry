@@ -12,10 +12,12 @@ import Reports.Properties(properties)
 import Reports.Tags(tags)
 import Reports.Total(total)
 import Reports.Units(units)
-import Reports.Types(Report, ReportOpts, header, body, footer)
+import Reports.Types(FoodRpt, TotalRpt)
 import Food(Food, foldFoodNuts)
 import qualified Data.Text as X
+import qualified Data.Foldable as F
 
+import Db(Db)
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
 import Control.Applicative((<$>), (<*>), pure, Applicative)
@@ -40,33 +42,24 @@ bestMatch k m = case M.lookup k m of
          . M.assocs
          $ m
 
-reports :: (F.Foldable f) => M.Map String (Report f)
-reports = M.fromList $ [
-  ("blank", blank)
-  , ("count-tags", countTags)
-  , ("ingredients", ingredients)
-  , ("name", name)
-  , ("nutrients", nuts)  
-  , ("paste", paste)
-  , ("properties", properties)
-  , ("tags", tags)
-  , ("total", total)
-  , ("units", units)
+foodRpts :: [FoodRpt]
+foodRpts = [
+  (\_ _ _ -> blank)
+  , (\_ _ -> ingredients)
+  , (\_ _ -> name)
+  , nuts
+  , (\_ _ -> paste)
+  , (\o _ f -> properties o f)
+  , (\o _ f -> tags o f)
+  , (\_ _ -> units)
   ]
 
-bestReport :: (F.Foldable f) => String -> Either [String] (Report f)
-bestReport s = bestMatch s reports
+totalRpts :: (F.Foldable f) => [TotalRpt f]
+totalRpts = [
+  (\o _ _ fs -> countTags o fs)
+  , (\o ts _ _ -> total o ts)
+  ]
 
-runReports :: (F.Foldable f, Applicative f) =>
-              f (Report f)
-              -> ReportOpts
-              -> f Food
-              -> X.Text
-runReports rs o fs = h `X.append` b `X.append` f where
-  h = concat $ header <$> rs <*> pure o <*> pure t <*> pure fs
-  b = concat $ body <$> rs <*> pure o <*> pure t <*> fs
-  f = concat $ footer <$> rs <*> pure o <*> pure t <*> pure fs
-  t = foldFoodNuts fs
 
 concat :: (F.Foldable f) => f X.Text -> X.Text
 concat = F.foldr X.append X.empty
