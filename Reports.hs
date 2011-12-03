@@ -1,7 +1,8 @@
 module Reports where
 
 import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
-               ($), fst, snd, map, filter, zip, (.), String)
+               ($), fst, snd, map, filter, zip, (.), String,
+               undefined, (++))
 import Reports.Blank(blank)
 import Reports.CountTags(countTags)
 import Reports.Ingredients(ingredients)
@@ -13,9 +14,10 @@ import Reports.Tags(tags)
 import Reports.Total(total)
 import Reports.Units(units)
 import Reports.Types(FoodRpt, TotalRpt)
-import Food(Food, foldFoodNuts)
+import Food(Food, foldFoodNuts, Error(NoReportMatch))
 import qualified Data.Text as X
 import qualified Data.Foldable as F
+import qualified Control.Monad.Error as E
 
 import Db(Db)
 import Data.List(isPrefixOf)
@@ -42,24 +44,38 @@ bestMatch k m = case M.lookup k m of
          . M.assocs
          $ m
 
-foodRpts :: [FoodRpt]
+foodRpts :: [(String, FoodRpt)]
 foodRpts = [
-  (\_ _ _ -> blank)
-  , (\_ _ -> ingredients)
-  , (\_ _ -> name)
-  , nuts
-  , (\_ _ -> paste)
-  , (\o _ f -> properties o f)
-  , (\o _ f -> tags o f)
-  , (\_ _ -> units)
+  ("blank", (\_ _ _ -> blank))
+  , ("ingredients", (\_ _ -> ingredients))
+  , ("name", (\_ _ -> name))
+  , ("nutrients", nuts)
+  , ("paste", (\_ _ -> paste))
+  , ("properties", (\o _ f -> properties o f))
+  , ("tags", (\o _ f -> tags o f))
+  , ("units", (\_ _ -> units))
   ]
 
-totalRpts :: (F.Foldable f) => [TotalRpt f]
+totalRpts :: (F.Foldable f) => [(String, TotalRpt f)]
 totalRpts = [
-  (\o _ _ fs -> countTags o fs)
-  , (\o ts _ _ -> total o ts)
+  ("count-tags", (\o _ _ fs -> countTags o fs))
+  , ("total", (\o ts _ _ -> total o ts))
   ]
 
+data ReportGroups f = ReportGroups [Either [FoodRpt] [TotalRpt f]]
+
+addReport :: (F.Foldable f)
+             => String -> ReportGroups f -> Either Error (ReportGroups f)
+addReport s rs = undefined
+
+bestReport :: (F.Foldable f) =>
+              String -> Either Error (Either FoodRpt (TotalRpt f))
+bestReport s = case bestMatch s (M.fromList foodRpts) of
+  (Right r) -> Right . Left $ r
+  (Left fms) -> case bestMatch s (M.fromList totalRpts) of
+    (Right r) -> Right . Right $ r
+    (Left tms) -> E.throwError $ NoReportMatch s (fms ++ tms)
+  
 
 concat :: (F.Foldable f) => f X.Text -> X.Text
 concat = F.foldr X.append X.empty

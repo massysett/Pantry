@@ -337,6 +337,7 @@ data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
            | AddNutToZeroQty
            | RegexComp String
+           | NoReportMatch String [String]
            | Other String
 
 instance E.Error Error where
