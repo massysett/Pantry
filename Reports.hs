@@ -57,54 +57,71 @@ foodRpts = [
   , ("units", (\_ _ -> units))
   ]
 
-totalRpts :: (F.Foldable f) => [(String, TotalRpt f)]
+totalRpts :: [(String, TotalRpt)]
 totalRpts = [
   ("count-tags", (\o _ _ fs -> countTags o fs))
   , ("total", (\o ts _ _ -> total o ts))
   ]
 
-printRpts :: (F.Foldable f)
-             => ReportGroups f
-             -> f Food
+printRpts ::ReportGroups
+             -> [Food]
              -> Db
              -> X.Text
 printRpts = undefined
 
-printFoodRpts :: (Applicative f, F.Foldable f)
-                 => ReportOpts
+printFoodRpts :: ReportOpts
                  -> NutNamesAmts
-                 -> f Food
-                 -> f FoodRpt
+                 -> [Food]
+                 -> [FoodRpt]
                  -> X.Text
-printFoodRpts o ts fs rs = concat xs where
+printFoodRpts o ts fs rs = X.concat xs where
   xs = rs <*> pure o <*> pure ts <*> fs
 
-printTotalRpts :: (Applicative f, F.Foldable f)
-                  => ReportOpts
+printTotalRpts :: ReportOpts
                   -> NutNamesAmts
                   -> Db
-                  -> f Food
-                  -> f (TotalRpt f)
+                  -> [Food]
+                  -> [TotalRpt]
                   -> X.Text
-printTotalRpts o ts d fs rs = concat xs where
+printTotalRpts o ts d fs rs = X.concat xs where
   xs = rs <*> pure o <*> pure ts <*> pure d <*> pure fs
 
-{-
-printEitherRpt :: (Applicative f, F.Foldable f)
-                  => ReportOpts
+
+printEitherRpt :: ReportOpts
                   -> NutNamesAmts
                   -> Db
-                  -> f Food
-                  -> 
--}
-data ReportGroups f = ReportGroups [Either (f FoodRpt) (f (TotalRpt f))]
+                  -> [Food]
+                  -> Either [FoodRpt] [TotalRpt]
+                  -> X.Text
+printEitherRpt o ts d fs ei = case ei of
+  (Left fr) -> printFoodRpts o ts fs fr
+  (Right tr) -> printTotalRpts o ts d fs tr
 
-buildReportGroups :: (F.Foldable f) =>
-                     [String] -> Either Error (ReportGroups f)
+printReportGroups :: ReportOpts
+                     -> NutNamesAmts
+                     -> Db
+                     -> [Food]
+                     -> ReportGroups
+                     -> X.Text
+printReportGroups o ts d fs (ReportGroups ls) =
+  X.concat . map (printEitherRpt o ts d fs) $ ls
+
+printReports :: ReportOpts
+                -> Db
+                -> [Food] 
+                -> [String] 
+                -> Either Error X.Text
+printReports o d fs ns = do
+  g <- buildReportGroups ns
+  let ts = foldFoodNuts fs
+  return $ printReportGroups o ts d fs g
+
+data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
+
+buildReportGroups :: [String] -> Either Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
 
-addReport :: (F.Foldable f)
-             => String -> ReportGroups f -> Either Error (ReportGroups f)
+addReport :: String -> ReportGroups -> Either Error ReportGroups
 addReport s r@(ReportGroups rs) = do
   ei <- bestReport s
   return $ ReportGroups $ case rs of
@@ -118,14 +135,9 @@ addReport s r@(ReportGroups rs) = do
       (Left f) -> Left [f]:l
       (Right t) -> (Right (t:ls)):rs
 
-bestReport :: (F.Foldable f) =>
-              String -> Either Error (Either FoodRpt (TotalRpt f))
+bestReport :: String -> Either Error (Either FoodRpt TotalRpt)
 bestReport s = case bestMatch s (M.fromList foodRpts) of
   (Right r) -> Right . Left $ r
   (Left fms) -> case bestMatch s (M.fromList totalRpts) of
     (Right r) -> Right . Right $ r
     (Left tms) -> E.throwError $ NoReportMatch s (fms ++ tms)
-  
-
-concat :: (F.Foldable f) => f X.Text -> X.Text
-concat = F.foldr X.append X.empty

@@ -1,19 +1,5 @@
 Usage: pantry command [options] arguments
 
-COMMANDS THAT ACCEPT OPTIONS
-============================
-find tag-name pattern [ tag-name pattern... ]
-       Search for foods using specified tag names and patterns
-all
-       Select all foods in database
-create
-       Create a new food
-id id [ id... ]
-       Select foods with specified IDs
-
-Options for the find, all, create, and id commands
-==================================================
-
 PATTERN CONTROL
     -i, --case-insensitive
         makes patterns case insensitive
@@ -31,6 +17,22 @@ PATTERN CONTROL
         use PCRE regular expression matcher
     --exact
         use "exact" matcher
+
+FILTERING FOODS FROM VOLATILE
+    -f tag-name pattern, --find tag-name pattern
+        Remove all foods without matching tag-name and pattern
+    --id numbers...
+        Keep only foods matching ID numbers
+    --clear
+        Remove all foods from volatile
+    --head n
+        Remove all but the first n foods from the
+        selection
+    --tail n
+        Remove all but the last n foods from the
+        selection
+    --create
+        Create new blank food in volatile
 
 CHANGE TAGS AND PROPERTIES
     -c tag-name string, --change-tag tag-name string
@@ -68,13 +70,21 @@ CHANGING NUTRIENTS, AVAILABLE UNITS, AND INGREDIENTS
         delete available units matching regexp
 
     --add-as-ingredients id
-        Add selected foods as ingredients to food with id
+        Add selected foods as ingredients to food in database with id
 
 ADDING CHANGED FOODS
     -a, --append
-        Add changed foods to the end of the database
+        Add volatile to the end of the database
     --prepend
-        Add changed foods to the beginning of the database
+        Add volatile to the beginning of the database
+    --replace
+        Replace database with volatile
+    --edit
+        Replace foods in database with foods in volatile with same ID
+    --delete
+        Delete foods in database that have ID of food in volatile
+    --move id id [id...]
+         Rearrange foods with specified IDs into specified sequence
 
 REPORTING
     -p REPORT, --print REPORT
@@ -90,6 +100,9 @@ REPORTING
             tags - the food's tags
             blank - a blank line
             xml - XML output (maybe for XSLT, or XSL-FO, or . . . )
+            status - server status
+            help
+            version
 
     -g nutrient-name number, --goal nutrient-name number
         Show nutrient-name in nutrients and Nutrients reports, with
@@ -105,73 +118,44 @@ REPORTING
     --one-column
         Print values in one column for tags and properties reports
 
-Additional options for the all, find, and id commands
-=====================================================
-In addition to the options shown above, these
-options are available for the all, find, and id
-commands. (They are not available for the create
-command.)
-
 SORTING OPTIONS
-    -k tag-name, --key-ascending tag-name
-        Sort by tag-name in ascending order
-    -K tag-name, --key-descending tag-name
-        Sort by tag-name in descending order
+    -k (ascending|descending) tag-name ...
+        Sort by tag-name in ascending or descending order
     -O tag-name value, --key-order tag-name value
         Show values for tag-name in a particular order
 
-EDITING AND DELETING FOODS
-    --edit
-        Edit foods in place
-    --delete
-        delete matching foods
-
 INGREDIENTS
     --export-ingredients
-	Add ingredients of selected foods to database
+	Add ingredients of foods in volatile to end of database
     --remove-ingredients
         Remove all ingredients of selected foods
 
-Additional options for the all and find commands
-================================================
-In addition to the options shown above, these
-options are available for the all and find commands.
+OPENING AND SAVING FILES
+    These commands do not affect volatile.
+    --open filename
+        Replace database with one from filename
+    --append-file filename
+        Add contents of filename to end of the database
+    --prepend-file filename
+        Prepend contents of filename to beginning of database
+    --close
+        Close currently open database
+    --save
+        Save database to its current filename
+    --save-as filename
+        Save database to given filename
+    --quit
+        Shut down server
 
-    --head n
-        Remove all but the first n foods from the
-        selection
-    --tail n
-        Remove all but the last n foods from the
-        selection
-
-COMMANDS THAT DO NOT ACCEPT OPTIONS
-===================================
-These commands do not accept any of the options
-shown above. Some of these commands do accept (or require)
-arguments following the name of the command.
-
-open filename
-	Close current file and open new one
-append-file filename
-       Add contents of filename to end of the database
-prepend-file filename
-       Add contents of filename to the beginning of the database
-close
-	Close currently open file
-save {filename}
-	Save contents of current file
-quit
-	Shut down server
-status
-       Current server status
-help
-       show this help message
-version
-       Print version information
-copyright
-       Print copyright and license information
-move id id [ id... ]
-       Rearrange foods with specified IDs into specified sequence
+HELP AND SERVER STATUS
+    --status
+        Server status
+    --help
+        Show help message
+    --version
+        Print version information
+    --copyright
+        Print copyright information
 
 Pantry home page: http://www.smileystation.com/pantry
 Report bugs to omari@smileystation.com.

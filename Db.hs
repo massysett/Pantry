@@ -9,6 +9,8 @@ import Control.Applicative(Applicative, (<*>), pure)
 import qualified Control.Monad.Error as E
 import qualified Data.Traversable as T
 import qualified Data.Text as X
+import qualified Control.Monad.Writer as W
+import qualified Data.DList as DL
 import Types(NonNegInteger, PosInteger)
 
 import Food(Food, Error, FoodId, Xform)
@@ -22,6 +24,13 @@ data Db = Db { dbNextId :: NextId
              , dbFilename :: Maybe Filename
              , dbUnsaved :: Unsaved
              , dbFoods :: Foods }
+
+data Tray = Tray { trayDb :: Db
+                 , volatile :: [Food] 
+                 , done :: Done
+                 , output :: DL.DList X.Text }
+
+type Convey = Tray -> E.ErrorT Error IO Tray
 
 blankDb :: Db
 blankDb = undefined

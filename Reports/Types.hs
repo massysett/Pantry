@@ -15,7 +15,7 @@ import Db(Db)
 data GoalNameAmt = GoalNameAmt Name NutAmt
 
 type FoodRpt = ReportOpts -> NutNamesAmts -> Food -> Text
-type TotalRpt f = ReportOpts -> NutNamesAmts -> Db -> f Food -> Text
+type TotalRpt = ReportOpts -> NutNamesAmts -> Db -> [Food] -> Text
 
 data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool
