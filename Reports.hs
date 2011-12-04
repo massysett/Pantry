@@ -2,7 +2,7 @@ module Reports where
 
 import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
                ($), fst, snd, map, filter, zip, (.), String,
-               undefined, (++))
+               undefined, (++), return)
 import Reports.Blank(blank)
 import Reports.CountTags(countTags)
 import Reports.Ingredients(ingredients)
@@ -13,8 +13,9 @@ import Reports.Properties(properties)
 import Reports.Tags(tags)
 import Reports.Total(total)
 import Reports.Units(units)
-import Reports.Types(FoodRpt, TotalRpt)
-import Food(Food, foldFoodNuts, Error(NoReportMatch))
+import Reports.Types(FoodRpt, TotalRpt, ReportOpts)
+import Food(Food, foldFoodNuts, Error(NoReportMatch),
+            NutNamesAmts)
 import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
@@ -62,11 +63,42 @@ totalRpts = [
   , ("total", (\o ts _ _ -> total o ts))
   ]
 
+printRpts :: (F.Foldable f)
+             => ReportGroups f
+             -> f Food
+             -> Db
+             -> X.Text
+printRpts = undefined
+
+printFoodRpts :: (Applicative f, F.Foldable f)
+                 => ReportOpts
+                 -> NutNamesAmts
+                 -> f Food
+                 -> [FoodRpt]
+                 -> X.Text
+printFoodRpts o ts fs rs = concat xs where
+  xs = rs <*> pure o <*> pure ts <*> fs
+
 data ReportGroups f = ReportGroups [Either [FoodRpt] [TotalRpt f]]
+
+buildReportGroups :: (F.Foldable f) =>
+                     [String] -> Either Error (ReportGroups f)
+buildReportGroups = F.foldrM addReport (ReportGroups [])
 
 addReport :: (F.Foldable f)
              => String -> ReportGroups f -> Either Error (ReportGroups f)
-addReport s rs = undefined
+addReport s r@(ReportGroups rs) = do
+  ei <- bestReport s
+  return $ ReportGroups $ case rs of
+    [] -> case ei of
+      (Left f) -> [(Left [f])]
+      (Right t) -> [(Right [t])]
+    l@((Left ls):rs) -> case ei of
+      (Left f) -> (Left (f:ls)):rs
+      (Right t) -> Right [t]:l
+    l@((Right ls):rs) -> case ei of
+      (Left f) -> Left [f]:l
+      (Right t) -> (Right (t:ls)):rs
 
 bestReport :: (F.Foldable f) =>
               String -> Either Error (Either FoodRpt (TotalRpt f))
