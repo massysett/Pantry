@@ -74,12 +74,30 @@ printFoodRpts :: (Applicative f, F.Foldable f)
                  => ReportOpts
                  -> NutNamesAmts
                  -> f Food
-                 -> [FoodRpt]
+                 -> f FoodRpt
                  -> X.Text
 printFoodRpts o ts fs rs = concat xs where
   xs = rs <*> pure o <*> pure ts <*> fs
 
-data ReportGroups f = ReportGroups [Either [FoodRpt] [TotalRpt f]]
+printTotalRpts :: (Applicative f, F.Foldable f)
+                  => ReportOpts
+                  -> NutNamesAmts
+                  -> Db
+                  -> f Food
+                  -> f (TotalRpt f)
+                  -> X.Text
+printTotalRpts o ts d fs rs = concat xs where
+  xs = rs <*> pure o <*> pure ts <*> pure d <*> pure fs
+
+{-
+printEitherRpt :: (Applicative f, F.Foldable f)
+                  => ReportOpts
+                  -> NutNamesAmts
+                  -> Db
+                  -> f Food
+                  -> 
+-}
+data ReportGroups f = ReportGroups [Either (f FoodRpt) (f (TotalRpt f))]
 
 buildReportGroups :: (F.Foldable f) =>
                      [String] -> Either Error (ReportGroups f)
