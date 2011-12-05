@@ -18,6 +18,7 @@ import Control.Monad ((>=>))
 import qualified Control.Monad as M
 import qualified Data.DList as DL
 import qualified Data.Map as Map
+import qualified Control.Monad.State as St
 import Data.Map ((!))
 import Types(NonNegInteger, PosInteger, Next(next))
 
@@ -90,6 +91,12 @@ prepend t = return newT where
   foods = volatile t ++ oldFoods
   oldFoods = dbFoods oldDb
   oldDb = trayDb t
+
+assignId :: Food -> St.State NextId Food
+assignId f = do
+  i <- St.get
+  St.modify next
+  return f { foodId = unNextId i }
 
 replace :: Tray -> E.ErrorT Error IO Tray
 replace t = return newT where
