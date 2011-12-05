@@ -339,6 +339,8 @@ data Error = NoMatchingUnit
            | RegexComp String
            | NoReportMatch String [String]
            | Other String
+           | MoveIdNotFound FoodId
+           | MoveStartNotFound FoodId
 
 instance E.Error Error where
   strMsg = Other

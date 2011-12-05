@@ -1,9 +1,9 @@
 module Db where
 
 import Prelude(undefined, Either, ($), (.), id, Monad,
-               (>>=), return, String, Bool, Maybe, IO,
+               (>>=), return, String, Bool, Maybe(Nothing, Just), IO,
                Ordering, Integer, flip, Either(Left, Right),
-               filter, (++), (==))
+               filter, (++), (==), maybe, zip, zipWith, compare, Ord)
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -12,10 +12,15 @@ import qualified Control.Monad.Error as E
 import qualified Data.Traversable as T
 import qualified Data.Text as X
 import qualified Control.Monad.Writer as W
+import Control.Monad ((>=>))
+import qualified Control.Monad as M
 import qualified Data.DList as DL
+import qualified Data.Map as Map
+import Data.Map ((!))
 import Types(NonNegInteger, PosInteger)
 
-import Food(Food, Error, FoodId, Xform, foodId)
+import Food(Food, Error(MoveStartNotFound, MoveIdNotFound),
+            FoodId, Xform, foodId)
 
 newtype NextId = NextId { unNextId :: FoodId }
 newtype Filename = Filename  { unFilename :: String }
@@ -95,7 +100,7 @@ edit t = return newT where
   newT = t { trayDb = oldDb { dbFoods = newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = replaceAll eqId (volatile t) oldDbFoods
+  newFoods = replaceManyFirsts eqId (volatile t) oldDbFoods
   eqId f1 f2 = foodId f1 == foodId f2
 
 delete :: Tray -> E.ErrorT Error IO Tray
@@ -103,17 +108,89 @@ delete t = return newT where
   newT = t { trayDb = oldDb { dbFoods = newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = deleteAll eqId (volatile t) oldDbFoods
+  newFoods = deleteManyFirsts eqId (volatile t) oldDbFoods
   eqId f1 f2 = foodId f1 == foodId f2
 
-deleteAll :: (a -> a -> Bool) -- ^ How to make a predicate
-             -> [a]           -- ^ Source of what to delete
+data FirstPos = Beginning | After FoodId
+
+move :: FirstPos -> [FoodId] -> Tray -> E.ErrorT Error IO Tray
+move p is t = do
+  let v = volatile t
+      pd fid food = fid == foodId food
+  fs <- liftToErrorT $ findManyWithFail MoveIdNotFound pd is v
+  let sorted = sortByOrder is foodId v
+      deleted = deleteManyFirsts pd is v
+  newV <- case p of
+    Beginning -> return $ sorted ++ deleted
+    (After aft) ->
+      let (pre, suf) = L.break (pd aft) deleted
+      in case suf of
+        [] -> E.throwError $ MoveStartNotFound aft
+        _ -> return $ pre ++ sorted ++ suf
+  let newTray = t { volatile = newV }
+  return newTray
+
+sortByOrder :: (Ord a)
+               => [a]
+               -> (i -> a)
+               -> [i]
+               -> [i]
+sortByOrder as f is = L.sortBy o is where
+  m = Map.fromList $ zip as [0..]
+  o i1 i2 = compare (m ! (f i1)) (m ! (f i2))
+
+findManyWithFail
+  :: (E.Error e)
+     => (p -> e)
+     -- ^ Convert an item to find into an error, if it is not found
+
+     -> (p -> a -> Bool)
+     -- ^ How to make a predicate
+     
+     -> [p]
+     -- ^ List of items for predicate
+     
+     -> [a]
+     -- ^ List to search
+     
+     -> Either e [a]
+findManyWithFail f p ps ls = M.sequence eithers where
+  errors = L.map f ps
+  preds = L.map p ps
+  findfns = L.zipWith findWithFail errors preds
+  eithers = findfns <*> pure ls
+
+findWithFail :: e
+                -> (a -> Bool)
+                -> [a]
+                -> Either e a
+findWithFail e p ls = maybe (Left e) Right $ L.find p ls
+
+deleteManyFirsts :: (p -> a -> Bool) -- ^ How to make a predicate
+             -> [p]           -- ^ Source of what to delete
              -> [a]           -- ^ Target to delete in
              -> [a]           -- ^ Deleted
-deleteAll pm rs = composed where
+deleteManyFirsts pm rs = composed where
   preds = L.map pm rs
   delFns = L.map deleteFirst preds
   composed = compose delFns
+
+deleteManyFirstsWithFail :: (E.Error e)
+                            => (p -> e)
+                            -> (p -> a -> Bool)
+                            -> [p]
+                            -> [a]
+                            -> Either e [a]
+deleteManyFirstsWithFail f pm rs = composed where
+  preds = L.map pm rs
+  delFns = L.zipWith (deleteFirstWithFail f) rs preds
+  composed = composeM delFns
+
+composeM :: (Monad m)
+            => [a -> m a]
+            -> a -> m a
+composeM [] = return
+composeM (f:fs) = f >=> (composeM fs)
 
 deleteFirst :: (a -> Bool)  -- ^ Predicate
                -> [a]       -- ^ Delete from here
@@ -122,11 +199,21 @@ deleteFirst p ls = case L.break p ls of
   (ns, []) -> ns
   (ns, as) -> ns ++ L.tail as
 
-replaceAll :: (a -> a -> Bool) -- ^ How to make a predicate
+deleteFirstWithFail :: E.Error e
+                       => (b -> e)
+                       -> b
+                       -> (a -> Bool)
+                       -> [a]
+                       -> (Either e [a])
+deleteFirstWithFail f t p ls = case L.break p ls of
+  (ns, []) -> E.throwError $ f t
+  (ns, as) -> return $ ns ++ L.tail as
+
+replaceManyFirsts :: (a -> a -> Bool) -- ^ How to make a predicate
               -> [a]             -- ^ Source of replacements
               -> [a]             -- ^ Target to replace within
-              -> [a]             -- ^ Replacements
-replaceAll pm rs = composed where
+              -> [a]
+replaceManyFirsts pm rs = composed where
   preds = L.map pm rs
   replFns = L.zipWith replaceFirst preds rs
   composed = compose replFns
