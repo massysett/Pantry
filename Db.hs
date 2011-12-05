@@ -3,7 +3,8 @@ module Db where
 import Prelude(undefined, Either, ($), (.), id, Monad,
                (>>=), return, String, Bool, Maybe(Nothing, Just), IO,
                Ordering, Integer, flip, Either(Left, Right),
-               filter, (++), (==), maybe, zip, zipWith, compare, Ord)
+               filter, (++), (==), maybe, zip, zipWith, compare, Ord,
+               Enum, Eq)
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -22,7 +23,7 @@ import Types(NonNegInteger, PosInteger)
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound),
             FoodId, Xform, foodId)
 
-newtype NextId = NextId { unNextId :: FoodId }
+newtype NextId = NextId { unNextId :: FoodId } deriving (Eq, Ord, Enum)
 newtype Filename = Filename  { unFilename :: String }
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
@@ -73,6 +74,9 @@ newVolatileToConvey fs = \t ->
       newFoods = fs
   in return $ t { trayDb = oldDb { dbFoods = newFoods } }
 
+
+
+-- TODO needs to assign new IDs
 append :: Tray -> E.ErrorT Error IO Tray
 append t = return newT where
   newT = t { trayDb = oldDb { dbFoods = foods } }
@@ -80,6 +84,7 @@ append t = return newT where
   oldFoods = dbFoods oldDb
   oldDb = trayDb t
 
+-- TODO needs to assign new IDs
 prepend :: Tray -> E.ErrorT Error IO Tray
 prepend t = return newT where
   newT = t { trayDb = oldDb { dbFoods = foods } }

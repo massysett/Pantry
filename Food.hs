@@ -57,6 +57,10 @@ instance Exact Qty where
 
 newtype Yield = Yield (Maybe MixedGrams) deriving Show
 newtype Ingr = Ingr (S.Seq Food) deriving (Show)
+
+-- Do not make FoodId an instance of Enum. This would allow prec to be
+-- called on it. In theory this would be OK (prec can be partial) but
+-- better to avoid that.
 newtype FoodId = FoodId { unFoodId :: NonNegInteger }
                  deriving (Show, Eq, Ord)
 
