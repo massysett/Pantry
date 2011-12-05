@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Db where
 
 import Prelude(undefined, Either, ($), (.), id, Monad,
@@ -18,12 +19,12 @@ import qualified Control.Monad as M
 import qualified Data.DList as DL
 import qualified Data.Map as Map
 import Data.Map ((!))
-import Types(NonNegInteger, PosInteger)
+import Types(NonNegInteger, PosInteger, Next(next))
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound),
             FoodId, Xform, foodId)
 
-newtype NextId = NextId { unNextId :: FoodId } deriving (Eq, Ord, Enum)
+newtype NextId = NextId { unNextId :: FoodId } deriving (Eq, Ord, Next)
 newtype Filename = Filename  { unFilename :: String }
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
@@ -73,8 +74,6 @@ newVolatileToConvey fs = \t ->
   let oldDb = trayDb t
       newFoods = fs
   in return $ t { trayDb = oldDb { dbFoods = newFoods } }
-
-
 
 -- TODO needs to assign new IDs
 append :: Tray -> E.ErrorT Error IO Tray

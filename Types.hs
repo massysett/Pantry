@@ -70,6 +70,9 @@ instance Ord NonNegMixed where
 toNonNeg :: NonNegMixed -> NonNeg
 toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 
+-- Do not make this an instance of Enum - then prec would be
+-- partial. That would be okay in theory, as prec can be partial, but
+-- I would rather avoid it.
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
                         deriving (Eq, Ord, Show)
 
@@ -80,6 +83,9 @@ partialNewNonNegInteger i
     where
       ii = fromIntegral i
 
+-- Do not make this an instance of Enum - then prec would be
+-- partial. That would be okay in theory, as prec can be partial, but
+-- I would rather avoid it.
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
                      deriving (Eq, Ord, Show)
 

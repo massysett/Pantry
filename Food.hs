@@ -60,9 +60,9 @@ newtype Ingr = Ingr (S.Seq Food) deriving (Show)
 
 -- Do not make FoodId an instance of Enum. This would allow prec to be
 -- called on it. In theory this would be OK (prec can be partial) but
--- better to avoid that.
+-- better to avoid that. Instead use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord)
+                 deriving (Show, Eq, Ord, Next)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
