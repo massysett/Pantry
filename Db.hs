@@ -2,31 +2,32 @@
 module Db where
 
 import Prelude(undefined, Either, ($), (.), id, Monad,
-               (>>=), return, String, Bool, Maybe(Nothing, Just), IO,
-               Ordering, Integer, flip, Either(Left, Right),
-               filter, (++), (==), maybe, zip, zipWith, compare, Ord,
-               Enum, Eq)
+               return, String, Bool, Maybe, IO,
+               flip, Either(Left, Right),
+               filter, (++), (==), maybe, zip, compare, Ord,
+               Eq, Int, Show)
 import qualified Data.List as L
-import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 import Control.Applicative(Applicative, (<*>), pure)
 import qualified Control.Monad.Error as E
 import qualified Data.Traversable as T
 import qualified Data.Text as X
-import qualified Control.Monad.Writer as W
 import Control.Monad ((>=>))
 import qualified Control.Monad as M
 import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Types(NonNegInteger, PosInteger, Next(next))
+import Types(Next(next))
+import Data.Binary(Binary(put, get))
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound),
-            FoodId, Xform, foodId)
+            FoodId, foodId)
 
-newtype NextId = NextId { unNextId :: FoodId } deriving (Eq, Ord, Next)
+newtype NextId = NextId { unNextId :: FoodId }
+               deriving (Eq, Ord, Next, Binary)
 newtype Filename = Filename  { unFilename :: String }
+                   deriving (Show, Binary)
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
 data Db = Db { dbNextId :: NextId
@@ -102,7 +103,6 @@ replace :: Tray -> E.ErrorT Error IO Tray
 replace t = return newT where
   newT = t { trayDb = oldDb { dbFoods = foods } }
   foods = volatile t
-  oldFoods = dbFoods oldDb
   oldDb = trayDb t
 
 
@@ -129,7 +129,7 @@ move p is t = do
   let v = volatile t
       pd fid food = fid == foodId food
   fs <- liftToErrorT $ findManyWithFail MoveIdNotFound pd is v
-  let sorted = sortByOrder is foodId v
+  let sorted = sortByOrder is foodId fs
       deleted = deleteManyFirsts pd is v
   newV <- case p of
     Beginning -> return $ sorted ++ deleted
@@ -147,7 +147,7 @@ sortByOrder :: (Ord a)
                -> [i]
                -> [i]
 sortByOrder as f is = L.sortBy o is where
-  m = Map.fromList $ zip as [0..]
+  m = Map.fromList $ zip as ([0..] :: [Int])
   o i1 i2 = compare (m ! (f i1)) (m ! (f i2))
 
 findManyWithFail
@@ -217,7 +217,7 @@ deleteFirstWithFail :: E.Error e
                        -> [a]
                        -> (Either e [a])
 deleteFirstWithFail f t p ls = case L.break p ls of
-  (ns, []) -> E.throwError $ f t
+  (_, []) -> E.throwError $ f t
   (ns, as) -> return $ ns ++ L.tail as
 
 replaceManyFirsts :: (a -> a -> Bool) -- ^ How to make a predicate
@@ -244,3 +244,8 @@ liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
 liftToErrorT e = case e of
   (Left err) -> E.throwError err
   (Right good) -> return good
+
+
+-- Local Variables:
+-- compile-command: "ghc -Wall -outputdir temp Db.hs"
+-- End:

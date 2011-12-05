@@ -24,7 +24,7 @@ import Prelude(Eq, Ord, Show, (==), (-), ($), (+), compare,
                Maybe(Nothing, Just), (.), either, const,
                (||), (>=), fromInteger, read, show, String,
                (++), otherwise, Integer, succ,
-               Integral, fromIntegral, (<=))
+               Integral, fromIntegral, (<=), (>>))
 import Data.Ratio(Rational, (%), numerator, denominator)
 import Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
@@ -33,9 +33,16 @@ import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
 import Control.Monad((>>=), return, when, fail)
 import Data.Text(snoc, append, pack)
 import Rounded(Rounded)
+import Data.Binary(Binary(put, get))
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
+
+instance Binary NonNeg where
+  put (NonNeg r) = put r
+  get = do
+    r <- get
+    return $ NonNeg r
 
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where
@@ -43,6 +50,14 @@ partialNewNonNeg r = if r < 0 then e else NonNeg r where
 
 data NonNegMixed = NonNegMixed { mixedDec :: Decimal
                                , mixedRatio :: Rational } deriving Show
+
+instance Binary NonNegMixed where
+  put (NonNegMixed (Decimal p m) r) = put p >> put m >> put r
+  get = do
+    p <- get
+    m <- get
+    r <- get
+    return $ NonNegMixed (Decimal p m) r
 
 instance Exact NonNegMixed where
   exact n = result where
@@ -70,11 +85,15 @@ instance Ord NonNegMixed where
 toNonNeg :: NonNegMixed -> NonNeg
 toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 
--- Do not make this an instance of Enum - then prec would be
+-- Do not make this an instance of Enum - then prec would be
 -- partial. That would be okay in theory, as prec can be partial, but
 -- I would rather avoid it.
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
                         deriving (Eq, Ord, Show)
+
+instance Binary NonNegInteger where
+  put (NonNegInteger i) = put i
+  get = get >>= return . NonNegInteger
 
 partialNewNonNegInteger :: (Integral i) => i -> NonNegInteger
 partialNewNonNegInteger i
@@ -89,6 +108,10 @@ partialNewNonNegInteger i
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
                      deriving (Eq, Ord, Show)
 
+instance Binary PosInteger where
+  put (PosInteger i) = put i
+  get = get >>= return . PosInteger
+
 partialNewPosInteger :: (Integral i) => i -> PosInteger
 partialNewPosInteger i
   | ii <= 0 = error "partialNewPosInteger: integer is not positive."
@@ -98,6 +121,10 @@ partialNewPosInteger i
 
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
                        deriving (Eq, Ord, Show, Exact)
+
+instance Binary BoundedPercent where
+  put (BoundedPercent nnm) = put nnm
+  get = get >>= return . BoundedPercent
 
 subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
 subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
@@ -169,7 +196,7 @@ instance FromStr PosInteger where
   fromStr s = case fromStr s of
     (Just (NonNegInteger i)) ->
       case i of 0 -> Nothing
-                n -> Just . PosInteger $ i
+                _ -> Just . PosInteger $ i
     _ -> Nothing
 
 -- Parsec basement
@@ -234,3 +261,7 @@ decimalStr = do
   _ <- char '.'
   frac <- many1 digit
   return $ whole ++ "." ++ frac
+
+-- Local Variables:
+-- compile-command: "ghc -Wall -outputdir temp Types.hs"
+-- End:

@@ -3,8 +3,8 @@ module Food where
 
 import Prelude (Eq, Ord, Show, Bool(True, False), (.),
                 ($), not, fst, snd, (/=), flip,
-                Either(Left, Right), Integer, String,
-                (==), (>), either)
+                Either(Left, Right), String,
+                (==), (>), either, Integer)
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Maybe
@@ -12,57 +12,98 @@ import Control.Monad
 import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
-import qualified Data.Sequence as S
 import Types
 import Data.Text(Text, pack)
+import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Exact(Exact(exact))
 import Rounded(Rounded)
 import qualified Control.Monad.Error as E
+import Data.Binary (Binary(put, get))
 
 type Matcher = (Text -> Bool)
 type Xform = (Food -> Either Error Food)
 
 newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
+instance Binary Name where
+  put (Name t) = put . encodeUtf8 $ t
+  get = get >>= return . Name . decodeUtf8
+
 newtype NutAmt = NutAmt NonNeg
-                 deriving (Eq, Ord, Show, Add, HasZero, Exact, Rounded)
+                 deriving (Eq, Ord, Show, Add, HasZero,
+                           Exact, Rounded, Binary)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
-newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt) deriving Show
 
-newtype NutsPerG = NutsPerG NonNeg deriving (Show, Exact, Rounded)
+instance Binary NutNameAmt where
+  put (NutNameAmt n a) = put n >> put a
+  get = do n <- get; a <- get; return $ NutNameAmt n a
+
+newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt)
+                     deriving (Show, Binary)
+
+newtype NutsPerG = NutsPerG NonNeg
+                   deriving (Show, Exact, Rounded, Binary)
+
 data NameNutsPerG = NameNutsPerG Name NutsPerG deriving Show
-newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG) deriving Show
+instance Binary NameNutsPerG where
+  put (NameNutsPerG n a) = put n >> put a
+  get = do n <- get; a <- get; return $ NameNutsPerG n a
 
-newtype NutRatio = NutRatio NonNeg deriving (Show, Exact, Rounded)
+newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG)
+                      deriving (Show, Binary)
+
+newtype NutRatio = NutRatio NonNeg
+                   deriving (Show, Exact, Rounded, Binary)
 
 newtype Grams = Grams NonNeg
-                deriving (Eq, Ord, Show, Add, HasZero, Exact, Rounded)
+                deriving (Eq, Ord, Show, Add,
+                          HasZero, Exact, Rounded, Binary)
+
 newtype MixedGrams = MixedGrams NonNegMixed
-                     deriving (Show, Exact)
+                     deriving (Show, Exact, Binary)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
-newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams) deriving Show
+instance Binary UnitNameAmt where
+  put (UnitNameAmt n a) = put n >> put a
+  get = do n <- get; a <- get; return $ UnitNameAmt n a
+
+newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams)
+                      deriving (Show, Binary)
 
 newtype TagVal = TagVal Text deriving (Eq, Ord, Show, Exact)
+instance Binary TagVal where
+  put (TagVal t) = put . encodeUtf8 $ t
+  get = get >>= return . TagVal . decodeUtf8
+
+
 data TagNameVal = TagNameVal Name TagVal deriving Show
-newtype TagNamesVals = TagNamesVals (M.Map Name TagVal) deriving Show
+instance Binary TagNameVal where
+  put (TagNameVal n v) = put n >> put v
+  get = do n <- get; v <- get; return $ TagNameVal n v
+
+newtype TagNamesVals = TagNamesVals (M.Map Name TagVal)
+                     deriving (Show, Binary)
 
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
 newtype PctRefuse = PctRefuse BoundedPercent
-                    deriving (Eq, Ord, Show, HasZero, Exact)
-newtype Qty = Qty (Either NonNeg NonNegMixed) deriving Show
+                    deriving (Eq, Ord, Show, HasZero, Exact, Binary)
+newtype Qty = Qty (Either NonNeg NonNegMixed)
+            deriving (Show, Binary)
 
 instance Exact Qty where
   exact (Qty q) = either exact exact q
 
-newtype Yield = Yield (Maybe MixedGrams) deriving Show
-newtype Ingr = Ingr (S.Seq Food) deriving (Show)
+newtype Yield = Yield (Maybe MixedGrams)
+              deriving (Show, Binary)
+
+newtype Ingr = Ingr [Food]
+             deriving (Show, Binary)
 
 -- Do not make FoodId an instance of Enum. This would allow prec to be
 -- called on it. In theory this would be OK (prec can be partial) but
 -- better to avoid that. Instead use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord, Next)
+                 deriving (Show, Eq, Ord, Next, Binary)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
@@ -73,6 +114,36 @@ data Food = Food { tags :: TagNamesVals
                  , yield :: Yield
                  , ingr :: Ingr
                  , foodId :: FoodId } deriving Show
+
+instance Binary Food where
+  put f = put (tags f)
+          >> put (units f)
+          >> put (nutsPerGs f)
+          >> put (currUnit f)
+          >> put (pctRefuse f)
+          >> put (qty f)
+          >> put (yield f)
+          >> put (ingr f)
+          >> put (foodId f)
+  get = do
+    gtags <- get
+    gunits <- get
+    gnutsPerGs <- get
+    gcurrUnit <- get
+    gpctRefuse <- get
+    gqty <- get
+    gyield <- get
+    gingr <- get
+    gfoodId <- get
+    return Food { tags = gtags
+                , units = gunits
+                , nutsPerGs = gnutsPerGs
+                , currUnit = gcurrUnit
+                , pctRefuse = gpctRefuse
+                , qty = gqty
+                , yield = gyield
+                , ingr = gingr
+                , foodId = gfoodId }
 
 absGrams :: UnitNameAmt
 absGrams = UnitNameAmt (Name . pack $ "g") (Grams . partialNewNonNeg $ 1 % 1)
@@ -91,8 +162,9 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , pctRefuse = zero
                  , qty = Qty (Left zero)
                  , yield = Yield Nothing
-                 , ingr = Ingr S.empty
-                 , foodId = FoodId . partialNewNonNegInteger $ 0 }
+                 , ingr = Ingr []
+                 , foodId = FoodId . partialNewNonNegInteger
+                            $ (0 :: Integer) }
 
 -- Tag manipulations
 
@@ -324,7 +396,7 @@ recipeYield f = if' (isJust y) gr i where
 addIngredient :: Food -> Food -> Food
 addIngredient i f = f {ingr = Ingr new} where
   (Ingr old) = ingr f
-  new = old S.|> i
+  new = old ++ [i]
   
 addIngredients :: F.Foldable f =>
                   f Food -> Food -> Food
@@ -335,7 +407,7 @@ addIngredientsToFoods :: (F.Foldable f, Functor u)
 addIngredientsToFoods fs = fmap (addIngredients fs)
 
 deleteIngredients :: Food -> Food
-deleteIngredients f = f {ingr = Ingr S.empty}
+deleteIngredients f = f {ingr = Ingr [] }
 
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
@@ -348,3 +420,7 @@ data Error = NoMatchingUnit
 
 instance E.Error Error where
   strMsg = Other
+
+-- Local Variables:
+-- compile-command: "ghc -Wall -outputdir temp Food.hs"
+-- End:
