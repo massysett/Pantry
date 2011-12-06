@@ -59,6 +59,12 @@ blankDb = Db { dbNextId = NextId oneFoodId
              , dbUnsaved = Unsaved False
              , dbFoods = Foods [] }
 
+loadTray :: Db -> Undos -> Tray
+loadTray d u = Tray { trayDb = d
+                    , volatile = dbFoods d
+                    , undoList = u
+                    , done = NotDone
+                    , output = DL.empty }
 
 data Done = Done | NotDone
 
