@@ -4,7 +4,7 @@ module Food where
 import Prelude (Eq, Ord, Show, Bool(True, False), (.),
                 ($), not, fst, snd, (/=), flip,
                 Either(Left, Right), String,
-                (==), (>), either, Integer)
+                (==), (>), either, Integer, Int)
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Maybe
@@ -105,6 +105,12 @@ newtype Ingr = Ingr [Food]
 -- better to avoid that. Instead use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: NonNegInteger }
                  deriving (Show, Eq, Ord, Next, Serialize)
+
+zeroFoodId :: FoodId
+zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
+
+oneFoodId :: FoodId
+oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts

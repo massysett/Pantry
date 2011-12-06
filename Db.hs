@@ -19,12 +19,13 @@ import qualified Data.ByteString as BS
 import System.IO(Handle)
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
+import qualified Data.Monoid as Monoid
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
                         FileSaveError),
-            FoodId, foodId)
+            FoodId, foodId, oneFoodId)
 
 newtype NextId = NextId { unNextId :: FoodId }
                deriving (Eq, Ord, Next, Serialize)
@@ -35,17 +36,29 @@ newtype Unsaved = Unsaved {unUnsaved :: Bool }
 data Db = Db { dbNextId :: NextId
              , dbFilename :: Maybe Filename
              , dbUnsaved :: Unsaved
-             , dbFoods :: [Food] }
+             , dbFoods :: Foods }
+
+newtype Undos = UndoList { unUndoList :: [[Food]] }
+newtype Foods = Foods { unFoods :: [Food] } deriving Serialize
+instance Monoid.Monoid Foods where
+  mappend (Foods l) (Foods r) = Foods $ l ++ r
+  mempty = Foods []
+  
 
 data Tray = Tray { trayDb :: Db
-                 , volatile :: [Food] 
+                 , volatile :: Foods
+                 , undoList :: Undos
                  , done :: Done
                  , output :: DL.DList X.Text }
 
 type Convey = Tray -> E.ErrorT Error IO Tray
 
 blankDb :: Db
-blankDb = undefined
+blankDb = Db { dbNextId = NextId oneFoodId
+             , dbFilename = Nothing
+             , dbUnsaved = Unsaved False
+             , dbFoods = Foods [] }
+
 
 data Done = Done | NotDone
 
@@ -54,8 +67,8 @@ xformToConvey :: (Food -> Either Error Food)
 xformToConvey f = \t -> do
   let oldDb = trayDb t
       foods = dbFoods oldDb
-  newFoods <- liftToErrorT $ T.mapM f foods
-  return t { trayDb = oldDb { dbFoods = newFoods } }
+  newFoods <- liftToErrorT . T.mapM f . unFoods $ foods
+  return t { trayDb = oldDb { dbFoods = Foods newFoods } }
 
 predToConvey :: (Food -> Bool)
                 -> (Tray -> E.ErrorT Error IO Tray)
@@ -63,17 +76,17 @@ predToConvey p = f where
   f t = return newTray where
     oldDb = trayDb t
     foods = dbFoods oldDb
-    newFoods = filter p foods
-    newTray = t { trayDb = oldDb { dbFoods = newFoods } }
+    newFoods = filter p . unFoods $ foods
+    newTray = t { trayDb = oldDb { dbFoods = Foods newFoods } }
 
 filterToConvey :: ([Food] -> [Food])
                   -> (Tray -> E.ErrorT Error IO Tray)
 filterToConvey f = \t ->
   let oldDb = trayDb t
-      newFoods = f $ dbFoods oldDb
-  in return $ t { trayDb = oldDb { dbFoods = newFoods } }
+      newFoods = f . unFoods . dbFoods $ oldDb
+  in return $ t { trayDb = oldDb { dbFoods = Foods newFoods } }
 
-newVolatileToConvey :: [Food] -> (Tray -> E.ErrorT Error IO Tray)
+newVolatileToConvey :: Foods -> (Tray -> E.ErrorT Error IO Tray)
 newVolatileToConvey fs = \t ->
   let oldDb = trayDb t
       newFoods = fs
@@ -82,16 +95,16 @@ newVolatileToConvey fs = \t ->
 -- TODO needs to assign new IDs
 append :: Tray -> E.ErrorT Error IO Tray
 append t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = foods } }
-  foods = oldFoods ++ volatile t
-  oldFoods = dbFoods oldDb
+  newT = t { trayDb = oldDb { dbFoods = Foods foods } }
+  foods = oldFoods ++ (unFoods . volatile $ t)
+  oldFoods = unFoods . dbFoods $ oldDb
   oldDb = trayDb t
 
 -- TODO needs to assign new IDs
 prepend :: Tray -> E.ErrorT Error IO Tray
 prepend t = return newT where
   newT = t { trayDb = oldDb { dbFoods = foods } }
-  foods = volatile t ++ oldFoods
+  foods = volatile t `Monoid.mappend` oldFoods
   oldFoods = dbFoods oldDb
   oldDb = trayDb t
 
@@ -110,25 +123,27 @@ replace t = return newT where
 
 edit :: Tray -> E.ErrorT Error IO Tray
 edit t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = newFoods } }
+  newT = t { trayDb = oldDb { dbFoods = Foods newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = replaceManyFirsts eqId (volatile t) oldDbFoods
+  newFoods = replaceManyFirsts eqId (unFoods . volatile $ t)
+             (unFoods oldDbFoods)
   eqId f1 f2 = foodId f1 == foodId f2
 
 delete :: Tray -> E.ErrorT Error IO Tray
 delete t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = newFoods } }
+  newT = t { trayDb = oldDb { dbFoods = Foods newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = deleteManyFirsts eqId (volatile t) oldDbFoods
+  newFoods = deleteManyFirsts eqId (unFoods . volatile $ t)
+             (unFoods oldDbFoods)
   eqId f1 f2 = foodId f1 == foodId f2
 
 data FirstPos = Beginning | After FoodId
 
 move :: FirstPos -> [FoodId] -> Tray -> E.ErrorT Error IO Tray
 move p is t = do
-  let v = volatile t
+  let v = unFoods . volatile $ t
       pd fid food = fid == foodId food
   fs <- liftToErrorT $ findManyWithFail MoveIdNotFound pd is v
   let sorted = sortByOrder is foodId fs
@@ -140,7 +155,7 @@ move p is t = do
       in case suf of
         [] -> E.throwError $ MoveStartNotFound aft
         _ -> return $ pre ++ sorted ++ suf
-  let newTray = t { volatile = newV }
+  let newTray = t { volatile = Foods newV }
   return newTray
 
 sortByOrder :: (Ord a)
@@ -286,8 +301,11 @@ decodeBSWithHeader f bs = do
                                    , dbFoods = fs }
     (Left s) -> E.throwError $ FileDecodeError s
 
--- | Do not canonicalize the input filename. This must happen on the
--- client side.
+-- | Reads a database. Any IO errors are caught and returned in an
+-- appropriate Error. Non-IO exceptions are not caught (there should
+-- not be any...but if there are they are not caught.)  Do not
+-- canonicalize the input filename. This must happen on the client
+-- side.
 readDb :: Filename -> E.ErrorT Error IO Db
 readDb f = do
   bs <- readBS f
