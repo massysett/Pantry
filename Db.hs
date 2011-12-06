@@ -19,12 +19,11 @@ import qualified Data.ByteString as BS
 import System.IO(Handle)
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
-import System.Directory(canonicalizePath)
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
-                        CanonicalizeError),
+                        FileSaveError),
             FoodId, foodId)
 
 newtype NextId = NextId { unNextId :: FoodId }
@@ -249,9 +248,10 @@ fileVersion = BS.singleton 0
 magic :: BS.ByteString
 magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
 
--- | Writes a database to a handle. Does not catch any exceptions.
-writeDb :: Handle -> Db -> IO ()
-writeDb h d = do
+-- | Writes a database to a handle. Any IO exceptions are caught and
+-- returned as an Error; non-IO exceptions are not caught.
+writeDb :: Handle -> Db -> E.ErrorT Error IO ()
+writeDb h d = flip catchIOException FileSaveError $ do
   BS.hPut h magic
   BS.hPut h fileVersion
   BS.hPut h $ encode (dbNextId d, dbFoods d)
@@ -286,12 +286,12 @@ decodeBSWithHeader f bs = do
                                    , dbFoods = fs }
     (Left s) -> E.throwError $ FileDecodeError s
 
+-- | Do not canonicalize the input filename. This must happen on the
+-- client side.
 readDb :: Filename -> E.ErrorT Error IO Db
-readDb (Filename f) = do
-  ca <- catchIOException (canonicalizePath f) CanonicalizeError
-  let canon = Filename ca
-  bs <- readBS canon
-  db <- liftToErrorT $ decodeBSWithHeader canon bs
+readDb f = do
+  bs <- readBS f
+  db <- liftToErrorT $ decodeBSWithHeader f bs
   return db
 
 liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
