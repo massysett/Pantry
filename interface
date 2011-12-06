@@ -25,14 +25,19 @@ FILTERING FOODS FROM VOLATILE
         Keep only foods matching ID numbers
     --clear
         Remove all foods from volatile
+    --recopy
+        Replace volatile with foods in database
     --head n
-        Remove all but the first n foods from the
-        selection
+        Remove all but the first n foods
     --tail n
-        Remove all but the last n foods from the
-        selection
+        Remove all but the last n foods
     --create
         Create new blank food in volatile
+    --move id id [id...]
+         Rearrange foods with specified IDs into specified sequence
+    --undo n
+         Replace volatile with the foods that existed in the database
+         n changes ago
 
 CHANGE TAGS AND PROPERTIES
     -c tag-name string, --change-tag tag-name string
@@ -69,22 +74,14 @@ CHANGING NUTRIENTS, AVAILABLE UNITS, AND INGREDIENTS
     --delete-available-units pattern
         delete available units matching regexp
 
-    --add-as-ingredients id
-        Add selected foods as ingredients to food in database with id
-
-ADDING CHANGED FOODS
-    -a, --append
-        Add volatile to the end of the database
-    --prepend
-        Add volatile to the beginning of the database
-    --replace
-        Replace database with volatile
-    --edit
-        Replace foods in database with foods in volatile with same ID
-    --delete
-        Delete foods in database that have ID of food in volatile
-    --move id id [id...]
-         Rearrange foods with specified IDs into specified sequence
+INGREDIENTS
+    --replace-with-ingredients
+        Replace volatile with the ingredients of the foods
+        currently in volatile
+    --remove-ingredients
+        Remove all ingredients of foods in volatile
+    --ingredients-from-db id [id...]
+        Add given IDs as ingredients to foods in volatile
 
 REPORTING
     -p REPORT, --print REPORT
@@ -124,11 +121,20 @@ SORTING OPTIONS
     -O tag-name value, --key-order tag-name value
         Show values for tag-name in a particular order
 
-INGREDIENTS
-    --export-ingredients
-	Add ingredients of foods in volatile to end of database
-    --remove-ingredients
-        Remove all ingredients of selected foods
+ADDING CHANGED FOODS
+These commands affect the database; they do not affect volatile.
+    -a, --append
+        Add volatile to the end of the database
+    --prepend
+        Add volatile to the beginning of the database
+    --replace
+        Replace database with volatile
+    --edit
+        Replace foods in database with foods in volatile with same ID
+    --delete
+        Delete foods in database that have ID of food in volatile
+    --ingredients-from-volatile id [id...]
+        Add foods in volatile to foods in volatile with given IDs
 
 OPENING AND SAVING FILES
     These commands do not affect volatile.
@@ -148,6 +154,7 @@ OPENING AND SAVING FILES
         Shut down server
 
 HELP AND SERVER STATUS
+Each of these has a corresponding --print option.
     --status
         Server status
     --help
