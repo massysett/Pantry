@@ -33,12 +33,12 @@ import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
 import Control.Monad((>>=), return, when, fail)
 import Data.Text(snoc, append, pack)
 import Rounded(Rounded)
-import Data.Binary(Binary(put, get))
+import Data.Serialize(Serialize(put, get))
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
 
-instance Binary NonNeg where
+instance Serialize NonNeg where
   put (NonNeg r) = put r
   get = do
     r <- get
@@ -51,7 +51,7 @@ partialNewNonNeg r = if r < 0 then e else NonNeg r where
 data NonNegMixed = NonNegMixed { mixedDec :: Decimal
                                , mixedRatio :: Rational } deriving Show
 
-instance Binary NonNegMixed where
+instance Serialize NonNegMixed where
   put (NonNegMixed (Decimal p m) r) = put p >> put m >> put r
   get = do
     p <- get
@@ -91,7 +91,7 @@ toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
                         deriving (Eq, Ord, Show)
 
-instance Binary NonNegInteger where
+instance Serialize NonNegInteger where
   put (NonNegInteger i) = put i
   get = get >>= return . NonNegInteger
 
@@ -108,7 +108,7 @@ partialNewNonNegInteger i
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
                      deriving (Eq, Ord, Show)
 
-instance Binary PosInteger where
+instance Serialize PosInteger where
   put (PosInteger i) = put i
   get = get >>= return . PosInteger
 
@@ -122,7 +122,7 @@ partialNewPosInteger i
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
                        deriving (Eq, Ord, Show, Exact)
 
-instance Binary BoundedPercent where
+instance Serialize BoundedPercent where
   put (BoundedPercent nnm) = put nnm
   get = get >>= return . BoundedPercent
 

@@ -1,11 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Db where
 
-import Prelude(undefined, Either, ($), (.), id, Monad,
-               return, String, Bool, Maybe, IO,
-               flip, Either(Left, Right),
-               filter, (++), (==), maybe, zip, compare, Ord,
-               Eq, Int, Show)
 import qualified Data.List as L
 import qualified Data.Foldable as F
 import Control.Applicative(Applicative, (<*>), pure)
@@ -19,15 +14,23 @@ import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
 import Types(Next(next))
-import Data.Binary(Binary(put, get))
+import Data.Serialize(Serialize, encode, decode)
+import qualified Data.ByteString as BS
+import System.IO(Handle)
+import System.IO.Error(catchIOError)
+import Control.Exception(IOException)
+import System.Directory(canonicalizePath)
 
-import Food(Food, Error(MoveStartNotFound, MoveIdNotFound),
+import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
+                        FileReadError, NotPantryFile,
+                        WrongFileVersion, FileDecodeError,
+                        CanonicalizeError),
             FoodId, foodId)
 
 newtype NextId = NextId { unNextId :: FoodId }
-               deriving (Eq, Ord, Next, Binary)
+               deriving (Eq, Ord, Next, Serialize)
 newtype Filename = Filename  { unFilename :: String }
-                   deriving (Show, Binary)
+                   deriving (Show, Serialize)
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
 data Db = Db { dbNextId :: NextId
@@ -239,6 +242,57 @@ replaceFirst p r ls = case L.break p ls of
 
 compose :: [a -> a] -> (a -> a)
 compose = F.foldl (flip (.)) id
+
+fileVersion :: BS.ByteString
+fileVersion = BS.singleton 0
+
+magic :: BS.ByteString
+magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
+
+-- | Writes a database to a handle. Does not catch any exceptions.
+writeDb :: Handle -> Db -> IO ()
+writeDb h d = do
+  BS.hPut h magic
+  BS.hPut h fileVersion
+  BS.hPut h $ encode (dbNextId d, dbFoods d)
+
+-- | Reads a file from disk. Catches any IO errors and puts them on an
+-- Error; these are returned as Left Error. Successful reads are
+-- returned as Right ByteString. Any non-IO errors are not caught.
+readBS :: Filename -> E.ErrorT Error IO BS.ByteString
+readBS (Filename f) = catchIOException (BS.readFile f) FileReadError
+
+-- | Carries out an IO action. Takes any IOExceptions, catches them,
+-- and puts them into an IO Either. Non IOException exceptions are not
+-- caught.
+catchIOException :: IO a
+                    -> (IOException -> Error)
+                    -> E.ErrorT Error IO a
+catchIOException a f = E.ErrorT $ catchIOError
+                       (a >>= return . Right) (return . Left . f)
+
+-- | Decode a ByteString to a Db. Not in IO monad.
+decodeBSWithHeader :: Filename -> BS.ByteString -> Either Error Db
+decodeBSWithHeader f bs = do
+  E.unless (magic `BS.isPrefixOf` bs) (E.throwError NotPantryFile)
+  let noMagic = BS.drop (BS.length magic) bs
+  E.unless (fileVersion `BS.isPrefixOf` noMagic)
+    (E.throwError WrongFileVersion)
+  let noHeader = BS.drop (BS.length fileVersion) noMagic
+  case decode noHeader of
+    (Right (i, fs)) -> return $ Db { dbNextId = i
+                                   , dbFilename = Just f
+                                   , dbUnsaved = Unsaved False
+                                   , dbFoods = fs }
+    (Left s) -> E.throwError $ FileDecodeError s
+
+readDb :: Filename -> E.ErrorT Error IO Db
+readDb (Filename f) = do
+  ca <- catchIOException (canonicalizePath f) CanonicalizeError
+  let canon = Filename ca
+  bs <- readBS canon
+  db <- liftToErrorT $ decodeBSWithHeader canon bs
+  return db
 
 liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
 liftToErrorT e = case e of

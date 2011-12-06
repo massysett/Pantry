@@ -18,92 +18,93 @@ import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Exact(Exact(exact))
 import Rounded(Rounded)
 import qualified Control.Monad.Error as E
-import Data.Binary (Binary(put, get))
+import Data.Serialize (Serialize(put, get))
+import Control.Exception(IOException)
 
 type Matcher = (Text -> Bool)
 type Xform = (Food -> Either Error Food)
 
 newtype Name = Name Text deriving (Eq, Ord, Show, Exact)
-instance Binary Name where
+instance Serialize Name where
   put (Name t) = put . encodeUtf8 $ t
   get = get >>= return . Name . decodeUtf8
 
 newtype NutAmt = NutAmt NonNeg
                  deriving (Eq, Ord, Show, Add, HasZero,
-                           Exact, Rounded, Binary)
+                           Exact, Rounded, Serialize)
 data NutNameAmt = NutNameAmt Name NutAmt deriving Show
 
-instance Binary NutNameAmt where
+instance Serialize NutNameAmt where
   put (NutNameAmt n a) = put n >> put a
   get = do n <- get; a <- get; return $ NutNameAmt n a
 
 newtype NutNamesAmts = NutNamesAmts (M.Map Name NutAmt)
-                     deriving (Show, Binary)
+                     deriving (Show, Serialize)
 
 newtype NutsPerG = NutsPerG NonNeg
-                   deriving (Show, Exact, Rounded, Binary)
+                   deriving (Show, Exact, Rounded, Serialize)
 
 data NameNutsPerG = NameNutsPerG Name NutsPerG deriving Show
-instance Binary NameNutsPerG where
+instance Serialize NameNutsPerG where
   put (NameNutsPerG n a) = put n >> put a
   get = do n <- get; a <- get; return $ NameNutsPerG n a
 
 newtype NutNamesPerGs = NutNamesPerGs (M.Map Name NutsPerG)
-                      deriving (Show, Binary)
+                      deriving (Show, Serialize)
 
 newtype NutRatio = NutRatio NonNeg
-                   deriving (Show, Exact, Rounded, Binary)
+                   deriving (Show, Exact, Rounded, Serialize)
 
 newtype Grams = Grams NonNeg
                 deriving (Eq, Ord, Show, Add,
-                          HasZero, Exact, Rounded, Binary)
+                          HasZero, Exact, Rounded, Serialize)
 
 newtype MixedGrams = MixedGrams NonNegMixed
-                     deriving (Show, Exact, Binary)
+                     deriving (Show, Exact, Serialize)
 data UnitNameAmt = UnitNameAmt Name Grams deriving Show
-instance Binary UnitNameAmt where
+instance Serialize UnitNameAmt where
   put (UnitNameAmt n a) = put n >> put a
   get = do n <- get; a <- get; return $ UnitNameAmt n a
 
 newtype UnitNamesAmts = UnitNamesAmts (M.Map Name Grams)
-                      deriving (Show, Binary)
+                      deriving (Show, Serialize)
 
 newtype TagVal = TagVal Text deriving (Eq, Ord, Show, Exact)
-instance Binary TagVal where
+instance Serialize TagVal where
   put (TagVal t) = put . encodeUtf8 $ t
   get = get >>= return . TagVal . decodeUtf8
 
 
 data TagNameVal = TagNameVal Name TagVal deriving Show
-instance Binary TagNameVal where
+instance Serialize TagNameVal where
   put (TagNameVal n v) = put n >> put v
   get = do n <- get; v <- get; return $ TagNameVal n v
 
 newtype TagNamesVals = TagNamesVals (M.Map Name TagVal)
-                     deriving (Show, Binary)
+                     deriving (Show, Serialize)
 
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
 
 newtype PctRefuse = PctRefuse BoundedPercent
-                    deriving (Eq, Ord, Show, HasZero, Exact, Binary)
+                    deriving (Eq, Ord, Show, HasZero, Exact, Serialize)
 newtype Qty = Qty (Either NonNeg NonNegMixed)
-            deriving (Show, Binary)
+            deriving (Show, Serialize)
 
 instance Exact Qty where
   exact (Qty q) = either exact exact q
 
 newtype Yield = Yield (Maybe MixedGrams)
-              deriving (Show, Binary)
+              deriving (Show, Serialize)
 
 newtype Ingr = Ingr [Food]
-             deriving (Show, Binary)
+             deriving (Show, Serialize)
 
 -- Do not make FoodId an instance of Enum. This would allow prec to be
 -- called on it. In theory this would be OK (prec can be partial) but
 -- better to avoid that. Instead use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord, Next, Binary)
+                 deriving (Show, Eq, Ord, Next, Serialize)
 
 data Food = Food { tags :: TagNamesVals
                  , units :: UnitNamesAmts
@@ -115,7 +116,7 @@ data Food = Food { tags :: TagNamesVals
                  , ingr :: Ingr
                  , foodId :: FoodId } deriving Show
 
-instance Binary Food where
+instance Serialize Food where
   put f = put (tags f)
           >> put (units f)
           >> put (nutsPerGs f)
@@ -417,6 +418,12 @@ data Error = NoMatchingUnit
            | Other String
            | MoveIdNotFound FoodId
            | MoveStartNotFound FoodId
+           | CanonicalizeError IOException
+           | FileSaveError IOException
+           | FileReadError IOException
+           | FileDecodeError String
+           | NotPantryFile
+           | WrongFileVersion
 
 instance E.Error Error where
   strMsg = Other
