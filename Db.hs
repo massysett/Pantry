@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- | Keep functions in here as pure as possible. Use combinators to
+-- mak
 module Db where
 
 import qualified Data.List as L
@@ -36,17 +38,18 @@ newtype Unsaved = Unsaved {unUnsaved :: Bool }
 data Db = Db { dbNextId :: NextId
              , dbFilename :: Maybe Filename
              , dbUnsaved :: Unsaved
-             , dbFoods :: Foods }
+             , dbFoods :: DbFoods }
 
-newtype Undos = UndoList { unUndoList :: [[Food]] }
+newtype Undos = Undos { unUndoList :: [Foods] }
 newtype Foods = Foods { unFoods :: [Food] } deriving Serialize
 instance Monoid.Monoid Foods where
   mappend (Foods l) (Foods r) = Foods $ l ++ r
   mempty = Foods []
+newtype Volatile = Volatile { unVolatile :: Foods }
+newtype DbFoods = DbFoods { unDbFoods :: Foods }
   
-
 data Tray = Tray { trayDb :: Db
-                 , volatile :: Foods
+                 , volatile :: Volatile
                  , undoList :: Undos
                  , done :: Done
                  , output :: DL.DList X.Text }
@@ -57,63 +60,113 @@ blankDb :: Db
 blankDb = Db { dbNextId = NextId oneFoodId
              , dbFilename = Nothing
              , dbUnsaved = Unsaved False
-             , dbFoods = Foods [] }
+             , dbFoods = DbFoods . Foods $ [] }
 
 loadTray :: Db -> Undos -> Tray
 loadTray d u = Tray { trayDb = d
-                    , volatile = dbFoods d
+                    , volatile = Volatile . unDbFoods . dbFoods $ d
                     , undoList = u
                     , done = NotDone
                     , output = DL.empty }
 
 data Done = Done | NotDone
 
-xformToConvey :: (Food -> Either Error Food)
-                 -> (Tray -> E.ErrorT Error IO Tray)
-xformToConvey f = \t -> do
-  let oldDb = trayDb t
-      foods = dbFoods oldDb
-  newFoods <- liftToErrorT . T.mapM f . unFoods $ foods
-  return t { trayDb = oldDb { dbFoods = Foods newFoods } }
+------------------------------------------------------------
+-- FILTERING
+------------------------------------------------------------
 
-predToConvey :: (Food -> Bool)
-                -> (Tray -> E.ErrorT Error IO Tray)
-predToConvey p = f where 
-  f t = return newTray where
-    oldDb = trayDb t
-    foods = dbFoods oldDb
-    newFoods = filter p . unFoods $ foods
-    newTray = t { trayDb = oldDb { dbFoods = Foods newFoods } }
+predToFilter :: (Food -> Bool) -> Volatile -> Volatile
+predToFilter f (Volatile (Foods fs)) = Volatile . Foods . filter f $ fs
 
-filterToConvey :: ([Food] -> [Food])
-                  -> (Tray -> E.ErrorT Error IO Tray)
-filterToConvey f = \t ->
-  let oldDb = trayDb t
-      newFoods = f . unFoods . dbFoods $ oldDb
-  in return $ t { trayDb = oldDb { dbFoods = Foods newFoods } }
+filterToTrayFilter :: (Volatile -> Volatile) -> Tray -> Tray
+filterToTrayFilter f t = t { volatile = f . volatile $ t }
 
-newVolatileToConvey :: Foods -> (Tray -> E.ErrorT Error IO Tray)
-newVolatileToConvey fs = \t ->
-  let oldDb = trayDb t
-      newFoods = fs
-  in return $ t { trayDb = oldDb { dbFoods = newFoods } }
+trayFilterToConvey :: (Tray -> Tray) -> Tray -> E.ErrorT Error IO Tray
+trayFilterToConvey = impurify
 
--- TODO needs to assign new IDs
-append :: Tray -> E.ErrorT Error IO Tray
-append t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = Foods foods } }
-  foods = oldFoods ++ (unFoods . volatile $ t)
-  oldFoods = unFoods . dbFoods $ oldDb
-  oldDb = trayDb t
+predToConvey :: (Food -> Bool) -> Tray -> E.ErrorT Error IO Tray
+predToConvey = trayFilterToConvey . filterToTrayFilter . predToFilter
 
--- TODO needs to assign new IDs
-prepend :: Tray -> E.ErrorT Error IO Tray
-prepend t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = foods } }
-  foods = volatile t `Monoid.mappend` oldFoods
-  oldFoods = dbFoods oldDb
-  oldDb = trayDb t
+filterToConvey :: (Volatile -> Volatile) -> Tray -> E.ErrorT Error IO Tray
+filterToConvey = trayFilterToConvey . filterToTrayFilter
 
+newVolatileToConvey :: Volatile -> Tray -> E.ErrorT Error IO Tray
+newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
+
+data FirstPos = Beginning | After FoodId
+
+move :: FirstPos -> [FoodId] -> Foods -> Either Error Foods
+move p is (Foods v) = do
+  let pd fid food = fid == foodId food
+  fs <- findManyWithFail MoveIdNotFound pd is v
+  let sorted = sortByOrder is foodId fs
+      deleted = deleteManyFirsts pd is v
+  case p of
+    Beginning -> return . Foods $ sorted ++ deleted
+    (After aft) ->
+      let (pre, suf) = L.break (pd aft) deleted
+      in case suf of
+        [] -> E.throwError $ MoveStartNotFound aft
+        _ -> return . Foods $ pre ++ sorted ++ suf
+
+------------------------------------------------------------
+-- CHANGE TAGS AND PROPERTIES
+------------------------------------------------------------
+
+xformToFilterM :: (Food -> Either Error Food)
+                 -> Volatile
+                 -> Either Error Volatile
+xformToFilterM f (Volatile (Foods fs)) =
+  mapM f fs >>= return . Volatile . Foods
+
+xformToTray :: (Volatile -> Either Error Volatile)
+                 -> Tray -> Either Error Tray
+xformToTray f t = do
+  newV <- f . volatile $ t
+  return t { volatile = newV }
+
+------------------------------------------------------------
+-- ADDING CHANGED FOODS
+------------------------------------------------------------
+
+
+maxUndos :: Int
+maxUndos = 15
+
+-- | Installs new changed Foods. Assumes there are actually changes to
+-- install--that is, it always marks the Db as Unsaved and always
+-- changes the undo list. Functions that call this function should not
+-- call it if there actually are no changes to install.
+installNewDbFoods :: DbFoods -- ^ New db foods
+                     -> NextId -- ^ New NextId
+                     -> Tray  -- ^ Old tray
+                     -> Tray  -- ^ New tray
+installNewDbFoods f n t = newT where
+  newT = t { trayDb = newDb
+           , undoList = newUndos }
+  newDb = (trayDb t) { dbNextId = n
+                     , dbUnsaved = Unsaved True
+                     , dbFoods = f }
+  oldDbFoods = unDbFoods . dbFoods . trayDb $ t
+  newUndos = Undos . take maxUndos . (oldDbFoods:)
+             . unUndoList . undoList $ t
+
+assignIds :: Foods -> NextId -> (Foods, NextId)
+assignIds (Foods fs) n = (Foods r, n') where
+  (r, n') = St.runState c n
+  c = mapM assignId fs
+
+append :: Tray -> Tray
+append oldT = case (null . unFoods . volatile $ oldT) of
+  True -> oldT
+  False ->
+    let (newWithId, newNextId) = assignIds (volatile oldT) oldNextId
+        oldNextId = dbNextId . trayDb $ oldT
+        oldDbFoods = dbFoods . trayDb $ oldT
+        newFoods = oldDbFoods `Monoid.mappend` newWithId
+        newT = installNewDbFoods newFoods newNextId oldT
+    in newT
+        
 assignId :: Food -> St.State NextId Food
 assignId f = do
   i <- St.get
@@ -125,7 +178,6 @@ replace t = return newT where
   newT = t { trayDb = oldDb { dbFoods = foods } }
   foods = volatile t
   oldDb = trayDb t
-
 
 edit :: Tray -> E.ErrorT Error IO Tray
 edit t = return newT where
@@ -145,24 +197,67 @@ delete t = return newT where
              (unFoods oldDbFoods)
   eqId f1 f2 = foodId f1 == foodId f2
 
-data FirstPos = Beginning | After FoodId
+------------------------------------------------------------
+-- OPEN AND SAVE FILES
+------------------------------------------------------------
+fileVersion :: BS.ByteString
+fileVersion = BS.singleton 0
 
-move :: FirstPos -> [FoodId] -> Tray -> E.ErrorT Error IO Tray
-move p is t = do
-  let v = unFoods . volatile $ t
-      pd fid food = fid == foodId food
-  fs <- liftToErrorT $ findManyWithFail MoveIdNotFound pd is v
-  let sorted = sortByOrder is foodId fs
-      deleted = deleteManyFirsts pd is v
-  newV <- case p of
-    Beginning -> return $ sorted ++ deleted
-    (After aft) ->
-      let (pre, suf) = L.break (pd aft) deleted
-      in case suf of
-        [] -> E.throwError $ MoveStartNotFound aft
-        _ -> return $ pre ++ sorted ++ suf
-  let newTray = t { volatile = Foods newV }
-  return newTray
+magic :: BS.ByteString
+magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
+
+-- | Writes a database to a handle. Any IO exceptions are caught and
+-- returned as an Error; non-IO exceptions are not caught.
+writeDb :: Handle -> Db -> E.ErrorT Error IO ()
+writeDb h d = flip catchIOException FileSaveError $ do
+  BS.hPut h magic
+  BS.hPut h fileVersion
+  BS.hPut h $ encode (dbNextId d, dbFoods d)
+
+-- | Reads a file from disk. Catches any IO errors and puts them on an
+-- Error; these are returned as Left Error. Successful reads are
+-- returned as Right ByteString. Any non-IO errors are not caught.
+readBS :: Filename -> E.ErrorT Error IO BS.ByteString
+readBS (Filename f) = catchIOException (BS.readFile f) FileReadError
+
+-- | Carries out an IO action. Takes any IOExceptions, catches them,
+-- and puts them into an IO Either. Non IOException exceptions are not
+-- caught.
+catchIOException :: IO a
+                    -> (IOException -> Error)
+                    -> E.ErrorT Error IO a
+catchIOException a f = E.ErrorT $ catchIOError
+                       (a >>= return . Right) (return . Left . f)
+
+-- | Decode a ByteString to a Db. Not in IO monad.
+decodeBSWithHeader :: Filename -> BS.ByteString -> Either Error Db
+decodeBSWithHeader f bs = do
+  E.unless (magic `BS.isPrefixOf` bs) (E.throwError NotPantryFile)
+  let noMagic = BS.drop (BS.length magic) bs
+  E.unless (fileVersion `BS.isPrefixOf` noMagic)
+    (E.throwError WrongFileVersion)
+  let noHeader = BS.drop (BS.length fileVersion) noMagic
+  case decode noHeader of
+    (Right (i, fs)) -> return $ Db { dbNextId = i
+                                   , dbFilename = Just f
+                                   , dbUnsaved = Unsaved False
+                                   , dbFoods = fs }
+    (Left s) -> E.throwError $ FileDecodeError s
+
+-- | Reads a database. Any IO errors are caught and returned in an
+-- appropriate Error. Non-IO exceptions are not caught (there should
+-- not be any...but if there are they are not caught.)  Do not
+-- canonicalize the input filename. This must happen on the client
+-- side.
+readDb :: Filename -> E.ErrorT Error IO Db
+readDb f = do
+  bs <- readBS f
+  db <- liftToErrorT $ decodeBSWithHeader f bs
+  return db
+
+------------------------------------------------------------
+-- UTILITY BASEMENT
+------------------------------------------------------------
 
 sortByOrder :: (Ord a)
                => [a]
@@ -263,66 +358,13 @@ replaceFirst p r ls = case L.break p ls of
 compose :: [a -> a] -> (a -> a)
 compose = F.foldl (flip (.)) id
 
-fileVersion :: BS.ByteString
-fileVersion = BS.singleton 0
-
-magic :: BS.ByteString
-magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
-
--- | Writes a database to a handle. Any IO exceptions are caught and
--- returned as an Error; non-IO exceptions are not caught.
-writeDb :: Handle -> Db -> E.ErrorT Error IO ()
-writeDb h d = flip catchIOException FileSaveError $ do
-  BS.hPut h magic
-  BS.hPut h fileVersion
-  BS.hPut h $ encode (dbNextId d, dbFoods d)
-
--- | Reads a file from disk. Catches any IO errors and puts them on an
--- Error; these are returned as Left Error. Successful reads are
--- returned as Right ByteString. Any non-IO errors are not caught.
-readBS :: Filename -> E.ErrorT Error IO BS.ByteString
-readBS (Filename f) = catchIOException (BS.readFile f) FileReadError
-
--- | Carries out an IO action. Takes any IOExceptions, catches them,
--- and puts them into an IO Either. Non IOException exceptions are not
--- caught.
-catchIOException :: IO a
-                    -> (IOException -> Error)
-                    -> E.ErrorT Error IO a
-catchIOException a f = E.ErrorT $ catchIOError
-                       (a >>= return . Right) (return . Left . f)
-
--- | Decode a ByteString to a Db. Not in IO monad.
-decodeBSWithHeader :: Filename -> BS.ByteString -> Either Error Db
-decodeBSWithHeader f bs = do
-  E.unless (magic `BS.isPrefixOf` bs) (E.throwError NotPantryFile)
-  let noMagic = BS.drop (BS.length magic) bs
-  E.unless (fileVersion `BS.isPrefixOf` noMagic)
-    (E.throwError WrongFileVersion)
-  let noHeader = BS.drop (BS.length fileVersion) noMagic
-  case decode noHeader of
-    (Right (i, fs)) -> return $ Db { dbNextId = i
-                                   , dbFilename = Just f
-                                   , dbUnsaved = Unsaved False
-                                   , dbFoods = fs }
-    (Left s) -> E.throwError $ FileDecodeError s
-
--- | Reads a database. Any IO errors are caught and returned in an
--- appropriate Error. Non-IO exceptions are not caught (there should
--- not be any...but if there are they are not caught.)  Do not
--- canonicalize the input filename. This must happen on the client
--- side.
-readDb :: Filename -> E.ErrorT Error IO Db
-readDb f = do
-  bs <- readBS f
-  db <- liftToErrorT $ decodeBSWithHeader f bs
-  return db
-
 liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
 liftToErrorT e = case e of
   (Left err) -> E.throwError err
   (Right good) -> return good
 
+impurify :: Monad m => (a -> b) -> a -> m b
+impurify f a = return $ f a
 
 -- Local Variables:
 -- compile-command: "ghc -Wall -outputdir temp Db.hs"
