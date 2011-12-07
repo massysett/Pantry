@@ -17,7 +17,7 @@ import Data.Map ((!))
 import Types(Next(next))
 import Data.Serialize(Serialize, encode, decode)
 import qualified Data.ByteString as BS
-import System.IO(Handle)
+import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
 
@@ -194,25 +194,37 @@ replace :: Tray -> Tray
 replace = volatileToDb f where
   f _ fs = DbFoods fs
         
--- TODO change Unsaved
-edit :: Tray -> E.ErrorT Error IO Tray
-edit t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = DbFoods newFoods } }
-  oldDbFoods = dbFoods oldDb
-  oldDb = trayDb t
-  newFoods = replaceManyFirsts eqId (unVolatile . volatile $ t)
-             (unDbFoods oldDbFoods)
-  eqId f1 f2 = foodId f1 == foodId f2
+-- | Given a function that will take the old Volatile and the old
+-- DbFoods and return a new DbFoods, make the appropriate changes to a
+-- Tray. Does nothing if Volatile is null.
+editOrDelete :: (Volatile -> DbFoods -> DbFoods) -> Tray -> Tray
+editOrDelete f t =
+  case (null. unVolatile . volatile $ t) of
+    (True) -> t
+    (False) -> newT
+  where
+    newT = t { trayDb = oldDb { dbFoods = newFoods
+                              , dbUnsaved = Unsaved True }
+             , undoList = newUndo }
+    newUndo = Undos l where
+      l = take maxUndos $ oldDbFoods : (unUndoList . undoList $ t)
+    oldDbFoods = dbFoods oldDb
+    oldDb = trayDb t
+    newFoods = f (volatile t) oldDbFoods
 
--- TODO combine with edit, change unsaved, add undo
-delete :: Tray -> E.ErrorT Error IO Tray
-delete t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = DbFoods newFoods } }
-  oldDbFoods = dbFoods oldDb
-  oldDb = trayDb t
-  newFoods = deleteManyFirsts eqId (unVolatile . volatile $ t)
-             (unDbFoods oldDbFoods)
-  eqId f1 f2 = foodId f1 == foodId f2
+edit :: Tray -> Tray
+edit = editOrDelete f where
+  f (Volatile v) (DbFoods d) =
+    DbFoods $ replaceManyFirsts eqId v d
+
+delete :: Tray -> Tray
+delete = editOrDelete f where
+  f (Volatile v) (DbFoods d) =
+    DbFoods $ deleteManyFirsts eqId v d
+
+-- | True if two foods have equal IDs.
+eqId :: Food -> Food -> Bool
+eqId f1 f2 = foodId f1 == foodId f2
 
 ------------------------------------------------------------
 -- OPEN AND SAVE FILES
@@ -223,13 +235,15 @@ fileVersion = BS.singleton 0
 magic :: BS.ByteString
 magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
 
--- | Writes a database to a handle. Any IO exceptions are caught and
+-- | Writes a database to a file. Any IO exceptions are caught and
 -- returned as an Error; non-IO exceptions are not caught.
-writeDb :: Handle -> Db -> E.ErrorT Error IO ()
-writeDb h d = flip catchIOException FileSaveError $ do
-  BS.hPut h magic
-  BS.hPut h fileVersion
-  BS.hPut h $ encode (dbNextId d, dbFoods d)
+writeDb :: Filename -> Db -> E.ErrorT Error IO ()
+writeDb (Filename f) d = flip catchIOException FileSaveError c where
+  c = withFile f WriteMode $ \h -> do
+    hSetBinaryMode h True
+    BS.hPut h magic
+    BS.hPut h fileVersion
+    BS.hPut h $ encode (dbNextId d, dbFoods d)
 
 -- | Reads a file from disk. Catches any IO errors and puts them on an
 -- Error; these are returned as Left Error. Successful reads are
@@ -271,6 +285,19 @@ readDb f = do
   bs <- readBS f
   db <- liftToErrorT $ decodeBSWithHeader f bs
   return db
+
+open :: Filename -> Tray -> E.ErrorT Error IO Tray
+open f t = do
+  d <- readDb f
+  return t { trayDb = d
+           , undoList = addToUndos (dbFoods . trayDb $ t) (undoList t)
+           }
+    
+save :: Tray -> E.ErrorT Error IO Tray
+save = undefined
+
+addToUndos :: DbFoods -> Undos -> Undos
+addToUndos d = Undos . take maxUndos . (d :) . unUndoList
 
 ------------------------------------------------------------
 -- UTILITY BASEMENT
