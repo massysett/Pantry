@@ -7,7 +7,6 @@ import qualified Data.List as L
 import qualified Data.Foldable as F
 import Control.Applicative(Applicative, (<*>), pure)
 import qualified Control.Monad.Error as E
-import qualified Data.Traversable as T
 import qualified Data.Text as X
 import Control.Monad ((>=>))
 import qualified Control.Monad as M
@@ -21,7 +20,6 @@ import qualified Data.ByteString as BS
 import System.IO(Handle)
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
-import qualified Data.Monoid as Monoid
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
@@ -40,13 +38,9 @@ data Db = Db { dbNextId :: NextId
              , dbUnsaved :: Unsaved
              , dbFoods :: DbFoods }
 
-newtype Undos = Undos { unUndoList :: [Foods] }
-newtype Foods = Foods { unFoods :: [Food] } deriving Serialize
-instance Monoid.Monoid Foods where
-  mappend (Foods l) (Foods r) = Foods $ l ++ r
-  mempty = Foods []
-newtype Volatile = Volatile { unVolatile :: Foods }
-newtype DbFoods = DbFoods { unDbFoods :: Foods }
+newtype Undos = Undos { unUndoList :: [DbFoods] }
+newtype Volatile = Volatile { unVolatile :: [Food] }
+newtype DbFoods = DbFoods { unDbFoods :: [Food] } deriving Serialize
   
 data Tray = Tray { trayDb :: Db
                  , volatile :: Volatile
@@ -60,7 +54,7 @@ blankDb :: Db
 blankDb = Db { dbNextId = NextId oneFoodId
              , dbFilename = Nothing
              , dbUnsaved = Unsaved False
-             , dbFoods = DbFoods . Foods $ [] }
+             , dbFoods = DbFoods [] }
 
 loadTray :: Db -> Undos -> Tray
 loadTray d u = Tray { trayDb = d
@@ -76,7 +70,7 @@ data Done = Done | NotDone
 ------------------------------------------------------------
 
 predToFilter :: (Food -> Bool) -> Volatile -> Volatile
-predToFilter f (Volatile (Foods fs)) = Volatile . Foods . filter f $ fs
+predToFilter f (Volatile fs) = Volatile . filter f $ fs
 
 filterToTrayFilter :: (Volatile -> Volatile) -> Tray -> Tray
 filterToTrayFilter f t = t { volatile = f . volatile $ t }
@@ -95,19 +89,19 @@ newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 
 data FirstPos = Beginning | After FoodId
 
-move :: FirstPos -> [FoodId] -> Foods -> Either Error Foods
-move p is (Foods v) = do
+move :: FirstPos -> [FoodId] -> Volatile -> Either Error Volatile
+move p is (Volatile v) = do
   let pd fid food = fid == foodId food
   fs <- findManyWithFail MoveIdNotFound pd is v
   let sorted = sortByOrder is foodId fs
       deleted = deleteManyFirsts pd is v
   case p of
-    Beginning -> return . Foods $ sorted ++ deleted
+    Beginning -> return . Volatile $ sorted ++ deleted
     (After aft) ->
       let (pre, suf) = L.break (pd aft) deleted
       in case suf of
         [] -> E.throwError $ MoveStartNotFound aft
-        _ -> return . Foods $ pre ++ sorted ++ suf
+        _ -> return . Volatile $ pre ++ sorted ++ suf
 
 ------------------------------------------------------------
 -- CHANGE TAGS AND PROPERTIES
@@ -116,19 +110,26 @@ move p is (Foods v) = do
 xformToFilterM :: (Food -> Either Error Food)
                  -> Volatile
                  -> Either Error Volatile
-xformToFilterM f (Volatile (Foods fs)) =
-  mapM f fs >>= return . Volatile . Foods
+xformToFilterM f (Volatile fs) =
+  mapM f fs >>= return . Volatile
 
-xformToTray :: (Volatile -> Either Error Volatile)
+filterMToTrayM :: (Volatile -> Either Error Volatile)
                  -> Tray -> Either Error Tray
-xformToTray f t = do
+filterMToTrayM f t = do
   newV <- f . volatile $ t
   return t { volatile = newV }
+
+trayMToConvey :: (Tray -> Either Error Tray)
+                 -> Tray -> E.ErrorT Error IO Tray
+trayMToConvey f t = liftToErrorT . f $ t
+
+xformToConvey :: (Food -> Either Error Food)
+                 -> Tray -> E.ErrorT Error IO Tray
+xformToConvey = trayMToConvey . filterMToTrayM . xformToFilterM
 
 ------------------------------------------------------------
 -- ADDING CHANGED FOODS
 ------------------------------------------------------------
-
 
 maxUndos :: Int
 maxUndos = 15
@@ -147,54 +148,70 @@ installNewDbFoods f n t = newT where
   newDb = (trayDb t) { dbNextId = n
                      , dbUnsaved = Unsaved True
                      , dbFoods = f }
-  oldDbFoods = unDbFoods . dbFoods . trayDb $ t
+  oldDbFoods = dbFoods . trayDb $ t
   newUndos = Undos . take maxUndos . (oldDbFoods:)
              . unUndoList . undoList $ t
 
-assignIds :: Foods -> NextId -> (Foods, NextId)
-assignIds (Foods fs) n = (Foods r, n') where
-  (r, n') = St.runState c n
+assignIds :: [Food] -> NextId -> ([Food], NextId)
+assignIds fs n = St.runState c n where
   c = mapM assignId fs
 
-append :: Tray -> Tray
-append oldT = case (null . unFoods . volatile $ oldT) of
-  True -> oldT
-  False ->
-    let (newWithId, newNextId) = assignIds (volatile oldT) oldNextId
-        oldNextId = dbNextId . trayDb $ oldT
-        oldDbFoods = dbFoods . trayDb $ oldT
-        newFoods = oldDbFoods `Monoid.mappend` newWithId
-        newT = installNewDbFoods newFoods newNextId oldT
-    in newT
-        
 assignId :: Food -> St.State NextId Food
 assignId f = do
   i <- St.get
   St.modify next
   return f { foodId = unNextId i }
 
-replace :: Tray -> E.ErrorT Error IO Tray
-replace t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = foods } }
-  foods = volatile t
-  oldDb = trayDb t
+-- | Takes the Volatile from a Tray and assigns new IDs to it and
+-- combines the Volatile with the DB foods in the tray, using the
+-- given combining function. Returns a new tray with Volatile
+-- unchanged, a new Db, and a new NextID. Does nothing if Volatile is
+-- null.
+--
+-- The combining function might prepend new foods, append new foods,
+-- or junk the existing foods altogether.
+volatileToDb :: (DbFoods -> [Food] -> DbFoods) -> Tray -> Tray
+volatileToDb combine oldT = case (null . unVolatile . volatile $ oldT) of
+  True -> oldT
+  False ->
+    let (newWithId, newNextId) = assignIds oldV oldNextId
+        (Volatile oldV) = volatile oldT
+        oldNextId = dbNextId . trayDb $ oldT
+        oldDbFoods = dbFoods . trayDb $ oldT
+        newFoods = combine oldDbFoods newWithId
+        newT = installNewDbFoods newFoods newNextId oldT
+    in newT
 
+append :: Tray -> Tray
+append = volatileToDb f where
+  f (DbFoods ds) fs = DbFoods $ ds ++ fs
+
+prepend :: Tray -> Tray
+prepend = volatileToDb f where
+  f (DbFoods ds) fs = DbFoods $ fs ++ ds
+
+replace :: Tray -> Tray
+replace = volatileToDb f where
+  f _ fs = DbFoods fs
+        
+-- TODO change Unsaved
 edit :: Tray -> E.ErrorT Error IO Tray
 edit t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = Foods newFoods } }
+  newT = t { trayDb = oldDb { dbFoods = DbFoods newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = replaceManyFirsts eqId (unFoods . volatile $ t)
-             (unFoods oldDbFoods)
+  newFoods = replaceManyFirsts eqId (unVolatile . volatile $ t)
+             (unDbFoods oldDbFoods)
   eqId f1 f2 = foodId f1 == foodId f2
 
+-- TODO combine with edit, change unsaved, add undo
 delete :: Tray -> E.ErrorT Error IO Tray
 delete t = return newT where
-  newT = t { trayDb = oldDb { dbFoods = Foods newFoods } }
+  newT = t { trayDb = oldDb { dbFoods = DbFoods newFoods } }
   oldDbFoods = dbFoods oldDb
   oldDb = trayDb t
-  newFoods = deleteManyFirsts eqId (unFoods . volatile $ t)
-             (unFoods oldDbFoods)
+  newFoods = deleteManyFirsts eqId (unVolatile . volatile $ t)
+             (unDbFoods oldDbFoods)
   eqId f1 f2 = foodId f1 == foodId f2
 
 ------------------------------------------------------------
