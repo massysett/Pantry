@@ -430,6 +430,7 @@ data Error = NoMatchingUnit
            | FileDecodeError String
            | NotPantryFile
            | WrongFileVersion
+           | NoSaveFilename
 
 instance E.Error Error where
   strMsg = Other

@@ -24,7 +24,7 @@ import Control.Exception(IOException)
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
-                        FileSaveError),
+                        FileSaveError, NoSaveFilename),
             FoodId, foodId, oneFoodId)
 
 newtype NextId = NextId { unNextId :: FoodId }
@@ -293,8 +293,21 @@ open f t = do
            , undoList = addToUndos (dbFoods . trayDb $ t) (undoList t)
            }
     
+saveWithFilename :: Filename -> Tray -> E.ErrorT Error IO Tray
+saveWithFilename f t = do
+    writeDb f . trayDb $ t
+    let newDb = (trayDb t) { dbUnsaved = Unsaved False
+                           , dbFilename = Just f }
+        newTray = t { trayDb = newDb }
+    return newTray
+
 save :: Tray -> E.ErrorT Error IO Tray
-save = undefined
+save t = case dbFilename . trayDb $ t of
+  (Nothing) -> E.throwError NoSaveFilename
+  (Just f) -> saveWithFilename f t
+
+saveAs :: Filename -> Tray -> E.ErrorT Error IO Tray
+saveAs = saveWithFilename
 
 addToUndos :: DbFoods -> Undos -> Undos
 addToUndos d = Undos . take maxUndos . (d :) . unUndoList
