@@ -25,7 +25,8 @@ import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
                         FileSaveError, NoSaveFilename),
-            FoodId, foodId, oneFoodId)
+            FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr))
+import Data.Monoid(mconcat)
 
 newtype NextId = NextId { unNextId :: FoodId }
                deriving (Eq, Ord, Next, Serialize)
@@ -104,7 +105,7 @@ move p is (Volatile v) = do
         _ -> return . Volatile $ pre ++ sorted ++ suf
 
 ------------------------------------------------------------
--- CHANGE TAGS AND PROPERTIES
+-- CHANGE TAGS AND PROPERTIES, NUTRIENTS, AVAIL UNITS
 ------------------------------------------------------------
 
 xformToFilterM :: (Food -> Either Error Food)
@@ -126,6 +127,18 @@ trayMToConvey f t = liftToErrorT . f $ t
 xformToConvey :: (Food -> Either Error Food)
                  -> Tray -> E.ErrorT Error IO Tray
 xformToConvey = trayMToConvey . filterMToTrayM . xformToFilterM
+
+------------------------------------------------------------
+-- INGREDIENTS
+------------------------------------------------------------
+replaceWithIngr :: Volatile -> Volatile
+replaceWithIngr (Volatile fs) = Volatile n where
+  n = unIngr . mconcat . map ingr $ fs
+
+removeIngr :: Volatile -> Volatile
+removeIngr (Volatile fs) = Volatile ns where
+  ns = map g fs
+  g f = f { ingr = Ingr [] }
 
 ------------------------------------------------------------
 -- ADDING CHANGED FOODS
@@ -311,6 +324,50 @@ saveAs = saveWithFilename
 
 addToUndos :: DbFoods -> Undos -> Undos
 addToUndos d = Undos . take maxUndos . (d :) . unUndoList
+
+-- | Given a function that combines the old DbFoods with the new
+-- DbFoods, carry out a prepend or append operation. All prepended or
+-- appended foods must be assigned new IDs (appendOrPrepend takes care
+-- of the renumbering).
+appendOrPrependPure :: (DbFoods -> [Food] -> DbFoods) -- ^ Combiner
+                   -> [Food]   -- ^ Loaded foods
+                   -> Tray -- ^ Old tray
+                   -> Tray
+appendOrPrependPure f fLoaded t = tN where
+  tN = t { trayDb = newDb
+         , undoList = newUndo }
+  newDb = d { dbNextId = newNextId
+            , dbUnsaved = Unsaved True
+            , dbFoods = fN }
+  d = trayDb t
+  (fNumbered, newNextId) = assignIds fLoaded (dbNextId d)
+  newUndo = addToUndos (dbFoods d) (undoList t)
+  fN = f (dbFoods d) fNumbered
+
+appendOrPrepend :: (DbFoods -> [Food] -> DbFoods)
+                   -> Filename
+                   -> Tray
+                   -> E.ErrorT Error IO Tray
+appendOrPrepend g f t = do
+  d <- readDb f
+  Return $ appendOrPrependPure g (unDbFoods . dbFoods $ d) t
+
+appendFile :: Filename -> Tray -> E.ErrorT Error IO Tray
+appendFile = appendOrPrepend (\(DbFoods l) r -> DbFoods $ l ++ r)
+
+prependFile :: Filename -> Tray -> E.ErrorT Error IO Tray
+prependFile = appendOrPrepend (\(DbFoods l) r -> DbFoods $ r ++ l)
+
+close :: Tray -> Tray
+close t = tN where
+  tN = t { trayDb = newDb
+         , undoList = newUndo }
+  newDb = blankDb
+  d = trayDb t
+  newUndo = addToUndos (dbFoods d) (undoList t)
+
+quit :: Tray -> Tray
+quit t = t { done = Done }
 
 ------------------------------------------------------------
 -- UTILITY BASEMENT

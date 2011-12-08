@@ -20,7 +20,7 @@ import Rounded(Rounded)
 import qualified Control.Monad.Error as E
 import Data.Serialize (Serialize(put, get))
 import Control.Exception(IOException)
-
+import Data.Monoid as Monoid
 type Matcher = (Text -> Bool)
 type Xform = (Food -> Either Error Food)
 
@@ -97,8 +97,8 @@ instance Exact Qty where
 newtype Yield = Yield (Maybe MixedGrams)
               deriving (Show, Serialize)
 
-newtype Ingr = Ingr [Food]
-             deriving (Show, Serialize)
+newtype Ingr = Ingr { unIngr :: [Food] }
+             deriving (Show, Serialize, Monoid)
 
 -- Do not make FoodId an instance of Enum. This would allow prec to be
 -- called on it. In theory this would be OK (prec can be partial) but
