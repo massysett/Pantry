@@ -423,6 +423,8 @@ data Error = NoMatchingUnit
            | NoReportMatch String [String]
            | Other String
            | MoveIdNotFound FoodId
+           | MultipleMoveIdMatches FoodId
+           | MultipleEditIdMatches FoodId
            | MoveStartNotFound FoodId
            | CanonicalizeError IOException
            | FileSaveError IOException

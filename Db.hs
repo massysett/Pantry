@@ -5,11 +5,10 @@ module Db where
 
 import qualified Data.List as L
 import qualified Data.Foldable as F
-import Control.Applicative(Applicative, (<*>), pure)
+import Control.Applicative(Applicative, (<*>), (<**>), pure, (<$>))
 import qualified Control.Monad.Error as E
 import qualified Data.Text as X
 import Control.Monad ((>=>))
-import qualified Control.Monad as M
 import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
@@ -20,11 +19,14 @@ import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
+import Data.Maybe(catMaybes)
+import qualified Data.Set as Set
 
 import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
-                        FileSaveError, NoSaveFilename),
+                        FileSaveError, NoSaveFilename,
+                        MultipleMoveIdMatches, MultipleEditIdMatches),
             FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr))
 import Data.Monoid(mconcat)
 
@@ -90,12 +92,22 @@ newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 
 data FirstPos = Beginning | After FoodId
 
+concatMoveIds ::
+  [[Food]] -- ^ Output from findAllInOrder
+  -> [FoodId] -- ^ FoodId items to look up
+  -> Either Error [Food] -- ^ Concatenated result, or error
+concatMoveIds fss is = F.foldrM f [] (zip is fss) where
+  f (i, []) _ = E.throwError $ MoveIdNotFound i
+  f (_, (food:[])) rs = return $ food : rs
+  f (i, _) _ = E.throwError $ MultipleMoveIdMatches i
+
 move :: FirstPos -> [FoodId] -> Volatile -> Either Error Volatile
 move p is (Volatile v) = do
   let pd fid food = fid == foodId food
-  fs <- findManyWithFail MoveIdNotFound pd is v
+      finds = findAllInOrder pd is v
+  fs <- concatMoveIds finds is
   let sorted = sortByOrder is foodId fs
-      deleted = deleteManyFirsts pd is v
+      deleted = deleteAll foodId is v
   case p of
     Beginning -> return . Volatile $ sorted ++ deleted
     (After aft) ->
@@ -207,11 +219,27 @@ replace :: Tray -> Tray
 replace = volatileToDb f where
   f _ fs = DbFoods fs
         
--- | Given a function that will take the old Volatile and the old
--- DbFoods and return a new DbFoods, make the appropriate changes to a
--- Tray. Does nothing if Volatile is null.
-editOrDelete :: (Volatile -> DbFoods -> DbFoods) -> Tray -> Tray
-editOrDelete f t =
+edit :: Tray -> Either Error Tray
+edit t =
+  case (null. unVolatile . volatile $ t) of
+    (True) -> return t
+    (False) -> newT
+  where
+    newT = f (volatile t) oldDbFoods >>= \newFoods ->
+           return t { trayDb = oldDb { dbFoods = newFoods
+                                     , dbUnsaved = Unsaved True }
+                    , undoList = newUndo }
+    newUndo = Undos l where
+      l = take maxUndos $ oldDbFoods : (unUndoList . undoList $ t)
+    oldDbFoods = dbFoods oldDb
+    oldDb = trayDb t
+    f (Volatile v) (DbFoods d) =
+      case replaceAll foodId v d of
+        (Left k) -> E.throwError $ MultipleEditIdMatches k
+        (Right vs) -> return . DbFoods $ vs
+
+delete :: Tray -> Tray
+delete t =
   case (null. unVolatile . volatile $ t) of
     (True) -> t
     (False) -> newT
@@ -224,16 +252,8 @@ editOrDelete f t =
     oldDbFoods = dbFoods oldDb
     oldDb = trayDb t
     newFoods = f (volatile t) oldDbFoods
-
-edit :: Tray -> Tray
-edit = editOrDelete f where
-  f (Volatile v) (DbFoods d) =
-    DbFoods $ replaceManyFirsts eqId v d
-
-delete :: Tray -> Tray
-delete = editOrDelete f where
-  f (Volatile v) (DbFoods d) =
-    DbFoods $ deleteManyFirsts eqId v d
+    f (Volatile v) (DbFoods d) =
+      DbFoods $ deleteAll foodId (map foodId v) d
 
 -- | True if two foods have equal IDs.
 eqId :: Food -> Food -> Bool
@@ -350,7 +370,7 @@ appendOrPrepend :: (DbFoods -> [Food] -> DbFoods)
                    -> E.ErrorT Error IO Tray
 appendOrPrepend g f t = do
   d <- readDb f
-  Return $ appendOrPrependPure g (unDbFoods . dbFoods $ d) t
+  return $ appendOrPrependPure g (unDbFoods . dbFoods $ d) t
 
 appendFile :: Filename -> Tray -> E.ErrorT Error IO Tray
 appendFile = appendOrPrepend (\(DbFoods l) r -> DbFoods $ l ++ r)
@@ -373,6 +393,72 @@ quit t = t { done = Done }
 -- UTILITY BASEMENT
 ------------------------------------------------------------
 
+-- | Delete all the items from a list that match one of several
+-- predicates.
+deleteAll ::
+  (Ord k)
+  => (v -> k) -- ^ How to get a key from a value
+  -> [k]      -- ^ Delete items matching these keys
+  -> [v]      -- ^ delete from here
+  -> [v]
+deleteAll f ks vs = catMaybes maybes where
+  mp = Set.fromList ks
+  maybes = map toMaybe vs
+  toMaybe i = case Set.member (f i) mp of
+    True -> Just i
+    False -> Nothing
+
+-- | For each item in a list, replace an item in a different list.
+replaceAll ::
+  (Ord k)
+  => (v -> k)
+  -- ^ How to get a key from a value
+  
+  -> [v]
+  -- ^ source of replacements
+  
+  -> [v]
+  -- ^ replace items within this list
+
+  -> Either k [v]
+  -- ^ The computation fails if two of the items in the source of
+  -- replacements yield the same key. Otherwise, returns a list of
+  -- items with the replacements made.
+replaceAll f ss ts =
+  let ps = map (\v -> (f v, v)) ss
+  in case fromListNoDupe ps of
+    (Left k) -> Left k
+    (Right mp) ->
+      let g v a = Map.findWithDefault v (f v) mp : a
+      in Right $ foldr g [] ts
+
+-- | Build a map from a list of keys and values, but returns Left k
+-- for the first duplicate key if a duplicate key is found.
+fromListNoDupe :: (Ord k) => [(k, v)] -> Either k (Map.Map k v)
+fromListNoDupe = foldr f (Right Map.empty) where
+  f _ (Left e) = Left e
+  f (k, v) (Right m) =
+    let fv _ n _ = n
+    in case Map.insertLookupWithKey fv k v m of
+      (Just _, _) -> Left k
+      (Nothing, nm) -> Right nm
+
+-- | Find all items from a given list inside of another list, using a
+-- specified predicate. 
+findAllInOrder ::
+  (k -> a -> Bool)
+  -- ^ How to make a predicate
+  
+  -> [k]
+  -- ^ Find items matching these keys
+
+  -> [a]
+  -- ^ Find items within this list
+  
+  -> [[a]]
+  -- ^ Items matching each key, in order
+findAllInOrder f ks as = f <$> ks <**> pure filter <*> pure as
+
 sortByOrder :: (Ord a)
                => [a]
                -> (i -> a)
@@ -382,92 +468,11 @@ sortByOrder as f is = L.sortBy o is where
   m = Map.fromList $ zip as ([0..] :: [Int])
   o i1 i2 = compare (m ! (f i1)) (m ! (f i2))
 
-findManyWithFail
-  :: (E.Error e)
-     => (p -> e)
-     -- ^ Convert an item to find into an error, if it is not found
-
-     -> (p -> a -> Bool)
-     -- ^ How to make a predicate
-     
-     -> [p]
-     -- ^ List of items for predicate
-     
-     -> [a]
-     -- ^ List to search
-     
-     -> Either e [a]
-findManyWithFail f p ps ls = M.sequence eithers where
-  errors = L.map f ps
-  preds = L.map p ps
-  findfns = L.zipWith findWithFail errors preds
-  eithers = findfns <*> pure ls
-
-findWithFail :: e
-                -> (a -> Bool)
-                -> [a]
-                -> Either e a
-findWithFail e p ls = maybe (Left e) Right $ L.find p ls
-
-deleteManyFirsts :: (p -> a -> Bool) -- ^ How to make a predicate
-             -> [p]           -- ^ Source of what to delete
-             -> [a]           -- ^ Target to delete in
-             -> [a]           -- ^ Deleted
-deleteManyFirsts pm rs = composed where
-  preds = L.map pm rs
-  delFns = L.map deleteFirst preds
-  composed = compose delFns
-
-deleteManyFirstsWithFail :: (E.Error e)
-                            => (p -> e)
-                            -> (p -> a -> Bool)
-                            -> [p]
-                            -> [a]
-                            -> Either e [a]
-deleteManyFirstsWithFail f pm rs = composed where
-  preds = L.map pm rs
-  delFns = L.zipWith (deleteFirstWithFail f) rs preds
-  composed = composeM delFns
-
 composeM :: (Monad m)
             => [a -> m a]
             -> a -> m a
 composeM [] = return
 composeM (f:fs) = f >=> (composeM fs)
-
-deleteFirst :: (a -> Bool)  -- ^ Predicate
-               -> [a]       -- ^ Delete from here
-               -> [a]       -- ^ With first match deleted
-deleteFirst p ls = case L.break p ls of
-  (ns, []) -> ns
-  (ns, as) -> ns ++ L.tail as
-
-deleteFirstWithFail :: E.Error e
-                       => (b -> e)
-                       -> b
-                       -> (a -> Bool)
-                       -> [a]
-                       -> (Either e [a])
-deleteFirstWithFail f t p ls = case L.break p ls of
-  (_, []) -> E.throwError $ f t
-  (ns, as) -> return $ ns ++ L.tail as
-
-replaceManyFirsts :: (a -> a -> Bool) -- ^ How to make a predicate
-              -> [a]             -- ^ Source of replacements
-              -> [a]             -- ^ Target to replace within
-              -> [a]
-replaceManyFirsts pm rs = composed where
-  preds = L.map pm rs
-  replFns = L.zipWith replaceFirst preds rs
-  composed = compose replFns
-
-replaceFirst :: (a -> Bool) -- ^ Predicate
-                -> a        -- ^ Replacement
-                -> [a]      -- ^ Replace within this list
-                -> [a]
-replaceFirst p r ls = case L.break p ls of
-  (ns, []) -> ns
-  (ns, as) -> ns ++ r : L.tail as
 
 compose :: [a -> a] -> (a -> a)
 compose = F.foldl (flip (.)) id
