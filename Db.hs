@@ -13,7 +13,7 @@ import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Types(Next(next))
+import Types(Next(next), NonNegInteger(unNonNegInteger))
 import Data.Serialize(Serialize, encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
@@ -27,7 +27,8 @@ import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         WrongFileVersion, FileDecodeError,
                         FileSaveError, NoSaveFilename,
                         MultipleMoveIdMatches, MultipleEditIdMatches),
-            FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr))
+            FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr),
+            emptyFood)
 import Data.Monoid(mconcat)
 
 newtype NextId = NextId { unNextId :: FoodId }
@@ -113,7 +114,21 @@ concatMoveIds fss is = F.foldrM f [] (zip is fss) where
   f (_, (food:[])) rs = return $ food : rs
   f (i, _) _ = E.throwError $ MultipleMoveIdMatches i
 
+clear :: Volatile
+clear = Volatile []
+
+recopy :: Tray -> Tray
+recopy t = t { volatile = Volatile . unBuffer . buffer $ t }
+
+head :: NonNegInteger -> Volatile -> Volatile
+head i (Volatile v) = Volatile $ L.genericTake (unNonNegInteger i) v
+
+tail :: NonNegInteger -> Volatile -> Volatile
+tail i (Volatile v) = Volatile $ L.genericDrop
+                      (L.genericLength v - unNonNegInteger i) v
+
 create :: Volatile -> Volatile
+create (Volatile vs) = Volatile $ vs ++ [emptyFood]
 
 move :: FirstPos -> [FoodId] -> Volatile -> Either Error Volatile
 move p is (Volatile v) = do

@@ -7,6 +7,7 @@ module Types( NonNeg
             , mixedRatio
             , toNonNeg
             , NonNegInteger
+            , unNonNegInteger
             , partialNewNonNegInteger
             , PosInteger
             , partialNewPosInteger
