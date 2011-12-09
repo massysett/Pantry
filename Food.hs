@@ -1,10 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Food where
 
-import Prelude (Eq, Ord, Show, Bool(True, False), (.),
-                ($), not, fst, snd, (/=), flip,
-                Either(Left, Right), String,
-                (==), (>), either, Integer, Int)
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Maybe
@@ -170,8 +166,8 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , qty = Qty (Left zero)
                  , yield = Yield Nothing
                  , ingr = Ingr []
-                 , foodId = FoodId . partialNewNonNegInteger
-                            $ (0 :: Integer) }
+                 , foodId = zeroFoodId }
+
 
 -- Tag manipulations
 
@@ -265,10 +261,10 @@ allAvailUnits = allUnits . units
 
 allUnits :: UnitNamesAmts -> UnitNamesAmts
 allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
-  new = ars ++ abs
+  new = ars ++ absU
   ars = M.assocs m
-  abs = map (\(UnitNameAmt n a) -> (n, a))
-        [absGrams, absOunces, absPounds]
+  absU = map (\(UnitNameAmt n a) -> (n, a))
+         [absGrams, absOunces, absPounds]
 
 -- | Change current unit to the one matching a matcher.
 changeCurrUnit :: (Text -> Bool) -> Food -> Either Error Food
@@ -279,8 +275,8 @@ changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
   newUnit = UnitNameAmt headMatchName headMatchGrams
   headMatchName = fst . head $ ms
   headMatchGrams = snd . head $ ms
-  ms = filter pred $ M.assocs allU
-  pred ((Name n), _) = m n
+  ms = filter prev $ M.assocs allU
+  prev ((Name n), _) = m n
   err = if' (null ms) NoMatchingUnit (MultipleMatchingUnits ms)
 
 changeCurrUnits :: (T.Traversable t)
@@ -328,16 +324,16 @@ foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
   im = ingredientMass f
   ingrZero = im == (Grams zero)
   adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
-  recipeAdjustedAmt n = NutAmt $ quot `mult` ng where
-    quot = fromJust $ ig `divide` yg
+  recipeAdjustedAmt n = NutAmt $ qu `mult` ng where
+    qu = fromJust $ ig `divide` yg
     (Grams ig) = im
     (Grams yg) = y
     (NutAmt ng) = n
 
 foodNuts :: Food -> NutNamesAmts
 foodNuts f = NutNamesAmts new where
-  new = M.union abs ing
-  (NutNamesAmts abs) = foodAbsNuts f
+  new = M.union absU ing
+  (NutNamesAmts absU) = foodAbsNuts f
   (NutNamesAmts ing) = foodIngrNuts f
 
 getNut :: Name -> Food -> Maybe NutAmt

@@ -113,6 +113,8 @@ concatMoveIds fss is = F.foldrM f [] (zip is fss) where
   f (_, (food:[])) rs = return $ food : rs
   f (i, _) _ = E.throwError $ MultipleMoveIdMatches i
 
+create :: Volatile -> Volatile
+
 move :: FirstPos -> [FoodId] -> Volatile -> Either Error Volatile
 move p is (Volatile v) = do
   let pd fid food = fid == foodId food
