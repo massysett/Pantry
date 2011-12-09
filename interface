@@ -42,6 +42,8 @@ FILTERING FOODS FROM VOLATILE
 CHANGE TAGS AND PROPERTIES
     -c tag-name string, --change-tag tag-name string
         Set tag equal to string
+    --delete-tag tag-name
+        Delete tag matching tag-name
     -u pattern, --change-unit pattern
         Change current unit to the one matching pattern
     -q number,  --change-quantity number

@@ -199,21 +199,21 @@ changeTagsInFoods :: (F.Foldable a, Functor b) =>
                      -> b Food
 changeTagsInFoods ts = fmap (changeTags ts)
 
-deleteTag :: (Text -> Bool) -> Food -> Food
-deleteTag m f = f { tags = new } where
+deleteTagByPat :: (Text -> Bool) -> Food -> Food
+deleteTagByPat m f = f { tags = new } where
   (TagNamesVals old) = tags f
   new = TagNamesVals . M.fromList . filter p . M.assocs $ old
   p (Name n, _) = not $ m n
 
-deleteTags :: (F.Foldable f)
+deleteTagsByPat :: (F.Foldable f)
               => f (Text -> Bool) -> Food -> Food
-deleteTags ms f = F.foldl' (flip deleteTag) f ms
+deleteTagsByPat ms f = F.foldl' (flip deleteTagByPat) f ms
 
-deleteTagsInFoods :: (F.Foldable a, Functor b)
+deleteTagsInFoodsByPat :: (F.Foldable a, Functor b)
                      => a (Text -> Bool)
                      -> b Food
                      -> b Food
-deleteTagsInFoods ms fs = fmap (deleteTags ms) fs
+deleteTagsInFoodsByPat ms fs = fmap (deleteTagsByPat ms) fs
 
 -- | True if food has a tag whose name matches the Name and whose
 -- value matches the second matcher.
@@ -429,6 +429,7 @@ data Error = NoMatchingUnit
            | NotPantryFile
            | WrongFileVersion
            | NoSaveFilename
+           | UndoTooBig NonNegInteger Integer
 
 instance E.Error Error where
   strMsg = Other

@@ -26,7 +26,8 @@ import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
                         FileSaveError, NoSaveFilename,
-                        MultipleMoveIdMatches, MultipleEditIdMatches),
+                        MultipleMoveIdMatches, MultipleEditIdMatches,
+                        UndoTooBig),
             FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr),
             emptyFood)
 import Data.Monoid(mconcat)
@@ -144,6 +145,16 @@ move p is (Volatile v) = do
       in case suf of
         [] -> E.throwError $ MoveStartNotFound aft
         _ -> return . Volatile $ pre ++ sorted ++ suf
+
+undo :: NonNegInteger -> Tray -> Either Error Tray
+undo n t =
+  case unNonNegInteger n < L.genericLength (unUndos . undos $ t) of
+    False ->
+      Left $ UndoTooBig n (L.genericLength (unUndos . undos $ t))
+    True ->
+      let vn = Volatile . unBuffer $ b
+          b = L.genericIndex (unUndos . undos $ t) (unNonNegInteger n)
+      in Right t { volatile = vn }
 
 ------------------------------------------------------------
 -- CHANGE TAGS AND PROPERTIES, NUTRIENTS, AVAIL UNITS
