@@ -36,37 +36,49 @@ newtype Filename = Filename  { unFilename :: String }
                    deriving (Show, Serialize)
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
-data Db = Db { dbNextId :: NextId
-             , dbFilename :: Maybe Filename
-             , dbUnsaved :: Unsaved
-             , dbFoods :: DbFoods }
-
-newtype Undos = Undos { unUndoList :: [DbFoods] }
+newtype Undos = Undos { unUndos :: [Buffer] }
 newtype Volatile = Volatile { unVolatile :: [Food] }
-newtype DbFoods = DbFoods { unDbFoods :: [Food] } deriving Serialize
-  
-data Tray = Tray { trayDb :: Db
+newtype Buffer = Buffer { unBuffer :: [Food] } deriving Serialize
+newtype Output = Output { unOutput :: DL.DList X.Text }
+data Done = Done | NotDone
+
+data Tray = Tray { nextId :: NextId
+                 , filename :: Maybe Filename
+                 , unsaved :: Unsaved
+                 , buffer :: Buffer
+                 , undos :: Undos
                  , volatile :: Volatile
-                 , undoList :: Undos
                  , done :: Done
-                 , output :: DL.DList X.Text }
+                 , output :: Output }
 
 type Convey = Tray -> E.ErrorT Error IO Tray
 
-blankDb :: Db
-blankDb = Db { dbNextId = NextId oneFoodId
-             , dbFilename = Nothing
-             , dbUnsaved = Unsaved False
-             , dbFoods = DbFoods [] }
+blankTray :: Tray
+blankTray = Tray { nextId = NextId $ oneFoodId
+                 , filename = Nothing
+                 , unsaved = Unsaved False
+                 , buffer = Buffer []
+                 , undos = Undos []
+                 , volatile = Volatile []
+                 , done = NotDone
+                 , output = Output DL.empty }
 
-loadTray :: Db -> Undos -> Tray
-loadTray d u = Tray { trayDb = d
-                    , volatile = Volatile . unDbFoods . dbFoods $ d
-                    , undoList = u
-                    , done = NotDone
-                    , output = DL.empty }
-
-data Done = Done | NotDone
+loadTray :: NextId
+            -> Maybe Filename
+            -> Unsaved
+            -> Buffer
+            -> Undos
+            -> Tray
+loadTray n f uns b und = Tray { nextId = n
+                              , filename = f
+                              , unsaved = uns
+                              , buffer = b
+                              , undos = und
+                              , volatile = v
+                              , done = NotDone
+                              , output = o } where
+  v = Volatile . unBuffer $ b
+  o = Output (DL.empty)
 
 ------------------------------------------------------------
 -- FILTERING
@@ -163,19 +175,17 @@ maxUndos = 15
 -- install--that is, it always marks the Db as Unsaved and always
 -- changes the undo list. Functions that call this function should not
 -- call it if there actually are no changes to install.
-installNewDbFoods :: DbFoods -- ^ New db foods
+installNewDbFoods :: Buffer -- ^ New db foods
                      -> NextId -- ^ New NextId
                      -> Tray  -- ^ Old tray
                      -> Tray  -- ^ New tray
 installNewDbFoods f n t = newT where
-  newT = t { trayDb = newDb
-           , undoList = newUndos }
-  newDb = (trayDb t) { dbNextId = n
-                     , dbUnsaved = Unsaved True
-                     , dbFoods = f }
-  oldDbFoods = dbFoods . trayDb $ t
-  newUndos = Undos . take maxUndos . (oldDbFoods:)
-             . unUndoList . undoList $ t
+  newT = t { nextId = n
+           , unsaved = Unsaved True
+           , buffer = f
+           , undos = newUndos }
+  newUndos = Undos . take maxUndos . (buffer t :)
+             . unUndos . undos $ t
 
 assignIds :: [Food] -> NextId -> ([Food], NextId)
 assignIds fs n = St.runState c n where
@@ -195,29 +205,29 @@ assignId f = do
 --
 -- The combining function might prepend new foods, append new foods,
 -- or junk the existing foods altogether.
-volatileToDb :: (DbFoods -> [Food] -> DbFoods) -> Tray -> Tray
+volatileToDb :: (Buffer -> [Food] -> Buffer) -> Tray -> Tray
 volatileToDb combine oldT = case (null . unVolatile . volatile $ oldT) of
   True -> oldT
   False ->
     let (newWithId, newNextId) = assignIds oldV oldNextId
         (Volatile oldV) = volatile oldT
-        oldNextId = dbNextId . trayDb $ oldT
-        oldDbFoods = dbFoods . trayDb $ oldT
+        oldNextId = nextId oldT
+        oldDbFoods = buffer oldT
         newFoods = combine oldDbFoods newWithId
         newT = installNewDbFoods newFoods newNextId oldT
     in newT
 
 append :: Tray -> Tray
 append = volatileToDb f where
-  f (DbFoods ds) fs = DbFoods $ ds ++ fs
+  f (Buffer ds) fs = Buffer $ ds ++ fs
 
 prepend :: Tray -> Tray
 prepend = volatileToDb f where
-  f (DbFoods ds) fs = DbFoods $ fs ++ ds
+  f (Buffer ds) fs = Buffer $ fs ++ ds
 
 replace :: Tray -> Tray
 replace = volatileToDb f where
-  f _ fs = DbFoods fs
+  f _ fs = Buffer fs
         
 edit :: Tray -> Either Error Tray
 edit t =
@@ -225,18 +235,16 @@ edit t =
     (True) -> return t
     (False) -> newT
   where
-    newT = f (volatile t) oldDbFoods >>= \newFoods ->
-           return t { trayDb = oldDb { dbFoods = newFoods
-                                     , dbUnsaved = Unsaved True }
-                    , undoList = newUndo }
+    newT = f (volatile t) (buffer t) >>= \newFoods ->
+      return t { buffer = newFoods
+               , unsaved = Unsaved True
+               , undos = newUndo }
     newUndo = Undos l where
-      l = take maxUndos $ oldDbFoods : (unUndoList . undoList $ t)
-    oldDbFoods = dbFoods oldDb
-    oldDb = trayDb t
-    f (Volatile v) (DbFoods d) =
+      l = take maxUndos $ buffer t : (unUndos . undos $ t)
+    f (Volatile v) (Buffer d) =
       case replaceAll foodId v d of
         (Left k) -> E.throwError $ MultipleEditIdMatches k
-        (Right vs) -> return . DbFoods $ vs
+        (Right vs) -> return . Buffer $ vs
 
 delete :: Tray -> Tray
 delete t =
@@ -244,16 +252,14 @@ delete t =
     (True) -> t
     (False) -> newT
   where
-    newT = t { trayDb = oldDb { dbFoods = newFoods
-                              , dbUnsaved = Unsaved True }
-             , undoList = newUndo }
+    newT = t { buffer = newFoods
+             , unsaved = Unsaved True
+             , undos = newUndo }
     newUndo = Undos l where
-      l = take maxUndos $ oldDbFoods : (unUndoList . undoList $ t)
-    oldDbFoods = dbFoods oldDb
-    oldDb = trayDb t
-    newFoods = f (volatile t) oldDbFoods
-    f (Volatile v) (DbFoods d) =
-      DbFoods $ deleteAll foodId (map foodId v) d
+      l = take maxUndos $ buffer t : (unUndos . undos $ t)
+    newFoods = f (volatile t) (buffer t)
+    f (Volatile v) (Buffer d) =
+      Buffer $ deleteAll foodId (map foodId v) d
 
 -- | True if two foods have equal IDs.
 eqId :: Food -> Food -> Bool
@@ -270,13 +276,13 @@ magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
 
 -- | Writes a database to a file. Any IO exceptions are caught and
 -- returned as an Error; non-IO exceptions are not caught.
-writeDb :: Filename -> Db -> E.ErrorT Error IO ()
-writeDb (Filename f) d = flip catchIOException FileSaveError c where
+writeDb :: Filename -> NextId -> Buffer -> E.ErrorT Error IO ()
+writeDb (Filename f) n b = flip catchIOException FileSaveError c where
   c = withFile f WriteMode $ \h -> do
     hSetBinaryMode h True
     BS.hPut h magic
     BS.hPut h fileVersion
-    BS.hPut h $ encode (dbNextId d, dbFoods d)
+    BS.hPut h $ encode (n, b)
 
 -- | Reads a file from disk. Catches any IO errors and puts them on an
 -- Error; these are returned as Left Error. Successful reads are
@@ -294,18 +300,15 @@ catchIOException a f = E.ErrorT $ catchIOError
                        (a >>= return . Right) (return . Left . f)
 
 -- | Decode a ByteString to a Db. Not in IO monad.
-decodeBSWithHeader :: Filename -> BS.ByteString -> Either Error Db
-decodeBSWithHeader f bs = do
+decodeBSWithHeader :: BS.ByteString -> Either Error (NextId, Buffer)
+decodeBSWithHeader bs = do
   E.unless (magic `BS.isPrefixOf` bs) (E.throwError NotPantryFile)
   let noMagic = BS.drop (BS.length magic) bs
   E.unless (fileVersion `BS.isPrefixOf` noMagic)
     (E.throwError WrongFileVersion)
   let noHeader = BS.drop (BS.length fileVersion) noMagic
   case decode noHeader of
-    (Right (i, fs)) -> return $ Db { dbNextId = i
-                                   , dbFilename = Just f
-                                   , dbUnsaved = Unsaved False
-                                   , dbFoods = fs }
+    (Right (i, fs)) -> return (i, fs)
     (Left s) -> E.throwError $ FileDecodeError s
 
 -- | Reads a database. Any IO errors are caught and returned in an
@@ -313,78 +316,65 @@ decodeBSWithHeader f bs = do
 -- not be any...but if there are they are not caught.)  Do not
 -- canonicalize the input filename. This must happen on the client
 -- side.
-readDb :: Filename -> E.ErrorT Error IO Db
-readDb f = do
-  bs <- readBS f
-  db <- liftToErrorT $ decodeBSWithHeader f bs
-  return db
+readDb :: Filename -> E.ErrorT Error IO (NextId, Buffer)
+readDb f = readBS f >>= (liftToErrorT . decodeBSWithHeader)
 
 open :: Filename -> Tray -> E.ErrorT Error IO Tray
 open f t = do
-  d <- readDb f
-  return t { trayDb = d
-           , undoList = addToUndos (dbFoods . trayDb $ t) (undoList t)
-           }
+  (n, b) <- readDb f
+  return t { nextId = n
+           , buffer = b
+           , undos = addToUndos (buffer t) (undos t) }
     
-saveWithFilename :: Filename -> Tray -> E.ErrorT Error IO Tray
-saveWithFilename f t = do
-    writeDb f . trayDb $ t
-    let newDb = (trayDb t) { dbUnsaved = Unsaved False
-                           , dbFilename = Just f }
-        newTray = t { trayDb = newDb }
-    return newTray
+saveAs :: Filename -> Tray -> E.ErrorT Error IO Tray
+saveAs f t = do
+  writeDb f (nextId t) (buffer t)
+  return t { unsaved = Unsaved False
+           , filename = Just f }
 
 save :: Tray -> E.ErrorT Error IO Tray
-save t = case dbFilename . trayDb $ t of
+save t = case filename t of
   (Nothing) -> E.throwError NoSaveFilename
-  (Just f) -> saveWithFilename f t
+  (Just f) -> saveAs f t
 
-saveAs :: Filename -> Tray -> E.ErrorT Error IO Tray
-saveAs = saveWithFilename
+addToUndos :: Buffer -> Undos -> Undos
+addToUndos d = Undos . take maxUndos . (d :) . unUndos
 
-addToUndos :: DbFoods -> Undos -> Undos
-addToUndos d = Undos . take maxUndos . (d :) . unUndoList
-
--- | Given a function that combines the old DbFoods with the new
--- DbFoods, carry out a prepend or append operation. All prepended or
--- appended foods must be assigned new IDs (appendOrPrepend takes care
--- of the renumbering).
-appendOrPrependPure :: (DbFoods -> [Food] -> DbFoods) -- ^ Combiner
+-- | Given a function that combines the old Buffer with the new
+-- Buffer, carry out a prepend or append operation. All prepended or
+-- appended foods must be assigned new IDs (appendOrPrependPure takes
+-- care of the renumbering).
+appendOrPrependPure :: (Buffer -> [Food] -> Buffer) -- ^ Combiner
                    -> [Food]   -- ^ Loaded foods
                    -> Tray -- ^ Old tray
                    -> Tray
-appendOrPrependPure f fLoaded t = tN where
-  tN = t { trayDb = newDb
-         , undoList = newUndo }
-  newDb = d { dbNextId = newNextId
-            , dbUnsaved = Unsaved True
-            , dbFoods = fN }
-  d = trayDb t
-  (fNumbered, newNextId) = assignIds fLoaded (dbNextId d)
-  newUndo = addToUndos (dbFoods d) (undoList t)
-  fN = f (dbFoods d) fNumbered
+appendOrPrependPure f fLoaded t = t { undos = newUndo
+                                    , nextId = newNextId
+                                    , unsaved = Unsaved True
+                                    , buffer = fN } where
+  (fNumbered, newNextId) = assignIds fLoaded (nextId t)
+  newUndo = addToUndos (buffer t) (undos t)
+  fN = f (buffer t) fNumbered
 
-appendOrPrepend :: (DbFoods -> [Food] -> DbFoods)
+appendOrPrepend :: (Buffer -> [Food] -> Buffer)
                    -> Filename
                    -> Tray
                    -> E.ErrorT Error IO Tray
 appendOrPrepend g f t = do
-  d <- readDb f
-  return $ appendOrPrependPure g (unDbFoods . dbFoods $ d) t
+  (_, b) <- readDb f
+  return $ appendOrPrependPure g (unBuffer b) t
 
 appendFile :: Filename -> Tray -> E.ErrorT Error IO Tray
-appendFile = appendOrPrepend (\(DbFoods l) r -> DbFoods $ l ++ r)
+appendFile = appendOrPrepend (\(Buffer l) r -> Buffer $ l ++ r)
 
 prependFile :: Filename -> Tray -> E.ErrorT Error IO Tray
-prependFile = appendOrPrepend (\(DbFoods l) r -> DbFoods $ r ++ l)
+prependFile = appendOrPrepend (\(Buffer l) r -> Buffer $ r ++ l)
 
 close :: Tray -> Tray
-close t = tN where
-  tN = t { trayDb = newDb
-         , undoList = newUndo }
-  newDb = blankDb
-  d = trayDb t
-  newUndo = addToUndos (dbFoods d) (undoList t)
+close t = blankTray { undos = addToUndos (buffer t) (undos t)
+                    , volatile = volatile t
+                    , done = done t
+                    , output = output t }
 
 quit :: Tray -> Tray
 quit t = t { done = Done }
