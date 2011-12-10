@@ -1,7 +1,8 @@
 module Session where
 
 import Commands
-import Db
+import Tray
+import Bag
 import Network
 
 newtype Listener = Listener { unListener :: Socket }
@@ -15,14 +16,14 @@ session = do
   let port = UnixSocket . unFilename $ f
   l <- listenOn port
   let listener = Listener l
-  sessionLoop blankDb listener
+  sessionLoop emptyBag listener
 
-sessionLoop :: Db
+sessionLoop :: Bag
                -> Listener
                -> IO ()
-sessionLoop d l = do
+sessionLoop b l = do
   (h, _, _) <- accept . unListener $ l
-  r <- processMessage h d
+  r <- processMessage h b
   case r of
     Nothing -> return ()
-    (Just newDb) -> sessionLoop newDb l
+    (Just newBag) -> sessionLoop newBag l

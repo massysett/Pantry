@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Keep functions in here as pure as possible. Use combinators to
 -- mak
-module Db where
+module Tray where
 
 import qualified Data.List as L
 import qualified Data.Foldable as F
@@ -31,16 +31,15 @@ import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
             FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr),
             emptyFood)
 import Data.Monoid(mconcat)
+import Bag ( NextId(NextId, unNextId),
+             Filename(Filename, unFilename),
+             Unsaved(Unsaved, unUnsaved),
+             Buffer(Buffer, unBuffer),
+             Undos(Undos, unUndos),
+             Bag(Bag) )
+import qualified Bag
 
-newtype NextId = NextId { unNextId :: FoodId }
-               deriving (Eq, Ord, Next, Serialize)
-newtype Filename = Filename  { unFilename :: String }
-                   deriving (Show, Serialize)
-newtype Unsaved = Unsaved {unUnsaved :: Bool }
-
-newtype Undos = Undos { unUndos :: [Buffer] }
 newtype Volatile = Volatile { unVolatile :: [Food] }
-newtype Buffer = Buffer { unBuffer :: [Food] } deriving Serialize
 newtype Output = Output { unOutput :: DL.DList X.Text }
 data Done = Done | NotDone
 
@@ -55,6 +54,11 @@ data Tray = Tray { nextId :: NextId
 
 type Convey = Tray -> E.ErrorT Error IO Tray
 
+processBag :: Bag
+              -> (Tray -> E.ErrorT Error IO Tray)
+              -> Maybe Bag
+processBag = undefined
+
 blankTray :: Tray
 blankTray = Tray { nextId = NextId $ oneFoodId
                  , filename = Nothing
@@ -65,22 +69,25 @@ blankTray = Tray { nextId = NextId $ oneFoodId
                  , done = NotDone
                  , output = Output DL.empty }
 
-loadTray :: NextId
-            -> Maybe Filename
-            -> Unsaved
-            -> Buffer
-            -> Undos
-            -> Tray
-loadTray n f uns b und = Tray { nextId = n
-                              , filename = f
-                              , unsaved = uns
-                              , buffer = b
-                              , undos = und
-                              , volatile = v
-                              , done = NotDone
-                              , output = o } where
-  v = Volatile . unBuffer $ b
+bagToTray :: Bag.Bag -> Tray
+bagToTray b = Tray { nextId = Bag.nextId b
+                   , filename = Bag.filename b
+                   , unsaved = Bag.unsaved b
+                   , buffer = Bag.buffer b
+                   , undos = Bag.undos b
+                   , volatile = v
+                   , done = NotDone
+                   , output = o } where
+  v = Volatile . unBuffer . Bag.buffer $ b
   o = Output (DL.empty)
+
+trayToBag :: Tray -> Bag.Bag
+trayToBag t = Bag.Bag { Bag.nextId = nextId t
+                      , Bag.filename = filename t
+                      , Bag.unsaved = unsaved t
+                      , Bag.buffer = buffer t
+                      , Bag.undos = undos t }
+
 
 ------------------------------------------------------------
 -- FILTERING
