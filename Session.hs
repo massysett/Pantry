@@ -1,9 +1,9 @@
 module Session where
 
-import Commands
 import Tray
 import Bag
-import Network
+import Network ( PortID(UnixSocket), listenOn,
+                 accept, Socket )
 
 newtype Listener = Listener { unListener :: Socket }
 
