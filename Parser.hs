@@ -3,7 +3,7 @@ module Parser (getConveyor) where
 import qualified Tray as T
 import qualified Control.Monad.Error as E
 import Food (Food, Error)
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BS
 
 {-
 data Incoming = Incoming

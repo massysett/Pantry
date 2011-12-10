@@ -20,7 +20,7 @@ import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
 
-import Db(Db)
+import Tray ( Tray )
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
 import Control.Applicative((<$>), (<*>), pure, Applicative)
@@ -65,7 +65,7 @@ totalRpts = [
 
 printRpts ::ReportGroups
              -> [Food]
-             -> Db
+             -> Tray
              -> X.Text
 printRpts = undefined
 
@@ -79,42 +79,42 @@ printFoodRpts o ts fs rs = X.concat xs where
 
 printTotalRpts :: ReportOpts
                   -> NutNamesAmts
-                  -> Db
+                  -> Tray
                   -> [Food]
                   -> [TotalRpt]
                   -> X.Text
-printTotalRpts o ts d fs rs = X.concat xs where
-  xs = rs <*> pure o <*> pure ts <*> pure d <*> pure fs
+printTotalRpts o ts tr fs rs = X.concat xs where
+  xs = rs <*> pure o <*> pure ts <*> pure tr <*> pure fs
 
 
 printEitherRpt :: ReportOpts
                   -> NutNamesAmts
-                  -> Db
+                  -> Tray
                   -> [Food]
                   -> Either [FoodRpt] [TotalRpt]
                   -> X.Text
-printEitherRpt o ts d fs ei = case ei of
+printEitherRpt o ts tr fs ei = case ei of
   (Left fr) -> printFoodRpts o ts fs fr
-  (Right tr) -> printTotalRpts o ts d fs tr
+  (Right tot) -> printTotalRpts o ts tr fs tot
 
 printReportGroups :: ReportOpts
                      -> NutNamesAmts
-                     -> Db
+                     -> Tray
                      -> [Food]
                      -> ReportGroups
                      -> X.Text
-printReportGroups o ts d fs (ReportGroups ls) =
-  X.concat . map (printEitherRpt o ts d fs) $ ls
+printReportGroups o ts tr fs (ReportGroups ls) =
+  X.concat . map (printEitherRpt o ts tr fs) $ ls
 
 printReports :: ReportOpts
-                -> Db
+                -> Tray
                 -> [Food] 
                 -> [String] 
                 -> Either Error X.Text
-printReports o d fs ns = do
+printReports o tr fs ns = do
   g <- buildReportGroups ns
   let ts = foldFoodNuts fs
-  return $ printReportGroups o ts d fs g
+  return $ printReportGroups o ts tr fs g
 
 data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
 

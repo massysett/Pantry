@@ -143,6 +143,18 @@ zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
 oneFoodId :: FoodId
 oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
 
+-- * Other datatypes
+
+-- | NutRatio is not within the Food datatype, but reports use it. For
+-- now this seems to be the best module to put this in.
+newtype NutRatio = NutRatio NonNeg
+                   deriving (Show, Exact, Rounded, Serialize)
+
+nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio
+nutRatio (NutAmt x) (NutAmt y) = do
+  q <- divide x y
+  return $ NutRatio q
+
 -- * The Food datatype
 
 -- | Represents all foods, both recipes (which have ingredients) and

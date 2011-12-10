@@ -56,7 +56,7 @@ type Convey = Tray -> E.ErrorT Error IO Tray
 
 processBag :: Bag
               -> (Tray -> E.ErrorT Error IO Tray)
-              -> Maybe Bag
+              -> IO (Maybe Bag)
 processBag = undefined
 
 blankTray :: Tray

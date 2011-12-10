@@ -4,6 +4,9 @@ import Tray
 import Bag
 import Network ( PortID(UnixSocket), listenOn,
                  accept, Socket )
+import System.IO ( hSetBinaryMode )
+import qualified Data.ByteString.Lazy as BS
+import Parser ( getConveyor )
 
 newtype Listener = Listener { unListener :: Socket }
 
@@ -23,7 +26,11 @@ sessionLoop :: Bag
                -> IO ()
 sessionLoop b l = do
   (h, _, _) <- accept . unListener $ l
-  r <- processMessage h b
+  hSetBinaryMode h True
+  msg <- BS.hGetContents h
+  let conveyor = getConveyor msg
+  r <- processBag b conveyor
   case r of
     Nothing -> return ()
-    (Just newBag) -> sessionLoop newBag l
+    (Just newBag) -> sessionLoop b l
+
