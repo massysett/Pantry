@@ -5,6 +5,7 @@ import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
                undefined, (++), return)
 import Pantry.Reports.Blank(blank)
 import Pantry.Reports.CountTags(countTags)
+import Pantry.Reports.Help(help)
 import Pantry.Reports.Ingredients(ingredients)
 import Pantry.Reports.Name(name)
 import Pantry.Reports.Nuts(nuts)
@@ -60,6 +61,7 @@ foodRpts = [
 totalRpts :: [(String, TotalRpt)]
 totalRpts = [
   ("count-tags", (\o _ _ fs -> countTags o fs))
+  , ("help", (\_ _ _ _ -> help))
   , ("total", (\o ts _ _ -> total o ts))
   ]
 
