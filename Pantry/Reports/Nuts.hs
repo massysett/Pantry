@@ -1,20 +1,20 @@
-module Reports.Nuts (nuts) where
+module Pantry.Reports.Nuts (nuts) where
 
 import Prelude((.), ($), maybe, return, Int, (==), map,
                Maybe, id, replicate, sum, (+), otherwise,
                foldr, null, Bool(True, False))
 import Data.Text (empty, pack, append, Text, concat)
-import Food(Name, NutAmt, nutRatio, Food, getNut,
+import Pantry.Food(Name, NutAmt, nutRatio, Food, getNut,
             NutNamesAmts(NutNamesAmts), foodNuts)
-import Reports.Render(Render(render))
-import Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
+import Pantry.Reports.Render(Render(render))
+import Pantry.Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
                      goals, showAllNuts)
 import Data.Map (lookup, assocs)
-import Reports.Columns(fmtColumnRow, txtColWidth, numColWidth)
+import Pantry.Reports.Columns(fmtColumnRow, txtColWidth, numColWidth)
 import qualified Data.List as L (concat)
-import Reports.ElemBy(elemBy)
-import Rounded(rounded)
-import Exact(exact)
+import Pantry.Reports.ElemBy(elemBy)
+import Pantry.Rounded(rounded)
+import Pantry.Exact(exact)
 
 data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt

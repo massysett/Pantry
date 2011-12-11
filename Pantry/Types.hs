@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Types( NonNeg
+module Pantry.Types( NonNeg
             , nonNegToRational
             , partialNewNonNeg
             , NonNegMixed
@@ -27,13 +27,13 @@ import Prelude(Eq, Ord, Show, (==), (-), ($), (+), compare,
                (++), otherwise, Integer, succ,
                Integral, fromIntegral, (<=), (>>))
 import Data.Ratio(Rational, (%), numerator, denominator)
-import Exact(Exact, exact)
+import Pantry.Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
 import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
 import Control.Monad((>>=), return, when, fail)
 import Data.Text(snoc, append, pack)
-import Rounded(Rounded)
+import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }

@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Keep functions in here as pure as possible. Use combinators to
 -- mak
-module Tray where
+module Pantry.Tray where
 
 import qualified Data.List as L
 import qualified Data.Foldable as F
@@ -13,7 +13,7 @@ import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Types(Next(next), NonNegInteger(unNonNegInteger))
+import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger))
 import Data.Serialize(Serialize, encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode), Handle)
@@ -22,7 +22,7 @@ import Control.Exception(IOException)
 import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
 
-import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
+import Pantry.Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
                         WrongFileVersion, FileDecodeError,
                         FileSaveError, NoSaveFilename,
@@ -31,13 +31,13 @@ import Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
             FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr),
             emptyFood)
 import Data.Monoid(mconcat)
-import Bag ( NextId(NextId, unNextId),
+import Pantry.Bag ( NextId(NextId, unNextId),
              Filename(Filename, unFilename),
              Unsaved(Unsaved, unUnsaved),
              Buffer(Buffer, unBuffer),
              Undos(Undos, unUndos),
              Bag(Bag) )
-import qualified Bag
+import qualified Pantry.Bag as Bag
 
 newtype Volatile = Volatile { unVolatile :: [Food] }
 newtype Output = Output { unOutput :: DL.DList X.Text }

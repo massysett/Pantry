@@ -1,15 +1,15 @@
-module Reports.Properties (properties) where
+module Pantry.Reports.Properties (properties) where
 
 import Prelude(Bool(True, False), (.), ($), Maybe(Just, Nothing),
                String, show)
-import Reports.Types (ReportOpts(oneColumn))
-import Reports.Render(Render(render))
+import Pantry.Reports.Types (ReportOpts(oneColumn))
+import Pantry.Reports.Render(Render(render))
 import Data.Text(Text, pack, append, snoc, concat, cons)
-import Food(Food(qty, foodId, currUnit, pctRefuse),
+import Pantry.Food(Food(qty, foodId, currUnit, pctRefuse),
             UnitNameAmt(UnitNameAmt),
             Name(Name), recipeYield, foodGrams,
             PctRefuse(PctRefuse))
-import Exact(Exact(exact))
+import Pantry.Exact(Exact(exact))
 
 properties :: ReportOpts -> Food -> Text
 properties o f = render o (Properties f)

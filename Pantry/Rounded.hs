@@ -1,4 +1,4 @@
-module Rounded (Rounded(rounded)) where
+module Pantry.Rounded (Rounded(rounded)) where
 
 import Prelude(Integral, round, show, (.), Integer,
                RealFrac)

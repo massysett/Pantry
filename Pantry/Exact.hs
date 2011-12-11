@@ -1,4 +1,4 @@
-module Exact(Exact(exact)) where
+module Pantry.Exact(Exact(exact)) where
 
 import Prelude(show, (.), ($), (==), Integral,
                otherwise, id)

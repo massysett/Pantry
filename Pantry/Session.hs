@@ -1,12 +1,12 @@
-module Session where
+module Pantry.Session where
 
-import Tray
-import Bag
+import Pantry.Tray
+import Pantry.Bag
 import Network ( PortID(UnixSocket), listenOn,
                  accept, Socket )
 import System.IO ( hSetBinaryMode )
 import qualified Data.ByteString.Lazy as BS
-import Parser ( getConveyor )
+import Pantry.Parser ( getConveyor )
 
 newtype Listener = Listener { unListener :: Socket }
 

@@ -1,4 +1,4 @@
-module Reports.Blank (blank) where
+module Pantry.Reports.Blank (blank) where
 
 import Data.Text (Text, pack)
 

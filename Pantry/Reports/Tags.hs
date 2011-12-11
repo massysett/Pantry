@@ -1,8 +1,8 @@
-module Reports.Tags(Reports.Tags.tags) where
+module Pantry.Reports.Tags(Pantry.Reports.Tags.tags) where
 
-import Food
-import Reports.Types
-import Reports.Columns
+import Pantry.Food
+import Pantry.Reports.Types
+import Pantry.Reports.Columns
 import Data.Text(append, pack)
 import Data.Maybe
 import Data.Map hiding (map, null, (\\))
@@ -12,13 +12,13 @@ import Data.Text(Text)
 
 allTags :: Food -> [(Name, TagVal)]
 allTags f = assocs m where
-  (TagNamesVals m) = Food.tags f
+  (TagNamesVals m) = Pantry.Food.tags f
 
 orderedTags :: [Name] -- ^ Tags to show, in order
                -> Food
                -> [(Name, TagVal)]
 orderedTags ns f = catMaybes . map toMaybe $ ns where
-  (TagNamesVals m) = Food.tags f
+  (TagNamesVals m) = Pantry.Food.tags f
   toMaybe n = do
     v <- lookup n m
     return (n, v)

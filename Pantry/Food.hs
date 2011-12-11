@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Food where
+module Pantry.Food where
 
 import qualified Data.Map as M
 import Data.Ratio
@@ -8,11 +8,11 @@ import Control.Monad
 import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
-import Types
+import Pantry.Types
 import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
-import Exact(Exact(exact))
-import Rounded(Rounded)
+import Pantry.Exact(Exact(exact))
+import Pantry.Rounded(Rounded)
 import qualified Control.Monad.Error as E
 import Data.Serialize (Serialize(put, get))
 import Control.Exception(IOException)

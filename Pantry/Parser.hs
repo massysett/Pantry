@@ -1,8 +1,8 @@
-module Parser (getConveyor) where
+module Pantry.Parser (getConveyor) where
 
-import qualified Tray as T
+import qualified Pantry.Tray as T
 import qualified Control.Monad.Error as E
-import Food (Food, Error)
+import Pantry.Food (Food, Error)
 import qualified Data.ByteString.Lazy as BS
 
 {-

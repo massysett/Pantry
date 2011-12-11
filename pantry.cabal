@@ -1,6 +1,6 @@
 Name: pantry
 Version: 0.1
-Cabal-version: >=1.6
+Cabal-version: >=1.8
 Build-Type: Simple
 License: BSD3
 Copyright: 2011 Omari Norman.
@@ -12,14 +12,48 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
-Executable pantry
-  Main-Is: pantry.hs
-  Build-depends: haskell2010 ==1.1.*
-  other-modules: Food, Reports, Sorter, Types,
-                 Reports.Blank, Reports.Columns,
-                 Reports.CountTags, Reports.ElemBy,
-                 Reports.Name, Reports.Nuts,
-                 Reports.Properties, Reports.Render,
-                 Reports.Tags, Reports.Total, Reports.Types,
-                 Reports.Units
-  ghc-options: -Wall
+Library
+    Build-depends:
+        base ==4.*,
+        cereal ==0.3.*,
+        Decimal-Omari ==0.3.*,
+        text ==0.11.*,
+        mtl ==2.0.*,
+        containers ==0.4.*,
+        regex-base ==0.93.*,
+        bytestring ==0.9.*,
+        regex-pcre ==0.94.*,
+        regex-tdfa ==1.1.*,
+        network ==2.3.*,
+        dlist ==0.5.*,
+        parsec ==3.1.*,
+        split ==0.1.*
+
+    Exposed-modules:
+        Pantry.Bag,
+        Pantry.Exact,
+        Pantry.Food,
+        Pantry.Matchers,
+        Pantry.Parser,
+        Pantry.Reports,
+        Pantry.Rounded,
+        Pantry.Session,
+        Pantry.Sorter,
+        Pantry.Tray,
+        Pantry.Types,
+        Pantry.WrappedFoldable,
+        Pantry.Reports.Blank,
+        Pantry.Reports.Columns,
+        Pantry.Reports.CountTags,
+        Pantry.Reports.ElemBy,
+        Pantry.Reports.Ingredients,
+        Pantry.Reports.Name,
+        Pantry.Reports.Paste,
+        Pantry.Reports.Properties,
+        Pantry.Reports.Render,
+        Pantry.Reports.Tags,
+        Pantry.Reports.Total,
+        Pantry.Reports.Types,
+        Pantry.Reports.Units
+
+    ghc-options: -Wall

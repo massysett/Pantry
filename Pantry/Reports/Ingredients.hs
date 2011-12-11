@@ -1,9 +1,9 @@
-module Reports.Ingredients(ingredients) where
+module Pantry.Reports.Ingredients(ingredients) where
 
 import Prelude(($), (.), Maybe(Just, Nothing), fmap)
-import Exact(exact)
+import Pantry.Exact(exact)
 import Data.Text(Text, unwords, pack, unlines)
-import Food(Food, ingr, UnitNameAmt(UnitNameAmt), currUnit,
+import Pantry.Food(Food, ingr, UnitNameAmt(UnitNameAmt), currUnit,
             Name(Name), TagNameVal(TagNameVal), qty, getTag,
             Ingr(Ingr))
 import Data.Foldable(Foldable, foldr)

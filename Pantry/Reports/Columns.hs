@@ -1,4 +1,4 @@
-module Reports.Columns ( rpad
+module Pantry.Reports.Columns ( rpad
                        , txtColWidth
                        , numColWidth
                        , fmtColumnRow

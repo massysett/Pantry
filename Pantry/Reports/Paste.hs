@@ -1,11 +1,11 @@
-module Reports.Paste(paste) where
+module Pantry.Reports.Paste(paste) where
 
 import Prelude(show, (.), ($), Integer,
                maybe, return, id, fmap)
 import Data.Text(Text, append, pack, snoc, replace, singleton,
                  empty, concat)
-import Types(NonNegInteger)
-import Food(Food, Name(Name), TagNamesVals(TagNamesVals), tags,
+import Pantry.Types(NonNegInteger)
+import Pantry.Food(Food, Name(Name), TagNamesVals(TagNamesVals), tags,
             units, UnitNamesAmts(UnitNamesAmts), foodId,
             TagVal(TagVal), unFoodId)
 import Data.Map(lookup, keys)

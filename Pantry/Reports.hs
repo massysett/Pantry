@@ -1,26 +1,26 @@
-module Reports where
+module Pantry.Reports where
 
 import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
                ($), fst, snd, map, filter, zip, (.), String,
                undefined, (++), return)
-import Reports.Blank(blank)
-import Reports.CountTags(countTags)
-import Reports.Ingredients(ingredients)
-import Reports.Name(name)
-import Reports.Nuts(nuts)
-import Reports.Paste(paste)
-import Reports.Properties(properties)
-import Reports.Tags(tags)
-import Reports.Total(total)
-import Reports.Units(units)
-import Reports.Types(FoodRpt, TotalRpt, ReportOpts)
-import Food(Food, foldFoodNuts, Error(NoReportMatch),
+import Pantry.Reports.Blank(blank)
+import Pantry.Reports.CountTags(countTags)
+import Pantry.Reports.Ingredients(ingredients)
+import Pantry.Reports.Name(name)
+import Pantry.Reports.Nuts(nuts)
+import Pantry.Reports.Paste(paste)
+import Pantry.Reports.Properties(properties)
+import Pantry.Reports.Tags(tags)
+import Pantry.Reports.Total(total)
+import Pantry.Reports.Units(units)
+import Pantry.Reports.Types(FoodRpt, TotalRpt, ReportOpts)
+import Pantry.Food(Food, foldFoodNuts, Error(NoReportMatch),
             NutNamesAmts)
 import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
 
-import Tray ( Tray )
+import Pantry.Tray ( Tray )
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
 import Control.Applicative((<$>), (<*>), pure, Applicative)

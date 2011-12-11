@@ -1,9 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Bag where
+module Pantry.Bag where
 
-import Food(Food, FoodId, oneFoodId)
+import Pantry.Food(Food, FoodId, oneFoodId)
 import Data.Serialize(Serialize)
-import Types(Next)
+import Pantry.Types(Next)
 
 newtype NextId = NextId { unNextId :: FoodId }
                deriving (Eq, Ord, Next, Serialize)

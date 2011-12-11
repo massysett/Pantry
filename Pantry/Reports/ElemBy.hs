@@ -1,4 +1,4 @@
-module Reports.ElemBy (elemBy) where
+module Pantry.Reports.ElemBy (elemBy) where
 
 import Prelude (Bool(True, False), foldr)
 

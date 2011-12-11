@@ -1,16 +1,16 @@
 -- | Data types that have a Render instance that is universal across
 -- report types can be defined here. Other Render instances should be
 -- declared in the module in which they are used.
-module Reports.Render(Render(render)) where
+module Pantry.Reports.Render(Render(render)) where
 
-import Reports.Types
-import Types
-import Food
+import Pantry.Reports.Types
+import Pantry.Types
+import Pantry.Food
 import Data.Text hiding (map, replicate)
 import qualified Data.Map as M
 import qualified Data.Text as X
-import Reports.Columns
-import Exact(Exact(exact))
+import Pantry.Reports.Columns
+import Pantry.Exact(Exact(exact))
 
 class Render a where
   render :: ReportOpts -> a -> Text

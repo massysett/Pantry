@@ -1,4 +1,4 @@
-module Matchers where
+module Pantry.Matchers where
 
 import qualified Data.Text as X
 import qualified Data.Text.Encoding as XE
@@ -7,7 +7,7 @@ import qualified Text.Regex.PCRE as PCRE
 import qualified Data.ByteString as B
 import qualified Text.Regex.Base.RegexLike as RL
 import qualified Control.Monad.Error as E
-import Food(Error(RegexComp))
+import Pantry.Food(Error(RegexComp))
 import Data.Bits((.|.))
 
 newtype CaseSensitive = CaseSensitive { sensitive :: Bool }

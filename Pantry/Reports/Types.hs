@@ -1,4 +1,4 @@
-module Reports.Types (GoalNameAmt(GoalNameAmt),
+module Pantry.Reports.Types (GoalNameAmt(GoalNameAmt),
                       ReportOpts(ReportOpts, goals, showAllNuts,
                                  showTags, showAllTags,
                                  oneColumn),
@@ -8,9 +8,9 @@ module Reports.Types (GoalNameAmt(GoalNameAmt),
 import Prelude(Bool(False))
 import Data.Text(Text)
 import qualified Data.Text as X (empty)
-import Food(Food, Name, NutNamesAmts, NutAmt)
+import Pantry.Food(Food, Name, NutNamesAmts, NutAmt)
 import Control.Applicative(Applicative)
-import Tray(Tray)
+import Pantry.Tray(Tray)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt
 

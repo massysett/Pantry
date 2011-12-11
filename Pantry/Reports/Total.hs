@@ -1,16 +1,16 @@
-module Reports.Total (total) where
+module Pantry.Reports.Total (total) where
 
-import Food
-import Reports.Types
-import Reports.Render
-import Reports.Columns
-import Reports.ElemBy
+import Pantry.Food
+import Pantry.Reports.Types
+import Pantry.Reports.Render
+import Pantry.Reports.Columns
+import Pantry.Reports.ElemBy
 import Data.Text hiding (null, replicate, map, foldr)
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.Text as X
-import Exact(exact)
-import Rounded(rounded)
+import Pantry.Exact(exact)
+import Pantry.Rounded(rounded)
 
 data TotGoalNut = TotGoalNut { totGoalName :: Name
                              , totGoalGoal :: NutAmt

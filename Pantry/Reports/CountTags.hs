@@ -1,15 +1,15 @@
-module Reports.CountTags (countTags) where
+module Pantry.Reports.CountTags (countTags) where
 
 import Prelude(Int, Ord, succ, show,
                ($), (.), Maybe(Just, Nothing), flip,
                zip, (==), Bool(True, False))
 import Data.Maybe (catMaybes)
 import Data.List (deleteFirstsBy)
-import Food(Food, tags, TagNamesVals(TagNamesVals),
+import Pantry.Food(Food, tags, TagNamesVals(TagNamesVals),
             Name(Name), TagVal(TagVal))
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
-import Reports.Types(showAllTags, showTags, TotalRpt, ReportOpts)
+import Pantry.Reports.Types(showAllTags, showTags, TotalRpt, ReportOpts)
 import Data.Text(Text, pack, replicate, singleton,
                  append, snoc, concat)
 import qualified Data.Text as X

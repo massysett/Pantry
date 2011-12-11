@@ -1,7 +1,7 @@
-module Reports.Name (name) where
+module Pantry.Reports.Name (name) where
 
 import Prelude((.), ($), Maybe(Nothing, Just))
-import Food(TagNameVal(TagNameVal), TagVal(TagVal),
+import Pantry.Food(TagNameVal(TagNameVal), TagVal(TagVal),
             Name(Name), getTag, Food)
 import Data.Text(snoc, pack, Text)
 

@@ -1,11 +1,11 @@
-module Sorter( foodcmp
+module Pantry.Sorter( foodcmp
              , Key
              , TagMap
              , addTag
              , makeTagMap
              ) where
 
-import Food
+import Pantry.Food
 
 import qualified Data.Map as M
 import Data.Maybe

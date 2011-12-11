@@ -1,4 +1,4 @@
-module WrappedFoldable where
+module Pantry.WrappedFoldable where
 
 import Prelude((.), ($))
 import Control.Monad
