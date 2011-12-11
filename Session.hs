@@ -29,7 +29,7 @@ sessionLoop b l = do
   hSetBinaryMode h True
   msg <- BS.hGetContents h
   let conveyor = getConveyor msg
-  r <- processBag b conveyor
+  r <- processBag h b conveyor
   case r of
     Nothing -> return ()
     (Just newBag) -> sessionLoop b l

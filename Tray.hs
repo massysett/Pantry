@@ -16,7 +16,7 @@ import Data.Map ((!))
 import Types(Next(next), NonNegInteger(unNonNegInteger))
 import Data.Serialize(Serialize, encode, decode)
 import qualified Data.ByteString as BS
-import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
+import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode), Handle)
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
 import Data.Maybe(catMaybes)
@@ -54,7 +54,8 @@ data Tray = Tray { nextId :: NextId
 
 type Convey = Tray -> E.ErrorT Error IO Tray
 
-processBag :: Bag
+processBag :: Handle
+              -> Bag
               -> (Tray -> E.ErrorT Error IO Tray)
               -> IO (Maybe Bag)
 processBag = undefined
