@@ -118,26 +118,16 @@ keyPred ts (Key n d) x y = rev r d where
   rev LT Descending = GT
   rev GT Descending = LT
   rev o _ = o
-  has = hasTag n
-  r
-    | has x && (not . has) y = LT
-    | (not . has) x && has y = GT
-    | (not . has) x && (not . has) y = EQ
-    | otherwise = cmpTag ts n x y
-
--- | Compares two tags, when both foods already have the tag. Do not
--- pass foods that do not both have the tag to this function, or a
--- crash will result.
-cmpTag :: TagMap -> Name -> Food -> Food -> Ordering
-cmpTag ts n x y
-  | M.notMember n ts = compare tx ty
-  | M.member tx vm && (not . M.member ty) vm = LT
-  | (not . M.member tx) vm && M.member ty vm = GT
-  | otherwise = compare vmX vmY
-    where
-      tx = toVal . fromJust . (getTag n) $ x
-      ty = toVal . fromJust . (getTag n) $ y
-      vmX = fromJust . (M.lookup tx) $ vm
-      vmY = fromJust . (M.lookup ty) $ vm
-      vm = fromJust . (M.lookup n) $ ts
-      toVal = \(TagNameVal _ v) -> v
+  get = getTag n
+  r = case (get x, get y) of
+    ((Just _), Nothing) -> LT
+    (Nothing, (Just _)) -> GT
+    (Nothing, Nothing) -> EQ
+    ((Just (TagNameVal _ vx)), (Just (TagNameVal _ vy))) ->
+      case M.lookup n ts of
+        Nothing -> compare vx vy
+        (Just vm) -> case (M.lookup vx vm, M.lookup vy vm) of
+          ((Just _), Nothing) -> LT
+          (Nothing, (Just _)) -> GT
+          (Nothing, Nothing) -> EQ
+          ((Just ix), (Just iy)) -> compare ix iy
