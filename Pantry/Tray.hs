@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Pantry.Tray where
 
 import Pantry.Food(Food)
