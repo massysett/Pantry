@@ -1,7 +1,7 @@
 module Pantry.Session where
 
-import Pantry.Tray
-import Pantry.Bag
+import Pantry.Conveyor(processBag)
+import Pantry.Bag(Bag, Filename, unFilename, emptyBag)
 import Network ( PortID(UnixSocket), listenOn,
                  accept, Socket )
 import System.IO ( hSetBinaryMode )

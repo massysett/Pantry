@@ -95,8 +95,6 @@ data Key = Key Name Direction
 -- the next Key (if there is one). This proceeds either until an LT or
 -- GT value is obtained or until Key items are exhausted; then the
 -- last value computed is returned.
---
--- FIXME change to foldl; foldr will break this.
 foodcmp :: (F.Foldable f) => TagMap -> f Key -> Food -> Food -> Ordering
 foodcmp ts ks x y = F.foldl (cmpNewKey ts x y) EQ ks
 
