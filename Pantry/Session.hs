@@ -32,5 +32,5 @@ sessionLoop b l = do
   r <- processBag h b conveyor
   case r of
     Nothing -> return ()
-    (Just newBag) -> sessionLoop b l
+    (Just newBag) -> sessionLoop newBag l
 

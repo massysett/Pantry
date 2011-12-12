@@ -7,9 +7,7 @@ module Pantry.Reports.Types (GoalNameAmt(GoalNameAmt),
 
 import Prelude(Bool(False))
 import Data.Text(Text)
-import qualified Data.Text as X (empty)
 import Pantry.Food(Food, Name, NutNamesAmts, NutAmt)
-import Control.Applicative(Applicative)
 import Pantry.Tray(Tray)
 
 data GoalNameAmt = GoalNameAmt Name NutAmt

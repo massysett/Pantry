@@ -4,7 +4,6 @@ import qualified Data.Text as X
 import qualified Data.Text.Encoding as XE
 import qualified Text.Regex.TDFA as TDFA
 import qualified Text.Regex.PCRE as PCRE
-import qualified Data.ByteString as B
 import qualified Text.Regex.Base.RegexLike as RL
 import qualified Control.Monad.Error as E
 import Pantry.Food(Error(RegexComp))

@@ -30,8 +30,8 @@ totRptHdr = X.concat [first, second, third] where
 
 instance Render TotGoalNut where
   render o n = fmtColumnRow totRptColWidths ts where
-    ts = [name, goal, tot, pctG]
-    name = exact . totGoalName $ n
+    ts = [na, goal, tot, pctG]
+    na = exact . totGoalName $ n
     goal = rounded . totGoalGoal $ n
     tot = maybe X.empty rounded (totGoalTot n)
     pctG = maybe X.empty id $ do
@@ -45,8 +45,8 @@ data TotNonGoalNut = TotNonGoalNut { totNonName :: Name
 
 instance Render TotNonGoalNut where
   render _ n = fmtColumnRow totRptColWidths ts where
-    ts = [name, goal, tot, pctG]
-    name = exact . totNonName $ n
+    ts = [na, goal, tot, pctG]
+    na = exact . totNonName $ n
     goal = X.empty
     tot = rounded . totNonAmt $ n
     pctG = X.empty

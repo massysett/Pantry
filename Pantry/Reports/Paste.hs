@@ -1,7 +1,6 @@
 module Pantry.Reports.Paste(paste) where
 
-import Prelude(show, (.), ($), Integer,
-               maybe, return, id, fmap)
+import Prelude(show, (.), ($), maybe, return, id, fmap)
 import Data.Text(Text, append, pack, snoc, replace, singleton,
                  empty, concat)
 import Pantry.Types(NonNegInteger)

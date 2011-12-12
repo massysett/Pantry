@@ -1,8 +1,8 @@
 Name: pantry
-Version: 0.1
+Version: 0.1.0.0
 Cabal-version: >=1.8
 Build-Type: Simple
-License: BSD3
+License: MIT
 Copyright: 2011 Omari Norman.
 author: Omari Norman
 maintainer: omari@smileystation.com
@@ -44,8 +44,10 @@ Library
         Pantry.WrappedFoldable,
         Pantry.Reports.Blank,
         Pantry.Reports.Columns,
+        Pantry.Reports.Copyright,
         Pantry.Reports.CountTags,
         Pantry.Reports.ElemBy,
+        Pantry.Reports.Help,
         Pantry.Reports.Ingredients,
         Pantry.Reports.Name,
         Pantry.Reports.Paste,
@@ -54,6 +56,7 @@ Library
         Pantry.Reports.Tags,
         Pantry.Reports.Total,
         Pantry.Reports.Types,
-        Pantry.Reports.Units
+        Pantry.Reports.Units,
+        Pantry.Reports.Version
 
     ghc-options: -Wall

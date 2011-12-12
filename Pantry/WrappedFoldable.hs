@@ -1,6 +1,5 @@
 module Pantry.WrappedFoldable where
 
-import Prelude((.), ($))
 import Control.Monad
 import qualified Data.Foldable as F
 import Control.Applicative

@@ -497,7 +497,3 @@ instance E.Error Error where
 
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y
-
--- Local Variables:
--- compile-command: "ghc -Wall -outputdir temp Food.hs"
--- End:

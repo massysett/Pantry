@@ -14,7 +14,7 @@ import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
 import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger))
-import Data.Serialize(Serialize, encode, decode)
+import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode), Handle)
 import System.IO.Error(catchIOError)
@@ -32,11 +32,11 @@ import Pantry.Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
             emptyFood)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(NextId, unNextId),
-             Filename(Filename, unFilename),
-             Unsaved(Unsaved, unUnsaved),
+             Filename(Filename),
+             Unsaved(Unsaved),
              Buffer(Buffer, unBuffer),
              Undos(Undos, unUndos),
-             Bag(Bag) )
+             Bag )
 import qualified Pantry.Bag as Bag
 
 newtype Volatile = Volatile { unVolatile :: [Food] }
@@ -510,7 +510,3 @@ liftToErrorT e = case e of
 
 impurify :: Monad m => (a -> b) -> a -> m b
 impurify f a = return $ f a
-
--- Local Variables:
--- compile-command: "ghc -Wall -outputdir temp Db.hs"
--- End:

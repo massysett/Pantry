@@ -4,6 +4,7 @@ import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
                ($), fst, snd, map, filter, zip, (.), String,
                undefined, (++), return)
 import Pantry.Reports.Blank(blank)
+import Pantry.Reports.Copyright(copyright)
 import Pantry.Reports.CountTags(countTags)
 import Pantry.Reports.Help(help)
 import Pantry.Reports.Ingredients(ingredients)
@@ -15,6 +16,7 @@ import Pantry.Reports.Tags(tags)
 import Pantry.Reports.Total(total)
 import Pantry.Reports.Units(units)
 import Pantry.Reports.Types(FoodRpt, TotalRpt, ReportOpts)
+import Pantry.Reports.Version(version)
 import Pantry.Food(Food, foldFoodNuts, Error(NoReportMatch),
             NutNamesAmts)
 import qualified Data.Text as X
@@ -24,8 +26,7 @@ import qualified Control.Monad.Error as E
 import Pantry.Tray ( Tray )
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
-import Control.Applicative((<$>), (<*>), pure, Applicative)
-import qualified Data.Foldable as F
+import Control.Applicative((<*>), pure, Applicative)
 
 -- | Given a string, and a map with string keys, find the best match
 -- for the input string. If there is one exact match, use
@@ -60,9 +61,11 @@ foodRpts = [
 
 totalRpts :: [(String, TotalRpt)]
 totalRpts = [
-  ("count-tags", (\o _ _ fs -> countTags o fs))
+  ("copyright", (\_ _ _ _ -> copyright))
+  , ("count-tags", (\o _ _ fs -> countTags o fs))
   , ("help", (\_ _ _ _ -> help))
   , ("total", (\o ts _ _ -> total o ts))
+  , ("version", (\_ _ _ _ -> version))
   ]
 
 printRpts ::ReportGroups
@@ -124,9 +127,9 @@ buildReportGroups :: [String] -> Either Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
 
 addReport :: String -> ReportGroups -> Either Error ReportGroups
-addReport s r@(ReportGroups rs) = do
+addReport s (ReportGroups gs) = do
   ei <- bestReport s
-  return $ ReportGroups $ case rs of
+  return $ ReportGroups $ case gs of
     [] -> case ei of
       (Left f) -> [(Left [f])]
       (Right t) -> [(Right [t])]

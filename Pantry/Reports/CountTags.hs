@@ -9,7 +9,7 @@ import Pantry.Food(Food, tags, TagNamesVals(TagNamesVals),
             Name(Name), TagVal(TagVal))
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
-import Pantry.Reports.Types(showAllTags, showTags, TotalRpt, ReportOpts)
+import Pantry.Reports.Types(showAllTags, showTags, ReportOpts)
 import Data.Text(Text, pack, replicate, singleton,
                  append, snoc, concat)
 import qualified Data.Text as X
