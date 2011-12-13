@@ -1,10 +1,14 @@
 module Pantry.Reports (ReportGroups, buildReportGroups,
-                       printReportGroups) where
+                       printReportGroups,
+                       Pantry.Reports.help,
+                       Pantry.Reports.status,
+                       Pantry.Reports.copyright,
+                       Pantry.Reports.version) where
 
 import Pantry.Reports.Blank(blank)
 import Pantry.Reports.Copyright(copyright)
 import Pantry.Reports.CountTags(countTags)
-import Pantry.Reports.Help(help)
+import qualified Pantry.Reports.Help(help)
 import Pantry.Reports.Ingredients(ingredients)
 import Pantry.Reports.Name(name)
 import Pantry.Reports.Nuts(nuts)
@@ -15,7 +19,7 @@ import Pantry.Reports.Tags(tags)
 import Pantry.Reports.Total(total)
 import Pantry.Reports.Units(units)
 import Pantry.Reports.Types(FoodRpt, TotalRpt, ReportOpts)
-import Pantry.Reports.Version(version)
+import qualified Pantry.Reports.Version(version)
 import Pantry.Food(Food, foldFoodNuts, Error(NoReportMatch),
             NutNamesAmts)
 import qualified Data.Text as X
@@ -108,6 +112,13 @@ printReportGroups o (ReportGroups ls) t = r where
   ts = foldFoodNuts . B.unBuffer . T.buffer $ t
 
 data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
+
+help :: ReportGroups
+help = ReportGroups [Right [\_ _ _ _ -> Pantry.Reports.Help.help]]
+
+version :: ReportGroups
+version = ReportGroups [Right l] where
+  l = [\_ _ _ _ -> Pantry.Reports.Version.version]
 
 buildReportGroups :: [String] -> Either Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
