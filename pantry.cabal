@@ -31,6 +31,7 @@ Library
 
     Exposed-modules:
         Pantry.Bag,
+        Pantry.Conveyor,
         Pantry.Exact,
         Pantry.Food,
         Pantry.Matchers,
@@ -53,6 +54,7 @@ Library
         Pantry.Reports.Paste,
         Pantry.Reports.Properties,
         Pantry.Reports.Render,
+        Pantry.Reports.Status,
         Pantry.Reports.Tags,
         Pantry.Reports.Total,
         Pantry.Reports.Types,

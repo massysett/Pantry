@@ -1,8 +1,6 @@
-module Pantry.Reports where
+module Pantry.Reports (ReportGroups, buildReportGroups,
+                       printReportGroups) where
 
-import Prelude(Ord, Either(Left, Right), Maybe(Just, Nothing),
-               ($), fst, snd, map, filter, zip, (.), String,
-               undefined, (++), return)
 import Pantry.Reports.Blank(blank)
 import Pantry.Reports.Copyright(copyright)
 import Pantry.Reports.CountTags(countTags)
@@ -12,6 +10,7 @@ import Pantry.Reports.Name(name)
 import Pantry.Reports.Nuts(nuts)
 import Pantry.Reports.Paste(paste)
 import Pantry.Reports.Properties(properties)
+import Pantry.Reports.Status(status)
 import Pantry.Reports.Tags(tags)
 import Pantry.Reports.Total(total)
 import Pantry.Reports.Units(units)
@@ -22,8 +21,10 @@ import Pantry.Food(Food, foldFoodNuts, Error(NoReportMatch),
 import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
+import qualified Data.DList as DL
 
-import Pantry.Tray ( Tray )
+import qualified Pantry.Tray as T
+import qualified Pantry.Bag as B
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
 import Control.Applicative((<*>), pure, Applicative)
@@ -64,62 +65,47 @@ totalRpts = [
   ("copyright", (\_ _ _ _ -> copyright))
   , ("count-tags", (\o _ _ fs -> countTags o fs))
   , ("help", (\_ _ _ _ -> help))
+  , ("status", (\_ _ t _ -> status t))
   , ("total", (\o ts _ _ -> total o ts))
   , ("version", (\_ _ _ _ -> version))
   ]
-
-printRpts ::ReportGroups
-             -> [Food]
-             -> Tray
-             -> X.Text
-printRpts = undefined
 
 printFoodRpts :: ReportOpts
                  -> NutNamesAmts
                  -> [Food]
                  -> [FoodRpt]
-                 -> X.Text
-printFoodRpts o ts fs rs = X.concat xs where
+                 -> DL.DList X.Text
+printFoodRpts o ts fs rs = DL.fromList xs where
   xs = rs <*> pure o <*> pure ts <*> fs
 
 printTotalRpts :: ReportOpts
                   -> NutNamesAmts
-                  -> Tray
+                  -> T.Tray
                   -> [Food]
                   -> [TotalRpt]
-                  -> X.Text
-printTotalRpts o ts tr fs rs = X.concat xs where
+                  -> DL.DList X.Text
+printTotalRpts o ts tr fs rs = DL.fromList xs where
   xs = rs <*> pure o <*> pure ts <*> pure tr <*> pure fs
 
 
 printEitherRpt :: ReportOpts
                   -> NutNamesAmts
-                  -> Tray
-                  -> [Food]
+                  -> T.Tray
                   -> Either [FoodRpt] [TotalRpt]
-                  -> X.Text
-printEitherRpt o ts tr fs ei = case ei of
-  (Left fr) -> printFoodRpts o ts fs fr
-  (Right tot) -> printTotalRpts o ts tr fs tot
+                  -> DL.DList X.Text
+printEitherRpt o ts tr ei =
+  let fs = B.unBuffer . T.buffer $ tr
+  in case ei of
+    (Left fr) -> printFoodRpts o ts fs fr
+    (Right tot) -> printTotalRpts o ts tr fs tot
 
 printReportGroups :: ReportOpts
-                     -> NutNamesAmts
-                     -> Tray
-                     -> [Food]
                      -> ReportGroups
-                     -> X.Text
-printReportGroups o ts tr fs (ReportGroups ls) =
-  X.concat . map (printEitherRpt o ts tr fs) $ ls
-
-printReports :: ReportOpts
-                -> Tray
-                -> [Food] 
-                -> [String] 
-                -> Either Error X.Text
-printReports o tr fs ns = do
-  g <- buildReportGroups ns
-  let ts = foldFoodNuts fs
-  return $ printReportGroups o ts tr fs g
+                     -> T.Tray
+                     -> DL.DList X.Text
+printReportGroups o (ReportGroups ls) t = r where
+  r = DL.concat . map (printEitherRpt o ts t) $ ls
+  ts = foldFoodNuts . B.unBuffer . T.buffer $ t
 
 data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
 
