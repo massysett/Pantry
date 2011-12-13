@@ -20,6 +20,8 @@ import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
 import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
+import qualified Data.Text as X
+import qualified Pantry.Sorter as S
 
 import Pantry.Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
                         FileReadError, NotPantryFile,
@@ -39,6 +41,7 @@ import Pantry.Bag ( NextId(NextId, unNextId),
 import qualified Pantry.Bag as Bag
 import Pantry.Tray ( Tray(Tray), nextId, filename, unsaved,
                      buffer, undos, volatile, done, output,
+                     unOutput,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
                      Done(Done, NotDone))
@@ -90,6 +93,10 @@ predToFilter f (Volatile fs) = Volatile . filter f $ fs
 
 filterToTrayFilter :: (Volatile -> Volatile) -> Tray -> Tray
 filterToTrayFilter f t = t { volatile = f . volatile $ t }
+
+printerToTrayFilter :: (Tray -> DL.DList X.Text) -> Tray -> Tray
+printerToTrayFilter f t = t { output = o } where
+  o = Output . DL.append (unOutput . output $ t) . f $ t
 
 trayFilterToConvey :: (Tray -> Tray) -> Tray -> E.ErrorT Error IO Tray
 trayFilterToConvey = impurify
@@ -190,6 +197,13 @@ removeIngr :: Volatile -> Volatile
 removeIngr (Volatile fs) = Volatile ns where
   ns = map g fs
   g f = f { ingr = Ingr [] }
+
+------------------------------------------------------------
+-- SORTING
+------------------------------------------------------------
+sort :: F.Foldable f => S.TagMap -> f S.Key -> Volatile -> Volatile
+sort ts ks (Volatile v) = Volatile $ L.sortBy f v where
+  f = S.foodcmp ts ks
 
 ------------------------------------------------------------
 -- ADDING CHANGED FOODS
