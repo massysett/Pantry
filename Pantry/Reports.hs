@@ -1,12 +1,9 @@
 module Pantry.Reports (ReportGroups, buildReportGroups,
-                       printReportGroups,
-                       Pantry.Reports.help,
-                       Pantry.Reports.status,
-                       Pantry.Reports.copyright,
-                       Pantry.Reports.version) where
+                       printReportGroups, help, copyright,
+                       version) where
 
 import Pantry.Reports.Blank(blank)
-import Pantry.Reports.Copyright(copyright)
+import qualified Pantry.Reports.Copyright(copyright)
 import Pantry.Reports.CountTags(countTags)
 import qualified Pantry.Reports.Help(help)
 import Pantry.Reports.Ingredients(ingredients)
@@ -66,12 +63,12 @@ foodRpts = [
 
 totalRpts :: [(String, TotalRpt)]
 totalRpts = [
-  ("copyright", (\_ _ _ _ -> copyright))
+  ("copyright", (\_ _ _ _ -> Pantry.Reports.Copyright.copyright))
   , ("count-tags", (\o _ _ fs -> countTags o fs))
-  , ("help", (\_ _ _ _ -> help))
+  , ("help", (\_ _ _ _ -> Pantry.Reports.Help.help))
   , ("status", (\_ _ t _ -> status t))
   , ("total", (\o ts _ _ -> total o ts))
-  , ("version", (\_ _ _ _ -> version))
+  , ("version", (\_ _ _ _ -> Pantry.Reports.Version.version))
   ]
 
 printFoodRpts :: ReportOpts
@@ -119,6 +116,10 @@ help = ReportGroups [Right [\_ _ _ _ -> Pantry.Reports.Help.help]]
 version :: ReportGroups
 version = ReportGroups [Right l] where
   l = [\_ _ _ _ -> Pantry.Reports.Version.version]
+
+copyright :: ReportGroups
+copyright = ReportGroups [Right l] where
+  l = [\_ _ _ _ -> Pantry.Reports.Copyright.copyright]
 
 buildReportGroups :: [String] -> Either Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
