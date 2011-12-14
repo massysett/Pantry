@@ -4,9 +4,10 @@ import Prelude(($), (.), Maybe(Just, Nothing), fmap)
 import Pantry.Exact(exact)
 import Data.Text(Text, unwords, pack, unlines)
 import Pantry.Food(Food, ingr, UnitNameAmt(UnitNameAmt), currUnit,
-            Name(Name), TagNameVal(TagNameVal), qty, getTag,
+            TagNameVal(TagNameVal), qty, getTag,
             Ingr(Ingr))
 import Data.Foldable(Foldable, foldr)
+import Pantry.Types(Name(Name))
 
 ingredients :: Food -> Text
 ingredients = unlines

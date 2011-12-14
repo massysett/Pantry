@@ -6,7 +6,8 @@ import Prelude(Int, Ord, succ, show,
 import Data.Maybe (catMaybes)
 import Data.List (deleteFirstsBy)
 import Pantry.Food(Food, tags, TagNamesVals(TagNamesVals),
-            Name(Name), TagVal(TagVal))
+                   TagVal(TagVal))
+import Pantry.Types(Name(Name))
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
 import Pantry.Reports.Types(showAllTags, showTags, ReportOpts)

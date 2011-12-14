@@ -18,23 +18,26 @@ module Pantry.Types( NonNeg
             , HasZero(..)
             , Add(..)
             , Divide(..)
-            , FromStr(..) ) where
+            , FromStr(..) 
+            , Grams(Grams, unGrams) 
+            , FoodId(FoodId)
+            , unFoodId
+            , zeroFoodId
+            , oneFoodId 
+            , Name(Name)
+            , unName
+            , HasName(name) ) where
 
-import Prelude(Eq, Ord, Show, (==), (-), ($), (+), compare,
-               (<), error, toRational, (*), (/),
-               Maybe(Nothing, Just), (.), either, const,
-               (||), (>=), fromInteger, read, show, String,
-               (++), otherwise, Integer, succ,
-               Integral, fromIntegral, (<=), (>>))
-import Data.Ratio(Rational, (%), numerator, denominator)
+import Data.Ratio((%), numerator, denominator)
 import Pantry.Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
 import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
-import Control.Monad((>>=), return, when, fail)
-import Data.Text(snoc, append, pack)
+import Control.Monad(when)
+import Data.Text(Text, snoc, append, pack)
 import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
+import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
@@ -199,6 +202,35 @@ instance FromStr PosInteger where
       case i of 0 -> Nothing
                 _ -> Just . PosInteger $ i
     _ -> Nothing
+
+-- | Grams expressed as a simple NonNeg number.
+newtype Grams = Grams { unGrams :: NonNeg }
+                deriving (Eq, Ord, Show, Add,
+                          HasZero, Exact, Rounded, Serialize)
+
+-- | A food's unique identifier. Do not make FoodId an instance of
+-- Enum. This would allow prec to be called on it. In theory this
+-- would be OK (prec can be partial) but better to avoid that. Instead
+-- use the Next typeclass.
+newtype FoodId = FoodId { unFoodId :: NonNegInteger }
+                 deriving (Show, Eq, Ord, Next, Serialize)
+
+-- | FoodID of zero
+zeroFoodId :: FoodId
+zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
+
+-- | FoodID of one
+oneFoodId :: FoodId
+oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
+
+class HasName a where
+  name :: a -> Name
+
+-- | The name of a tag, nutrient, or unit
+newtype Name = Name { unName :: Text } deriving (Eq, Ord, Show, Exact)
+instance Serialize Name where
+  put (Name t) = put . encodeUtf8 $ t
+  get = get >>= return . Name . decodeUtf8
 
 -- Parsec basement
 

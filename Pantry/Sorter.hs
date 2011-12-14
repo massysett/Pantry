@@ -18,6 +18,7 @@ import Pantry.Food
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Foldable as F
+import Pantry.Types(Name)
 
 -- | How to sort particular tag values in order. For instance, if the
 -- user wants an ascending sort of the @meal@ tag to be @breakfast@,

@@ -3,10 +3,11 @@ module Pantry.Reports.Paste(paste) where
 import Prelude(show, (.), ($), maybe, return, id, fmap)
 import Data.Text(Text, append, pack, snoc, replace, singleton,
                  empty, concat)
-import Pantry.Types(NonNegInteger)
-import Pantry.Food(Food, Name(Name), TagNamesVals(TagNamesVals), tags,
+import Pantry.Types(NonNegInteger, unFoodId)
+import Pantry.Food(Food, TagNamesVals(TagNamesVals), tags,
             units, UnitNamesAmts(UnitNamesAmts), foodId,
-            TagVal(TagVal), unFoodId)
+            TagVal(TagVal))
+import Pantry.Types(Name(Name))
 import Data.Map(lookup, keys)
 
 paste :: Food -> Text

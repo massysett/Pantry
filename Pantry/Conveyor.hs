@@ -12,7 +12,8 @@ import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger))
+import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger),
+                    FoodId, oneFoodId)
 import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode), Handle)
@@ -23,13 +24,10 @@ import qualified Data.Set as Set
 import qualified Data.Text as X
 import qualified Pantry.Sorter as S
 
-import Pantry.Food(Food, Error(MoveStartNotFound, MoveIdNotFound,
-                        FileReadError, NotPantryFile,
-                        WrongFileVersion, FileDecodeError,
-                        FileSaveError, NoSaveFilename,
-                        MultipleMoveIdMatches, MultipleEditIdMatches,
-                        UndoTooBig),
-            FoodId, foodId, oneFoodId, unIngr, ingr, Ingr(Ingr),
+import qualified Pantry.Error as R
+
+import Pantry.Food(Food,
+            unIngr, ingr, Ingr(Ingr), foodId,
             emptyFood)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(NextId, unNextId),
@@ -49,11 +47,11 @@ import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
 
-type Convey = Tray -> E.ErrorT Error IO Tray
+type Convey = Tray -> E.ErrorT R.Error IO Tray
 
 processBag :: Handle
               -> Bag
-              -> (Tray -> E.ErrorT Error IO Tray)
+              -> (Tray -> E.ErrorT R.Error IO Tray)
               -> IO (Maybe Bag)
 processBag = undefined
 
@@ -101,16 +99,16 @@ printerToTrayFilter :: (Tray -> DL.DList X.Text) -> Tray -> Tray
 printerToTrayFilter f t = t { output = o } where
   o = Output . DL.append (unOutput . output $ t) . f $ t
 
-trayFilterToConvey :: (Tray -> Tray) -> Tray -> E.ErrorT Error IO Tray
+trayFilterToConvey :: (Tray -> Tray) -> Tray -> E.ErrorT R.Error IO Tray
 trayFilterToConvey = impurify
 
-predToConvey :: (Food -> Bool) -> Tray -> E.ErrorT Error IO Tray
+predToConvey :: (Food -> Bool) -> Tray -> E.ErrorT R.Error IO Tray
 predToConvey = trayFilterToConvey . filterToTrayFilter . predToFilter
 
-filterToConvey :: (Volatile -> Volatile) -> Tray -> E.ErrorT Error IO Tray
+filterToConvey :: (Volatile -> Volatile) -> Tray -> E.ErrorT R.Error IO Tray
 filterToConvey = trayFilterToConvey . filterToTrayFilter
 
-newVolatileToConvey :: Volatile -> Tray -> E.ErrorT Error IO Tray
+newVolatileToConvey :: Volatile -> Tray -> E.ErrorT R.Error IO Tray
 newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 
 data FirstPos = Beginning | After FoodId
@@ -118,11 +116,11 @@ data FirstPos = Beginning | After FoodId
 concatMoveIds ::
   [[Food]] -- ^ Output from findAllInOrder
   -> [FoodId] -- ^ FoodId items to look up
-  -> Either Error [Food] -- ^ Concatenated result, or error
+  -> Either R.Error [Food] -- ^ Concatenated result, or error
 concatMoveIds fss is = F.foldrM f [] (zip is fss) where
-  f (i, []) _ = E.throwError $ MoveIdNotFound i
+  f (i, []) _ = E.throwError $ R.MoveIdNotFound i
   f (_, (food:[])) rs = return $ food : rs
-  f (i, _) _ = E.throwError $ MultipleMoveIdMatches i
+  f (i, _) _ = E.throwError $ R.MultipleMoveIdMatches i
 
 clear :: Volatile
 clear = Volatile []
@@ -140,7 +138,7 @@ tail i (Volatile v) = Volatile $ L.genericDrop
 create :: Volatile -> Volatile
 create (Volatile vs) = Volatile $ vs ++ [emptyFood]
 
-move :: FirstPos -> [FoodId] -> Volatile -> Either Error Volatile
+move :: FirstPos -> [FoodId] -> Volatile -> Either R.Error Volatile
 move p is (Volatile v) = do
   let pd fid food = fid == foodId food
       finds = findAllInOrder pd is v
@@ -152,14 +150,14 @@ move p is (Volatile v) = do
     (After aft) ->
       let (pre, suf) = L.break (pd aft) deleted
       in case suf of
-        [] -> E.throwError $ MoveStartNotFound aft
+        [] -> E.throwError $ R.MoveStartNotFound aft
         _ -> return . Volatile $ pre ++ sorted ++ suf
 
-undo :: NonNegInteger -> Tray -> Either Error Tray
+undo :: NonNegInteger -> Tray -> Either R.Error Tray
 undo n t =
   case unNonNegInteger n < L.genericLength (unUndos . undos $ t) of
     False ->
-      Left $ UndoTooBig n (L.genericLength (unUndos . undos $ t))
+      Left $ R.UndoTooBig n (L.genericLength (unUndos . undos $ t))
     True ->
       let vn = Volatile . unBuffer $ b
           b = L.genericIndex (unUndos . undos $ t) (unNonNegInteger n)
@@ -169,24 +167,24 @@ undo n t =
 -- CHANGE TAGS AND PROPERTIES, NUTRIENTS, AVAIL UNITS
 ------------------------------------------------------------
 
-xformToFilterM :: (Food -> Either Error Food)
+xformToFilterM :: (Food -> Either R.Error Food)
                  -> Volatile
-                 -> Either Error Volatile
+                 -> Either R.Error Volatile
 xformToFilterM f (Volatile fs) =
   mapM f fs >>= return . Volatile
 
-filterMToTrayM :: (Volatile -> Either Error Volatile)
-                 -> Tray -> Either Error Tray
+filterMToTrayM :: (Volatile -> Either R.Error Volatile)
+                 -> Tray -> Either R.Error Tray
 filterMToTrayM f t = do
   newV <- f . volatile $ t
   return t { volatile = newV }
 
-trayMToConvey :: (Tray -> Either Error Tray)
-                 -> Tray -> E.ErrorT Error IO Tray
+trayMToConvey :: (Tray -> Either R.Error Tray)
+                 -> Tray -> E.ErrorT R.Error IO Tray
 trayMToConvey f t = liftToErrorT . f $ t
 
-xformToConvey :: (Food -> Either Error Food)
-                 -> Tray -> E.ErrorT Error IO Tray
+xformToConvey :: (Food -> Either R.Error Food)
+                 -> Tray -> E.ErrorT R.Error IO Tray
 xformToConvey = trayMToConvey . filterMToTrayM . xformToFilterM
 
 ------------------------------------------------------------
@@ -281,7 +279,7 @@ replace :: Tray -> Tray
 replace = volatileToDb f where
   f _ fs = Buffer fs
         
-edit :: Tray -> Either Error Tray
+edit :: Tray -> Either R.Error Tray
 edit t =
   case (null. unVolatile . volatile $ t) of
     (True) -> return t
@@ -295,7 +293,7 @@ edit t =
       l = take maxUndos $ buffer t : (unUndos . undos $ t)
     f (Volatile v) (Buffer d) =
       case replaceAll foodId v d of
-        (Left k) -> E.throwError $ MultipleEditIdMatches k
+        (Left k) -> E.throwError $ R.MultipleEditIdMatches k
         (Right vs) -> return . Buffer $ vs
 
 delete :: Tray -> Tray
@@ -328,8 +326,8 @@ magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
 
 -- | Writes a database to a file. Any IO exceptions are caught and
 -- returned as an Error; non-IO exceptions are not caught.
-writeDb :: Filename -> NextId -> Buffer -> E.ErrorT Error IO ()
-writeDb (Filename f) n b = flip catchIOException FileSaveError c where
+writeDb :: Filename -> NextId -> Buffer -> E.ErrorT R.Error IO ()
+writeDb (Filename f) n b = flip catchIOException R.FileSaveError c where
   c = withFile f WriteMode $ \h -> do
     hSetBinaryMode h True
     BS.hPut h magic
@@ -339,54 +337,54 @@ writeDb (Filename f) n b = flip catchIOException FileSaveError c where
 -- | Reads a file from disk. Catches any IO errors and puts them on an
 -- Error; these are returned as Left Error. Successful reads are
 -- returned as Right ByteString. Any non-IO errors are not caught.
-readBS :: Filename -> E.ErrorT Error IO BS.ByteString
-readBS (Filename f) = catchIOException (BS.readFile f) FileReadError
+readBS :: Filename -> E.ErrorT R.Error IO BS.ByteString
+readBS (Filename f) = catchIOException (BS.readFile f) R.FileReadError
 
 -- | Carries out an IO action. Takes any IOExceptions, catches them,
 -- and puts them into an IO Either. Non IOException exceptions are not
 -- caught.
 catchIOException :: IO a
-                    -> (IOException -> Error)
-                    -> E.ErrorT Error IO a
+                    -> (IOException -> R.Error)
+                    -> E.ErrorT R.Error IO a
 catchIOException a f = E.ErrorT $ catchIOError
                        (a >>= return . Right) (return . Left . f)
 
 -- | Decode a ByteString to a Db. Not in IO monad.
-decodeBSWithHeader :: BS.ByteString -> Either Error (NextId, Buffer)
+decodeBSWithHeader :: BS.ByteString -> Either R.Error (NextId, Buffer)
 decodeBSWithHeader bs = do
-  E.unless (magic `BS.isPrefixOf` bs) (E.throwError NotPantryFile)
+  E.unless (magic `BS.isPrefixOf` bs) (E.throwError R.NotPantryFile)
   let noMagic = BS.drop (BS.length magic) bs
   E.unless (fileVersion `BS.isPrefixOf` noMagic)
-    (E.throwError WrongFileVersion)
+    (E.throwError R.WrongFileVersion)
   let noHeader = BS.drop (BS.length fileVersion) noMagic
   case decode noHeader of
     (Right (i, fs)) -> return (i, fs)
-    (Left s) -> E.throwError $ FileDecodeError s
+    (Left s) -> E.throwError $ R.FileDecodeError s
 
 -- | Reads a database. Any IO errors are caught and returned in an
 -- appropriate Error. Non-IO exceptions are not caught (there should
 -- not be any...but if there are they are not caught.)  Do not
 -- canonicalize the input filename. This must happen on the client
 -- side.
-readDb :: Filename -> E.ErrorT Error IO (NextId, Buffer)
+readDb :: Filename -> E.ErrorT R.Error IO (NextId, Buffer)
 readDb f = readBS f >>= (liftToErrorT . decodeBSWithHeader)
 
-open :: Filename -> Tray -> E.ErrorT Error IO Tray
+open :: Filename -> Tray -> E.ErrorT R.Error IO Tray
 open f t = do
   (n, b) <- readDb f
   return t { nextId = n
            , buffer = b
            , undos = addToUndos (buffer t) (undos t) }
     
-saveAs :: Filename -> Tray -> E.ErrorT Error IO Tray
+saveAs :: Filename -> Tray -> E.ErrorT R.Error IO Tray
 saveAs f t = do
   writeDb f (nextId t) (buffer t)
   return t { unsaved = Unsaved False
            , filename = Just f }
 
-save :: Tray -> E.ErrorT Error IO Tray
+save :: Tray -> E.ErrorT R.Error IO Tray
 save t = case filename t of
-  (Nothing) -> E.throwError NoSaveFilename
+  (Nothing) -> E.throwError R.NoSaveFilename
   (Just f) -> saveAs f t
 
 addToUndos :: Buffer -> Undos -> Undos
@@ -411,15 +409,15 @@ appendOrPrependPure f fLoaded t = t { undos = newUndo
 appendOrPrepend :: (Buffer -> [Food] -> Buffer)
                    -> Filename
                    -> Tray
-                   -> E.ErrorT Error IO Tray
+                   -> E.ErrorT R.Error IO Tray
 appendOrPrepend g f t = do
   (_, b) <- readDb f
   return $ appendOrPrependPure g (unBuffer b) t
 
-appendFile :: Filename -> Tray -> E.ErrorT Error IO Tray
+appendFile :: Filename -> Tray -> E.ErrorT R.Error IO Tray
 appendFile = appendOrPrepend (\(Buffer l) r -> Buffer $ l ++ r)
 
-prependFile :: Filename -> Tray -> E.ErrorT Error IO Tray
+prependFile :: Filename -> Tray -> E.ErrorT R.Error IO Tray
 prependFile = appendOrPrepend (\(Buffer l) r -> Buffer $ r ++ l)
 
 close :: Tray -> Tray

@@ -9,6 +9,7 @@ import Data.Map hiding (map, null, (\\))
 import Data.List hiding (lookup)
 import Prelude hiding (lookup)
 import Data.Text(Text)
+import Pantry.Types(Name(Name))
 
 allTags :: Food -> [(Name, TagVal)]
 allTags f = assocs m where

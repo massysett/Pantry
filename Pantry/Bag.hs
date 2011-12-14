@@ -1,7 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Pantry.Bag where
 
-import Pantry.Food(Food, FoodId, oneFoodId)
+import Pantry.Food(Food)
+import Pantry.Types(FoodId, oneFoodId)
 import Data.Serialize(Serialize)
 import Pantry.Types(Next)
 

@@ -2,7 +2,7 @@ module Pantry.Parser (getConveyor) where
 
 import qualified Pantry.Tray as T
 import qualified Control.Monad.Error as E
-import Pantry.Food (Error)
+import Pantry.Error(Error)
 import qualified Data.ByteString.Lazy as BS
 
 {-

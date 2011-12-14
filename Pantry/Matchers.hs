@@ -6,14 +6,14 @@ import qualified Text.Regex.TDFA as TDFA
 import qualified Text.Regex.PCRE as PCRE
 import qualified Text.Regex.Base.RegexLike as RL
 import qualified Control.Monad.Error as E
-import Pantry.Food(Error(RegexComp))
+import qualified Pantry.Error as R
 import Data.Bits((.|.))
 
 newtype CaseSensitive = CaseSensitive { sensitive :: Bool }
 
-tdfa :: CaseSensitive -> String -> Either Error (X.Text -> Bool)
+tdfa :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
 tdfa c regexStr = case RL.makeRegexOptsM comp exec regexStr of
-  (Left s) -> E.throwError (RegexComp s)
+  (Left s) -> E.throwError (R.RegexComp s)
   (Right rx) -> return (\x -> RL.matchTest rx . X.unpack $ x)
   where
     comp = RL.defaultCompOpt { TDFA.caseSensitive = sensitive c
@@ -21,9 +21,9 @@ tdfa c regexStr = case RL.makeRegexOptsM comp exec regexStr of
                              , TDFA.lastStarGreedy = True }
     exec = RL.defaultExecOpt { TDFA.captureGroups = False }
 
-pcre :: CaseSensitive -> String -> Either Error (X.Text -> Bool)
+pcre :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
 pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
-  (Left s) -> E.throwError (RegexComp s)
+  (Left s) -> E.throwError (R.RegexComp s)
   (Right rx) -> return (\x -> RL.matchTest rx . XE.encodeUtf8 $ x)
   where
     comp = RL.defaultCompOpt .|. PCRE.compUTF8 .|. caseless

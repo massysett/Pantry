@@ -13,23 +13,14 @@ import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Pantry.Exact(Exact(exact))
 import Pantry.Rounded(Rounded)
-import qualified Control.Monad.Error as E
 import Data.Serialize (Serialize(put, get))
-import Control.Exception(IOException)
 import Data.Monoid as Monoid
+import Pantry.Error as R
+
 type Matcher = (Text -> Bool)
-type Xform = (Food -> Either Error Food)
+type Xform = (Food -> Either R.Error Food)
 
 -- * Data types within Foods
-
-class HasName a where
-  name :: a -> Name
-
--- | The name of a tag, nutrient, or unit
-newtype Name = Name { unName :: Text } deriving (Eq, Ord, Show, Exact)
-instance Serialize Name where
-  put (Name t) = put . encodeUtf8 $ t
-  get = get >>= return . Name . decodeUtf8
 
 -- | Amount of a nutrient
 newtype NutAmt = NutAmt { unNutAmt :: NonNeg }
@@ -61,11 +52,6 @@ newtype NutsPerG = NutsPerG { unNutsPerG :: NonNeg }
 newtype NutNamesPerGs =
   NutNamesPerGs { unNutNamesPerGs :: (M.Map Name NutsPerG) }
   deriving (Show, Serialize)
-
--- | Grams expressed as a simple NonNeg number.
-newtype Grams = Grams { unGrams :: NonNeg }
-                deriving (Eq, Ord, Show, Add,
-                          HasZero, Exact, Rounded, Serialize)
 
 -- | Grams expressed as a mixed number.
 newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
@@ -127,21 +113,6 @@ newtype Yield = Yield { unYield :: (Maybe MixedGrams) }
 -- | Ingredients
 newtype Ingr = Ingr { unIngr :: [Food] }
              deriving (Show, Serialize, Monoid)
-
--- | A food's unique identifier. Do not make FoodId an instance of
--- Enum. This would allow prec to be called on it. In theory this
--- would be OK (prec can be partial) but better to avoid that. Instead
--- use the Next typeclass.
-newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord, Next, Serialize)
-
--- | FoodID of zero
-zeroFoodId :: FoodId
-zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
-
--- | FoodID of one
-oneFoodId :: FoodId
-oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
 
 -- * Other datatypes
 
@@ -333,7 +304,7 @@ allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
          [absGrams, absOunces, absPounds]
 
 -- | Change current unit to the one matching a matcher.
-changeCurrUnit :: (Text -> Bool) -> Food -> Either Error Food
+changeCurrUnit :: (Text -> Bool) -> Food -> Either R.Error Food
 changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
   oneMatch = length ms == 1
   (UnitNamesAmts allU) = allUnits $ units f
@@ -343,10 +314,10 @@ changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
   headMatchGrams = snd . head $ ms
   ms = filter prev $ M.assocs allU
   prev ((Name n), _) = m n
-  err = if' (null ms) NoMatchingUnit (MultipleMatchingUnits ms)
+  err = if' (null ms) R.NoMatchingUnit (R.MultipleMatchingUnits ms)
 
 changeCurrUnits :: (T.Traversable t)
-                   => (Text -> Bool) -> t Food -> Either Error (t Food)
+                   => (Text -> Bool) -> t Food -> Either R.Error (t Food)
 changeCurrUnits m = T.mapM (changeCurrUnit m)
 
 foodGrams :: Food -> Grams
@@ -358,7 +329,7 @@ foodGrams f = Grams $ q `mult` u where
   (UnitNameAmt _ (Grams u)) = currUnit f
 
 -- Nut manipulations
-addNut :: NutNameAmt -> Food -> Either Error Food
+addNut :: NutNameAmt -> Food -> Either R.Error Food
 addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
   g = foodGrams f
   notZero = g /= zero
@@ -368,15 +339,15 @@ addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
     (NutAmt rat) = a
     (Grams gr) = g
   newPerGs = NutNamesPerGs $ M.insert n newPerG oldPerGs
-  err = AddNutToZeroQty
+  err = R.AddNutToZeroQty
 
-addNuts :: (F.Foldable f) => f NutNameAmt -> Food -> Either Error Food
+addNuts :: (F.Foldable f) => f NutNameAmt -> Food -> Either R.Error Food
 addNuts ns f = F.foldlM (flip addNut) f ns
 
 addNutsToFoods :: (F.Foldable a, T.Traversable t)
                   => a NutNameAmt
                   -> t Food
-                  -> Either Error (t Food)
+                  -> Either R.Error (t Food)
 addNutsToFoods ns = T.mapM (addNuts ns)
 
 nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
@@ -472,28 +443,6 @@ addIngredientsToFoods fs = fmap (addIngredients fs)
 
 deleteIngredients :: Food -> Food
 deleteIngredients f = f {ingr = Ingr [] }
-
-data Error = NoMatchingUnit
-           | MultipleMatchingUnits [(Name, Grams)]
-           | AddNutToZeroQty
-           | RegexComp String
-           | NoReportMatch String [String]
-           | Other String
-           | MoveIdNotFound FoodId
-           | MultipleMoveIdMatches FoodId
-           | MultipleEditIdMatches FoodId
-           | MoveStartNotFound FoodId
-           | CanonicalizeError IOException
-           | FileSaveError IOException
-           | FileReadError IOException
-           | FileDecodeError String
-           | NotPantryFile
-           | WrongFileVersion
-           | NoSaveFilename
-           | UndoTooBig NonNegInteger Integer
-
-instance E.Error Error where
-  strMsg = Other
 
 if' :: Bool -> a -> a -> a
 if' b x y = case b of True -> x; False -> y

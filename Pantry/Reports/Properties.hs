@@ -7,8 +7,9 @@ import Pantry.Reports.Render(Render(render))
 import Data.Text(Text, pack, append, snoc, concat, cons)
 import Pantry.Food(Food(qty, foodId, currUnit, pctRefuse),
             UnitNameAmt(UnitNameAmt),
-            Name(Name), recipeYield, foodGrams,
+            recipeYield, foodGrams,
             PctRefuse(PctRefuse))
+import Pantry.Types(Name(Name))
 import Pantry.Exact(Exact(exact))
 
 properties :: ReportOpts -> Food -> Text

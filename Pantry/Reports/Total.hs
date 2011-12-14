@@ -11,6 +11,7 @@ import qualified Data.List as L
 import qualified Data.Text as X
 import Pantry.Exact(exact)
 import Pantry.Rounded(rounded)
+import Pantry.Types(Name)
 
 data TotGoalNut = TotGoalNut { totGoalName :: Name
                              , totGoalGoal :: NutAmt

@@ -17,8 +17,8 @@ import Pantry.Reports.Total(total)
 import Pantry.Reports.Units(units)
 import Pantry.Reports.Types(FoodRpt, TotalRpt, ReportOpts)
 import qualified Pantry.Reports.Version(version)
-import Pantry.Food(Food, foldFoodNuts, Error(NoReportMatch),
-            NutNamesAmts)
+import Pantry.Food(Food, foldFoodNuts, NutNamesAmts)
+import qualified Pantry.Error as R
 import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
@@ -121,10 +121,10 @@ copyright :: ReportGroups
 copyright = ReportGroups [Right l] where
   l = [\_ _ _ _ -> Pantry.Reports.Copyright.copyright]
 
-buildReportGroups :: [String] -> Either Error ReportGroups
+buildReportGroups :: [String] -> Either R.Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
 
-addReport :: String -> ReportGroups -> Either Error ReportGroups
+addReport :: String -> ReportGroups -> Either R.Error ReportGroups
 addReport s (ReportGroups gs) = do
   ei <- bestReport s
   return $ ReportGroups $ case gs of
@@ -138,9 +138,9 @@ addReport s (ReportGroups gs) = do
       (Left f) -> Left [f]:l
       (Right t) -> (Right (t:ls)):rs
 
-bestReport :: String -> Either Error (Either FoodRpt TotalRpt)
+bestReport :: String -> Either R.Error (Either FoodRpt TotalRpt)
 bestReport s = case bestMatch s (M.fromList foodRpts) of
   (Right r) -> Right . Left $ r
   (Left fms) -> case bestMatch s (M.fromList totalRpts) of
     (Right r) -> Right . Right $ r
-    (Left tms) -> E.throwError $ NoReportMatch s (fms ++ tms)
+    (Left tms) -> E.throwError $ R.NoReportMatch s (fms ++ tms)
