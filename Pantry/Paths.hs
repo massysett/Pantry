@@ -1,8 +1,10 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | File path manipulations.
 module Pantry.Paths where
 
 import qualified System.Directory as D
 import qualified System.FilePath as F
+import Data.Serialize (Serialize)
 
 -- | A path the user entered on the command line. Maybe it is perfect,
 -- or maybe it is flawed; might be relative or absolute.
@@ -15,7 +17,9 @@ newtype UserPath = UserPath { unUserPath :: FilePath }
 newtype CanonPath = CanonPath { unCanonPath :: FilePath }
 
 -- | An absolute path
+newtype AbsPath = AbsPath { unAbsPath :: FilePath }
 
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.
 newtype ClientDir = ClientDir { unClientDir :: FilePath }
+                  deriving Serialize

@@ -49,12 +49,6 @@ import qualified Pantry.Reports as R
 
 type Convey = Tray -> E.ErrorT R.Error IO Tray
 
-processBag :: Handle
-              -> Bag
-              -> (Tray -> E.ErrorT R.Error IO Tray)
-              -> IO (Maybe Bag)
-processBag = undefined
-
 blankTray :: Tray
 blankTray = Tray { nextId = NextId $ oneFoodId
                  , filename = Nothing

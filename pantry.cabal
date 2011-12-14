@@ -27,7 +27,9 @@ Library
         network ==2.3.*,
         dlist ==0.5.*,
         parsec ==3.1.*,
-        split ==0.1.*
+        split ==0.1.*,
+        filepath ==1.2.*,
+        directory ==1.1.*
 
     Exposed-modules:
         Pantry.Bag,
@@ -37,6 +39,8 @@ Library
         Pantry.Food,
         Pantry.Matchers,
         Pantry.Parser,
+        Pantry.Radio,
+        Pantry.Radio.Messages,
         Pantry.Reports,
         Pantry.Rounded,
         Pantry.Session,
