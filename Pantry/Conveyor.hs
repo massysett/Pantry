@@ -45,6 +45,10 @@ import Pantry.Tray ( Tray(Tray), nextId, filename, unsaved,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
                      Done(Done, NotDone))
+import Pantry.Reports (ReportGroups, printReportGroups, help, copyright,
+                       version)
+import Pantry.Reports.Types ( ReportOpts )
+import qualified Pantry.Reports as R
 
 type Convey = Tray -> E.ErrorT Error IO Tray
 
@@ -197,6 +201,14 @@ removeIngr :: Volatile -> Volatile
 removeIngr (Volatile fs) = Volatile ns where
   ns = map g fs
   g f = f { ingr = Ingr [] }
+
+------------------------------------------------------------
+-- REPORTING
+------------------------------------------------------------
+report :: ReportOpts -> ReportGroups -> Tray -> Tray
+report o g t = t { output = Output (DL.append old new) } where
+  old = unOutput . output $ t
+  new = printReportGroups o g t
 
 ------------------------------------------------------------
 -- SORTING
@@ -419,6 +431,18 @@ close t = blankTray { undos = addToUndos (buffer t) (undos t)
 
 quit :: Tray -> Tray
 quit t = t { done = Done }
+
+------------------------------------------------------------
+-- HELP
+------------------------------------------------------------
+help :: ReportOpts -> Tray -> Tray
+help o = report o R.help
+
+version :: ReportOpts -> Tray -> Tray
+version o = report o R.version
+
+copyright :: ReportOpts -> Tray -> Tray
+copyright o = report o R.copyright
 
 ------------------------------------------------------------
 -- UTILITY BASEMENT
