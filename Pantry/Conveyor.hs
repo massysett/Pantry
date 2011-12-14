@@ -45,8 +45,7 @@ import Pantry.Tray ( Tray(Tray), nextId, filename, unsaved,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
                      Done(Done, NotDone))
-import Pantry.Reports (ReportGroups, printReportGroups, help, copyright,
-                       version)
+import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
 
@@ -539,3 +538,4 @@ liftToErrorT e = case e of
 
 impurify :: Monad m => (a -> b) -> a -> m b
 impurify f a = return $ f a
+
