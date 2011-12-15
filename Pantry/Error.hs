@@ -3,6 +3,8 @@ module Pantry.Error where
 import qualified Control.Monad.Error as E
 import qualified Pantry.Types as T
 import Control.Exception ( IOException )
+import qualified Data.Text as X
+import Data.Word ( Word8 )
 
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(T.Name, T.Grams)]
@@ -26,3 +28,8 @@ data Error = NoMatchingUnit
 instance E.Error Error where
   strMsg = Other
 
+showError :: Error -> X.Text
+showError = undefined
+
+errorCode :: Error -> Word8
+errorCode = undefined

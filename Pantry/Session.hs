@@ -1,6 +1,6 @@
 module Pantry.Session where
 
-import Pantry.Conveyor(processBag)
+import Pantry.Radio ( processBag )
 import Pantry.Bag(Bag, Filename, unFilename, emptyBag)
 import Network ( PortID(UnixSocket), listenOn,
                  accept, Socket )

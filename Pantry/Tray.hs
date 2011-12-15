@@ -42,11 +42,13 @@ bagToTray b = Tray { nextId = Bag.nextId b
   v = Volatile . Bag.unBuffer . Bag.buffer $ b
   o = Output (DL.empty)
 
-trayToBag :: Tray -> Bag.Bag
-trayToBag t = Bag.Bag { Bag.nextId = nextId t
-                      , Bag.filename = filename t
-                      , Bag.unsaved = unsaved t
-                      , Bag.buffer = buffer t
-                      , Bag.undos = undos t }
+trayToBag :: Tray -> Maybe Bag.Bag
+trayToBag t = case done t of
+  NotDone -> Just Bag.Bag { Bag.nextId = nextId t
+                          , Bag.filename = filename t
+                          , Bag.unsaved = unsaved t
+                          , Bag.buffer = buffer t
+                          , Bag.undos = undos t }
+  Done -> Nothing
 
 
