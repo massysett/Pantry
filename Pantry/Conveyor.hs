@@ -39,7 +39,7 @@ import Pantry.Bag ( NextId(NextId, unNextId),
 import qualified Pantry.Bag as Bag
 import Pantry.Tray ( Tray(Tray), nextId, filename, unsaved,
                      buffer, undos, volatile, done, output,
-                     unOutput,
+                     unOutput, blankTray,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
                      Done(Done, NotDone))
@@ -48,36 +48,6 @@ import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
 
 type Convey = Tray -> E.ErrorT R.Error IO Tray
-
-blankTray :: Tray
-blankTray = Tray { nextId = NextId $ oneFoodId
-                 , filename = Nothing
-                 , unsaved = Unsaved False
-                 , buffer = Buffer []
-                 , undos = Undos []
-                 , volatile = Volatile []
-                 , done = NotDone
-                 , output = Output DL.empty }
-
-bagToTray :: Bag.Bag -> Tray
-bagToTray b = Tray { nextId = Bag.nextId b
-                   , filename = Bag.filename b
-                   , unsaved = Bag.unsaved b
-                   , buffer = Bag.buffer b
-                   , undos = Bag.undos b
-                   , volatile = v
-                   , done = NotDone
-                   , output = o } where
-  v = Volatile . unBuffer . Bag.buffer $ b
-  o = Output (DL.empty)
-
-trayToBag :: Tray -> Bag.Bag
-trayToBag t = Bag.Bag { Bag.nextId = nextId t
-                      , Bag.filename = filename t
-                      , Bag.unsaved = unsaved t
-                      , Bag.buffer = buffer t
-                      , Bag.undos = undos t }
-
 
 ------------------------------------------------------------
 -- FILTERING

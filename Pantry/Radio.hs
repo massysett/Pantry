@@ -8,6 +8,7 @@ import qualified Pantry.Error as R
 import System.IO (Handle)
 
 processBag :: Handle
+              -- ^ To communicate with client
               -> Bag
               -> (Tray -> E.ErrorT R.Error IO Tray)
               -> IO (Maybe Bag)
