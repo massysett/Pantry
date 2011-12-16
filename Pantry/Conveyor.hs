@@ -23,7 +23,7 @@ import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
 import qualified Data.Text as X
 import qualified Pantry.Sorter as S
-
+import qualified Pantry.Paths as P
 import qualified Pantry.Error as R
 
 import Pantry.Food(Food,
