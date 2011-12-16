@@ -1,22 +1,26 @@
 -- | Allows communication between the client and the server.
-module Pantry.Radio where
+module Pantry.Radio (getListener, getRequest, processBag, 
+                     Listener)where
 
 import Pantry.Bag (Bag)
 import Pantry.Tray (Tray, bagToTray, unOutput, output, trayToBag)
 import qualified Control.Monad.Error as E
 import qualified Pantry.Error as R
-import System.IO (Handle, hClose, hPutStrLn, stderr)
+import System.IO (Handle, hClose, hPutStrLn, stderr,
+                  hSetBinaryMode)
 import qualified Data.DList as DL
 import qualified Data.Text as X
 import qualified Pantry.Radio.Messages as M
-import qualified Data.ByteString.Lazy as BS
-import Data.Serialize ( encodeLazy )
+import qualified Data.ByteString as BS
+import Data.Serialize ( encode, decode )
 import System.FilePath ((</>))
 import qualified Data.List as L
 import System.Environment ( getEnvironment )
 import System.Directory ( getHomeDirectory )
 import qualified Control.Exception as Ex
 import qualified Network as N
+
+newtype Listener = Listener N.Socket
 
 -- | TODO sanity checking on environment variable?
 pantryDir :: IO FilePath
@@ -38,6 +42,40 @@ toClientSocketName = do
   d <- pantryDir
   return $ d </> "toClient"
 
+-- | Returns a socket that listens for requests from clients.  Does
+-- not catch any exceptions; for now just let it crash if there are
+-- any problems.
+getListener :: IO Listener
+getListener = do
+  f <- toServerSocketName
+  let port = N.UnixSocket f
+  l <- N.listenOn port
+  return $ Listener l
+
+-- | Given a Listener, block until a Request comes in. Returns a Just
+-- Request if a request comes in. If there is some sort of problem (IO
+-- problem, or decoding error) returns Nothing. Does not throw any IO
+-- exceptions; other exceptions are not caught.
+getRequest :: Listener -> IO (Maybe M.Request)
+getRequest (Listener l) = Ex.catch comp handler >>= req where
+  comp = do
+    (h, _, _) <- N.accept l
+    hSetBinaryMode h True
+    c <- BS.hGetContents h
+    return $ Just c
+  handler e = do
+    hPutStrLn stderr $ "pantryd: error while receiving message "
+      ++ "from client: " ++ show (e :: Ex.IOException)
+    return Nothing
+  req m = case m of
+    Nothing -> return Nothing
+    (Just bs) -> case decode bs of
+      (Left err) -> do
+        hPutStrLn stderr $ "pantryd: error while decoding message "
+          ++ "from client: " ++ err
+        return Nothing
+      (Right r) -> return (Just r)
+
 -- | Obtains a handle to talk to the client socket. If there is an IO
 -- error, catches it, prints it to standard error, and returns IO
 -- Nothing.
@@ -57,11 +95,6 @@ socketToClient = do
 -- | Carries out the IO of a Conveyor and sends the resulting text and
 -- error code to the client, and determines what new bag should be
 -- passed up to the session.
---
--- TODO have this catch any exceptions that may arise from the
--- hPut. Not much that can be done at this point so just send them to
--- stderr. The Conveyor should not be throwing any IO exceptions, so
--- do not try to catch anything there.
 processBag :: Bag
               -> (Tray -> E.ErrorT R.Error IO Tray)
               -> IO (Maybe Bag)
@@ -76,7 +109,10 @@ processBag b f = do
         (Just h) -> do
           e <- E.runErrorT (f t)
           let (newBag, bs) = encodeConveyed t e
-          BS.hPut h bs
+          Ex.catch (BS.hPut h bs)
+            (\err -> hPutStrLn stderr
+                   ("pantryd: error while sending message to client: "
+                   ++ show (err :: Ex.IOException)))
           return newBag
   Ex.bracket acquire release use
 
@@ -86,7 +122,7 @@ processBag b f = do
 encodeConveyed :: Tray -- ^ Return this tray in a bag if the Either is an error
                   -> Either R.Error Tray
                   -> (Maybe Bag, BS.ByteString)
-encodeConveyed t e = (mb, encodeLazy r) where
+encodeConveyed t e = (mb, encode r) where
   r = M.Response { M.text = x, M.exitCode = c }
   (x, c, mb) = case e of
     (Left err) ->

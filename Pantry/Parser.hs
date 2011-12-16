@@ -3,17 +3,9 @@ module Pantry.Parser (getConveyor) where
 import qualified Pantry.Tray as T
 import qualified Control.Monad.Error as E
 import Pantry.Error(Error)
-import qualified Data.ByteString.Lazy as BS
+import Pantry.Radio.Messages ( Request )
 
-{-
-data Incoming = Incoming
-
-
-parseIncoming :: BS.ByteString -> Incoming
-parseIncoming = undefined
--}
-
-getConveyor :: BS.ByteString
+getConveyor :: Request
                -> T.Tray
                -> E.ErrorT Error IO T.Tray
 getConveyor = undefined

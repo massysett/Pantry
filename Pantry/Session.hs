@@ -1,36 +1,28 @@
 module Pantry.Session where
 
-import Pantry.Radio ( processBag )
-import Pantry.Bag(Bag, Filename, unFilename, emptyBag)
-import Network ( PortID(UnixSocket), listenOn,
-                 accept, Socket )
-import System.IO ( hSetBinaryMode )
-import qualified Data.ByteString.Lazy as BS
+import Pantry.Radio (getListener, getRequest, processBag, Listener)
+import Pantry.Bag(Bag, Filename, emptyBag)
 import Pantry.Parser ( getConveyor )
-
-newtype Listener = Listener { unListener :: Socket }
 
 socketFilename :: IO Filename
 socketFilename = undefined
 
 session :: IO ()
 session = do
-  f <- socketFilename
-  let port = UnixSocket . unFilename $ f
-  l <- listenOn port
-  let listener = Listener l
-  sessionLoop emptyBag listener
+  l <- getListener
+  sessionLoop emptyBag l
 
 sessionLoop :: Bag
                -> Listener
                -> IO ()
 sessionLoop b l = do
-  (h, _, _) <- accept . unListener $ l
-  hSetBinaryMode h True
-  msg <- BS.hGetContents h
-  let conveyor = getConveyor msg
-  r <- processBag b conveyor
+  r <- getRequest l
   case r of
-    Nothing -> return ()
-    (Just newBag) -> sessionLoop newBag l
+    Nothing -> sessionLoop b l
+    (Just m) -> do
+      let conveyor = getConveyor m
+      maybeNewBag <- processBag b conveyor
+      case maybeNewBag of
+        Nothing -> return ()
+        (Just newBag) -> sessionLoop newBag l
 
