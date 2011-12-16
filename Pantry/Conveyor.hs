@@ -13,36 +13,33 @@ import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
 import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger),
-                    FoodId, oneFoodId)
+                    FoodId)
 import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
-import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode), Handle)
+import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
 import System.IO.Error(catchIOError)
 import Control.Exception(IOException)
 import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
 import qualified Data.Text as X
 import qualified Pantry.Sorter as S
-import qualified Pantry.Paths as P
+import Pantry.Paths ( CanonPath, unCanonPath )
 import qualified Pantry.Error as R
 
 import Pantry.Food(Food,
             unIngr, ingr, Ingr(Ingr), foodId,
             emptyFood)
 import Data.Monoid(mconcat)
-import Pantry.Bag ( NextId(NextId, unNextId),
-             Filename(Filename),
+import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),
              Buffer(Buffer, unBuffer),
-             Undos(Undos, unUndos),
-             Bag )
-import qualified Pantry.Bag as Bag
-import Pantry.Tray ( Tray(Tray), nextId, filename, unsaved,
+             Undos(Undos, unUndos))
+import Pantry.Tray ( Tray, nextId, filename, unsaved,
                      buffer, undos, volatile, done, output,
                      unOutput, blankTray,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
-                     Done(Done, NotDone))
+                     Done(Done))
 import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
@@ -163,6 +160,13 @@ removeIngr (Volatile fs) = Volatile ns where
   ns = map g fs
   g f = f { ingr = Ingr [] }
 
+-- | Finds foods in the the buffer that have the FoodId given. Adds
+-- each food found to the ingredients of all the foods in
+-- Volatile. Returns an error if one of the FoodId given does not
+-- match a food in the buffer.
+ingrToVolatile :: [FoodId] -> Tray -> Either R.Error Tray
+ingrToVolatile = undefined
+
 ------------------------------------------------------------
 -- REPORTING
 ------------------------------------------------------------
@@ -275,6 +279,9 @@ delete t =
     f (Volatile v) (Buffer d) =
       Buffer $ deleteAll foodId (map foodId v) d
 
+ingrFromVolatile :: [FoodId] -> Tray -> Tray
+ingrFromVolatile = undefined
+
 -- | True if two foods have equal IDs.
 eqId :: Food -> Food -> Bool
 eqId f1 f2 = foodId f1 == foodId f2
@@ -290,9 +297,9 @@ magic = BS.pack . map fromIntegral . map fromEnum $ "pantry"
 
 -- | Writes a database to a file. Any IO exceptions are caught and
 -- returned as an Error; non-IO exceptions are not caught.
-writeDb :: Filename -> NextId -> Buffer -> E.ErrorT R.Error IO ()
-writeDb (Filename f) n b = flip catchIOException R.FileSaveError c where
-  c = withFile f WriteMode $ \h -> do
+writeDb :: CanonPath -> NextId -> Buffer -> E.ErrorT R.Error IO ()
+writeDb f n b = flip catchIOException R.FileSaveError c where
+  c = withFile (unCanonPath f) WriteMode $ \h -> do
     hSetBinaryMode h True
     BS.hPut h magic
     BS.hPut h fileVersion
@@ -301,8 +308,9 @@ writeDb (Filename f) n b = flip catchIOException R.FileSaveError c where
 -- | Reads a file from disk. Catches any IO errors and puts them on an
 -- Error; these are returned as Left Error. Successful reads are
 -- returned as Right ByteString. Any non-IO errors are not caught.
-readBS :: Filename -> E.ErrorT R.Error IO BS.ByteString
-readBS (Filename f) = catchIOException (BS.readFile f) R.FileReadError
+readBS :: CanonPath -> E.ErrorT R.Error IO BS.ByteString
+readBS f = catchIOException (BS.readFile . unCanonPath $ f)
+           R.FileReadError
 
 -- | Carries out an IO action. Takes any IOExceptions, catches them,
 -- and puts them into an IO Either. Non IOException exceptions are not
@@ -330,17 +338,17 @@ decodeBSWithHeader bs = do
 -- not be any...but if there are they are not caught.)  Do not
 -- canonicalize the input filename. This must happen on the client
 -- side.
-readDb :: Filename -> E.ErrorT R.Error IO (NextId, Buffer)
+readDb :: CanonPath -> E.ErrorT R.Error IO (NextId, Buffer)
 readDb f = readBS f >>= (liftToErrorT . decodeBSWithHeader)
 
-open :: Filename -> Tray -> E.ErrorT R.Error IO Tray
+open :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
 open f t = do
   (n, b) <- readDb f
   return t { nextId = n
            , buffer = b
            , undos = addToUndos (buffer t) (undos t) }
     
-saveAs :: Filename -> Tray -> E.ErrorT R.Error IO Tray
+saveAs :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
 saveAs f t = do
   writeDb f (nextId t) (buffer t)
   return t { unsaved = Unsaved False
@@ -371,17 +379,17 @@ appendOrPrependPure f fLoaded t = t { undos = newUndo
   fN = f (buffer t) fNumbered
 
 appendOrPrepend :: (Buffer -> [Food] -> Buffer)
-                   -> Filename
+                   -> CanonPath
                    -> Tray
                    -> E.ErrorT R.Error IO Tray
 appendOrPrepend g f t = do
   (_, b) <- readDb f
   return $ appendOrPrependPure g (unBuffer b) t
 
-appendFile :: Filename -> Tray -> E.ErrorT R.Error IO Tray
+appendFile :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
 appendFile = appendOrPrepend (\(Buffer l) r -> Buffer $ l ++ r)
 
-prependFile :: Filename -> Tray -> E.ErrorT R.Error IO Tray
+prependFile :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
 prependFile = appendOrPrepend (\(Buffer l) r -> Buffer $ r ++ l)
 
 close :: Tray -> Tray
@@ -458,6 +466,26 @@ fromListNoDupe = foldr f (Right Map.empty) where
     in case Map.insertLookupWithKey fv k v m of
       (Just _, _) -> Left k
       (Nothing, nm) -> Right nm
+
+-- | Finds all items from a given list inside of another list, but if
+-- a given predicate matches no items or matches more than one item,
+-- returns an error.
+findOneInOrder ::
+  (k -> e)
+  -- ^ How to make an error
+  
+  -> (k -> a -> Bool)
+  -- ^ How to make a predicate
+  
+  -> [k]
+  -- ^ Find items matching these keys
+
+  -> [a]
+  -- ^ Find items within this list
+  
+  -> Either e [a]
+  -- ^ Items matching each key, in order
+findOneInOrder = undefined
 
 -- | Find all items from a given list inside of another list, using a
 -- specified predicate. 

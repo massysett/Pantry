@@ -1,7 +1,7 @@
 module Pantry.Session ( session ) where
 
 import Pantry.Radio (getListener, getRequest, processBag, Listener)
-import Pantry.Bag(Bag, Filename, emptyBag)
+import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
 
 session :: IO ()

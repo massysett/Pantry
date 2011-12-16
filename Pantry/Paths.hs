@@ -27,7 +27,7 @@ userPath s = Right . UserPath $ s
 -- exist. Either way, it means that the path begins with a leading
 -- slash.
 newtype CanonPath = CanonPath { unCanonPath :: FilePath }
-                    deriving Serialize
+                    deriving (Serialize, Show)
 
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.

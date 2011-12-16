@@ -9,7 +9,7 @@ status t = X.unlines ls where
   ls = [filename, unsaved, count, undos, nextId]
   filename = label "Filename" $ case T.filename t of
     Nothing -> "(no filename)"
-    (Just (B.Filename f)) -> f
+    (Just f) -> show f
   unsaved = label "Unsaved" $ case B.unUnsaved . T.unsaved $ t of
     True -> "yes"
     False -> "no"

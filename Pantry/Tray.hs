@@ -3,6 +3,7 @@ module Pantry.Tray where
 import Pantry.Food(Food)
 import qualified Data.DList as DL
 import qualified Data.Text as X
+import Pantry.Paths ( CanonPath )
 
 import qualified Pantry.Bag as Bag
 import Pantry.Types ( oneFoodId )
@@ -12,7 +13,7 @@ newtype Output = Output { unOutput :: DL.DList X.Text }
 data Done = Done | NotDone
 
 data Tray = Tray { nextId :: Bag.NextId
-                 , filename :: Maybe Bag.Filename
+                 , filename :: Maybe CanonPath
                  , unsaved :: Bag.Unsaved
                  , buffer :: Bag.Buffer
                  , undos :: Bag.Undos

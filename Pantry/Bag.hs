@@ -5,18 +5,17 @@ import Pantry.Food(Food)
 import Pantry.Types(FoodId, oneFoodId)
 import Data.Serialize(Serialize)
 import Pantry.Types(Next)
+import Pantry.Paths(CanonPath)
 
 newtype NextId = NextId { unNextId :: FoodId }
                deriving (Eq, Ord, Next, Serialize, Show)
-newtype Filename = Filename  { unFilename :: String }
-                   deriving (Show, Serialize)
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
 newtype Undos = Undos { unUndos :: [Buffer] }
 newtype Buffer = Buffer { unBuffer :: [Food] } deriving Serialize
 
 data Bag = Bag { nextId :: NextId
-               , filename :: Maybe Filename
+               , filename :: Maybe CanonPath
                , unsaved :: Unsaved
                , buffer :: Buffer
                , undos :: Undos }
