@@ -29,6 +29,8 @@ newtype AbsPath = AbsPath { unAbsPath :: FilePath }
 newtype ClientDir = ClientDir { unClientDir :: FilePath }
                   deriving Serialize
 
+-- | Canonicalizes a path to load a file from. All components,
+-- including the filename, must exist or an error will be thrown.
 canonLoadPath :: ClientDir
                  -> UserPath
                  -> Err.ErrorT E.Error IO CanonPath
@@ -37,13 +39,19 @@ canonLoadPath (ClientDir c) (UserPath u) = let
   eiToCanon ei = case ei of
     (Left err) -> Err.throwError $ E.FindLoadFileError err
     (Right good) -> return $ CanonPath good
-  toCanon = case u of
-    ('/':_) -> u
-    _ -> c </> u
-  in lift (Ex.try (D.canonicalizePath toCanon)) >>= eiToCanon
+  -- </> will return only the second path if it is absolute
+  in lift (Ex.try (D.canonicalizePath (c </> u))) >>= eiToCanon
 
+-- | Canonicalize a path to save a file to. Only the directory part
+-- of the filename needs to exist.
 canonSavePath :: ClientDir
                  -> UserPath
                  -> Err.ErrorT E.Error IO CanonPath
-canonSavePath = undefined
+canonSavePath _ (UserPath []) = Err.throwError E.EmptyFilePath
+canonSavePath (ClientDir c) (UserPath u) = let
+  (dir, file) = F.splitFileName (c </> u)
+  eiToCanon ei = case ei of
+    (Left err) -> Err.throwError $ E.FindSaveDirError err
+    (Right good) -> return . CanonPath $ (good </> file)
+  in lift (Ex.try (D.canonicalizePath dir)) >>= eiToCanon
 

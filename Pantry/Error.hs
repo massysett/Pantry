@@ -26,6 +26,7 @@ data Error = NoMatchingUnit
            | UndoTooBig T.NonNegInteger Integer
            | EmptyFilePath
            | FindLoadFileError IOException
+           | FindSaveDirError IOException
 
 instance E.Error Error where
   strMsg = Other
