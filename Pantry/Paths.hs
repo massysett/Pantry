@@ -1,6 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | File path manipulations.
-module Pantry.Paths where
+module Pantry.Paths ( UserPath, unUserPath, userPath, CanonPath,
+                      unCanonPath, 
+                      ClientDir, unClientDir, canonLoadPath,
+                      canonSavePath ) where
 
 import qualified System.Directory as D
 import qualified System.FilePath as F
@@ -15,14 +18,15 @@ import Control.Monad.Trans ( lift )
 -- or maybe it is flawed; might be relative or absolute.
 newtype UserPath = UserPath { unUserPath :: FilePath }
 
+userPath :: String -> Either E.Error UserPath
+userPath [] = Left E.EmptyFilePath
+userPath s = Right . UserPath $ s
+
 -- | A path that has been canonicalized. This might mean that all
 -- components exist, or it might mean that all components but the last
 -- exist. Either way, it means that the path begins with a leading
 -- slash.
 newtype CanonPath = CanonPath { unCanonPath :: FilePath }
-
--- | An absolute path
-newtype AbsPath = AbsPath { unAbsPath :: FilePath }
 
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.
