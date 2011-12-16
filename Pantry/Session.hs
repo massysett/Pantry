@@ -1,11 +1,8 @@
-module Pantry.Session where
+module Pantry.Session ( session ) where
 
 import Pantry.Radio (getListener, getRequest, processBag, Listener)
 import Pantry.Bag(Bag, Filename, emptyBag)
 import Pantry.Parser ( getConveyor )
-
-socketFilename :: IO Filename
-socketFilename = undefined
 
 session :: IO ()
 session = do
