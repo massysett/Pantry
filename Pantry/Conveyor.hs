@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- | Keep functions in here as pure as possible. Use combinators to
--- mak
+-- | Keep functions in here as pure as possible. Then, use combinators to
+-- make pure functions into Convey functions.
 module Pantry.Conveyor where
 
 import qualified Data.List as L
