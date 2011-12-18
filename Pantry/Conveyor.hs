@@ -165,7 +165,32 @@ removeIngr (Volatile fs) = Volatile ns where
 -- Volatile. Returns an error if one of the FoodId given does not
 -- match a food in the buffer.
 ingrToVolatile :: [FoodId] -> Tray -> Either R.Error Tray
-ingrToVolatile = undefined
+ingrToVolatile is t = case lookupFoodId is t of
+  (Left es) -> Left (R.IngrToVolatileLookup es)
+  (Right fs) -> Right $ addIngrToVolatile fs t
+
+-- | Takes a list of foods and appends them as ingredients to each
+-- food in volatile.
+addIngrToVolatile :: [Food] -> Tray -> Tray
+addIngrToVolatile fs t = t { volatile = v } where
+  v = Volatile $ map addFoods (unVolatile . volatile $ t)
+  addFoods f = f { ingr = newIngr } where
+    newIngr = Ingr ((unIngr . ingr $ f) ++ fs)
+
+-- | Looks up in the buffer the foods corresponding to a list of
+-- FoodId given. Returns Right [Food] if all the foods are found;
+-- returns Left R.Error if any of the FoodId did not match a food.
+lookupFoodId :: [FoodId] -> Tray -> Either [FoodId] [Food]
+lookupFoodId is t = let
+  b = unBuffer . buffer $ t
+  m = Map.fromList $ zip (map foodId b) b
+  f i (Left es) = case Map.lookup i m of
+    Nothing -> Left (i:es)
+    (Just _) -> Left es
+  f i (Right fs) = case Map.lookup i m of
+    Nothing -> Left [i]
+    (Just fd) -> Right (fd:fs)
+  in foldr f (Right []) is
 
 ------------------------------------------------------------
 -- REPORTING
@@ -467,26 +492,6 @@ fromListNoDupe = foldr f (Right Map.empty) where
       (Just _, _) -> Left k
       (Nothing, nm) -> Right nm
 
--- | Finds all items from a given list inside of another list, but if
--- a given predicate matches no items or matches more than one item,
--- returns an error.
-findOneInOrder ::
-  (k -> e)
-  -- ^ How to make an error
-  
-  -> (k -> a -> Bool)
-  -- ^ How to make a predicate
-  
-  -> [k]
-  -- ^ Find items matching these keys
-
-  -> [a]
-  -- ^ Find items within this list
-  
-  -> Either e [a]
-  -- ^ Items matching each key, in order
-findOneInOrder = undefined
-
 -- | Find all items from a given list inside of another list, using a
 -- specified predicate. 
 findAllInOrder ::
@@ -502,6 +507,13 @@ findAllInOrder ::
   -> [[a]]
   -- ^ Items matching each key, in order
 findAllInOrder f ks as = f <$> ks <**> pure filter <*> pure as
+
+partitionSingletons ::
+  [[a]]
+  -> ([[a]], [a])
+partitionSingletons = foldr f ([], []) where
+  f (a:[]) (ms, ss) = (ms, a:ss)
+  f a (ms, ss) = (a:ms, ss)
 
 sortByOrder :: (Ord a)
                => [a]

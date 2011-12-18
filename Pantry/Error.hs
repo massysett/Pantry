@@ -27,6 +27,8 @@ data Error = NoMatchingUnit
            | EmptyFilePath
            | FindLoadFileError IOException
            | FindSaveDirError IOException
+           | IngrToVolatileLookup [T.FoodId]
+
 
 instance E.Error Error where
   strMsg = Other
