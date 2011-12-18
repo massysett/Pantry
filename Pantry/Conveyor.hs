@@ -43,11 +43,13 @@ import Pantry.Tray ( Tray, nextId, filename, unsaved,
 import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
+import qualified Pantry.Types as T
 
+-- * The conveyor
 type Convey = Tray -> E.ErrorT R.Error IO Tray
 
 ------------------------------------------------------------
--- FILTERING
+-- * Combinators
 ------------------------------------------------------------
 
 predToFilter :: (Food -> Bool) -> Volatile -> Volatile
@@ -72,6 +74,17 @@ filterToConvey = trayFilterToConvey . filterToTrayFilter
 newVolatileToConvey :: Volatile -> Tray -> E.ErrorT R.Error IO Tray
 newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 
+------------------------------------------------------------
+-- * Filtering foods from volatile
+------------------------------------------------------------
+find :: T.NameFood -> Bool
+find = undefined
+
+clear :: Volatile
+clear = Volatile []
+
+
+
 data FirstPos = Beginning | After FoodId
 
 concatMoveIds ::
@@ -82,9 +95,6 @@ concatMoveIds fss is = F.foldrM f [] (zip is fss) where
   f (i, []) _ = E.throwError $ R.MoveIdNotFound i
   f (_, (food:[])) rs = return $ food : rs
   f (i, _) _ = E.throwError $ R.MultipleMoveIdMatches i
-
-clear :: Volatile
-clear = Volatile []
 
 recopy :: Tray -> Tray
 recopy t = t { volatile = Volatile . unBuffer . buffer $ t }
