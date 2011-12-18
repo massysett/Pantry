@@ -28,6 +28,7 @@ data Error = NoMatchingUnit
            | FindLoadFileError IOException
            | FindSaveDirError IOException
            | IngrToVolatileLookup [T.FoodId]
+           | IngrFromVolatileNotFound [T.FoodId]
 
 
 instance E.Error Error where

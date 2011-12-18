@@ -28,7 +28,7 @@ import qualified Pantry.Error as R
 
 import Pantry.Food(Food,
             unIngr, ingr, Ingr(Ingr), foodId,
-            emptyFood)
+            emptyFood, addIngredients)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),
@@ -304,8 +304,27 @@ delete t =
     f (Volatile v) (Buffer d) =
       Buffer $ deleteAll foodId (map foodId v) d
 
-ingrFromVolatile :: [FoodId] -> Tray -> Tray
-ingrFromVolatile = undefined
+-- | Add foods in volatile to foods in the buffer that match a given
+-- ID. Fails if one of the given FoodIds is not found.
+ingrFromVolatile :: [FoodId] -> Tray -> Either R.Error Tray
+ingrFromVolatile is t = let
+  add = addIngredients (unVolatile . volatile $ t)
+  g f = do
+    s <- St.get
+    case Set.member (foodId f) s of
+      False -> return f
+      True -> do
+        St.modify (Set.delete (foodId f))
+        return $ add f
+  bufComp = mapM g (unBuffer . buffer $ t)
+  initSet = Set.fromList is
+  (newBufFoods, newSet) = St.runState bufComp initSet
+  newTray = t { buffer = Buffer newBufFoods }
+  err = R.IngrFromVolatileNotFound (Set.toList newSet)
+  in case (Set.null newSet) of
+    True -> Right newTray
+    False -> Left err
+
 
 -- | True if two foods have equal IDs.
 eqId :: Food -> Food -> Bool
