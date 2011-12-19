@@ -30,6 +30,8 @@ import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
 import Data.Text(snoc, append, pack)
 
+-- | Non negative, rational numbers. Their value can be zero or
+-- greater.
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
 
@@ -39,10 +41,14 @@ instance Serialize NonNeg where
     r <- get
     return $ NonNeg r
 
+-- | Create a new NonNeg from a Rational. This function is partial. It
+-- will crash if its argument is less than zero.
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where
   e = error "partialNewNonNeg: value out of range"
 
+-- | Non negative, mixed numbers. Have both a decimal part and a
+-- rational part.
 data NonNegMixed = NonNegMixed { mixedDec :: Decimal
                                , mixedRatio :: Rational } deriving Show
 
@@ -77,12 +83,14 @@ instance Eq NonNegMixed where
 instance Ord NonNegMixed where
   compare l r = compare (toNonNeg l) (toNonNeg r)
 
+-- | Convet a non negative mixed number to a non negative rational
+-- number.
 toNonNeg :: NonNegMixed -> NonNeg
 toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
 
--- Do not make this an instance of Enum - then prec would be
--- partial. That would be okay in theory, as prec can be partial, but
--- I would rather avoid it.
+-- | Non negative integers. Can be zero or greater. This is not a
+-- member of many Prelude typeclasses (such as Enum) because those
+-- typeclasses have partial functions.
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
                         deriving (Eq, Ord, Show)
 
@@ -90,6 +98,8 @@ instance Serialize NonNegInteger where
   put (NonNegInteger i) = put i
   get = get >>= return . NonNegInteger
 
+-- | Create a new non negative integer. Partial. Will crash if its
+-- argument is less than zero.
 partialNewNonNegInteger :: (Integral i) => i -> NonNegInteger
 partialNewNonNegInteger i
   | ii < 0 = error "partialNewNonNegInteger: integer is negative."
@@ -97,9 +107,9 @@ partialNewNonNegInteger i
     where
       ii = fromIntegral i
 
--- Do not make this an instance of Enum - then prec would be
--- partial. That would be okay in theory, as prec can be partial, but
--- I would rather avoid it.
+-- | Positive integers. Must be greater than zero. Not a member of
+-- Prelude typeclasses such as Enum becuase these functions are
+-- partial.
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
                      deriving (Eq, Ord, Show)
 
@@ -107,6 +117,8 @@ instance Serialize PosInteger where
   put (PosInteger i) = put i
   get = get >>= return . PosInteger
 
+-- | Create a new positive integer. Partial. Will crash if its
+-- argument is less than zero.
 partialNewPosInteger :: (Integral i) => i -> PosInteger
 partialNewPosInteger i
   | ii <= 0 = error "partialNewPosInteger: integer is not positive."
@@ -114,6 +126,8 @@ partialNewPosInteger i
     where
       ii = fromIntegral i
 
+-- | Bounded percent. Represents values between 0 and 100 percent,
+-- inclusive. Internally these are held as NonNegMixed values.
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
                        deriving (Eq, Ord, Show, Exact)
 
@@ -121,11 +135,13 @@ instance Serialize BoundedPercent where
   put (BoundedPercent nnm) = put nnm
   get = get >>= return . BoundedPercent
 
+-- | Reduce a NonNeg by a BoundedPercent.
 subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
 subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
   nn = NonNeg $ n - n * p / 100
   (NonNeg p) = toNonNeg pct
 
+-- | Numbers that can be incremented (e.g. integers, not floats)
 class Next a where
   next :: a -> a
 
@@ -135,6 +151,9 @@ instance Next NonNegInteger where
 instance Next PosInteger where
   next = PosInteger . succ . unPosInteger
 
+-- | Numbers that have a zero value. Non-negative numbers can be
+-- instances of this class; numbers that may only be positive cannot
+-- be members.
 class HasZero a where
   zero :: a
 
@@ -148,6 +167,8 @@ instance HasZero NonNegInteger where
 instance HasZero NonNeg where
   zero = NonNeg $ 0 % 1
 
+-- | Numbers that can be added. (FIXME - currently makes no sense?
+-- Things that do not have a zero can be added?)
 class (HasZero a) => Add a where
   add :: a -> a -> a
   mult :: a -> a -> a
@@ -158,7 +179,9 @@ instance Add NonNeg where
   mult (NonNeg l) (NonNeg r) = NonNeg $ l * r
   one = NonNeg 1
 
+-- | Things that can be divided.
 class Divide a where
+  -- | Returns a Nothing for division by zero.
   divide :: a -> a -> Maybe a
 
 instance Divide NonNeg where
@@ -166,6 +189,7 @@ instance Divide NonNeg where
     | r == 0 = Nothing
     | otherwise = Just . NonNeg $ l / r
 
+-- | Things that can be converted from a string.
 class FromStr a where
   fromStr :: String -> Maybe a
 
