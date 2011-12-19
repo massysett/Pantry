@@ -7,7 +7,6 @@ import Data.Maybe
 import Control.Monad
 import Data.List
 import qualified Data.Foldable as F
-import qualified Data.Traversable as T
 import Pantry.Types
 import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
@@ -15,10 +14,8 @@ import Pantry.Exact(Exact(exact))
 import Pantry.Rounded(Rounded)
 import Data.Serialize (Serialize(put, get))
 import Data.Monoid as Monoid
-import Pantry.Error as R
 
 type Matcher = (Text -> Bool)
-type Xform = (Food -> Either R.Error Food)
 
 -- * Data types within Foods
 
@@ -303,23 +300,6 @@ allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
   absU = map (\(UnitNameAmt n a) -> (n, a))
          [absGrams, absOunces, absPounds]
 
--- | Change current unit to the one matching a matcher.
-changeCurrUnit :: (Text -> Bool) -> Food -> Either R.Error Food
-changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
-  oneMatch = length ms == 1
-  (UnitNamesAmts allU) = allUnits $ units f
-  newFood = f {currUnit = newUnit}
-  newUnit = UnitNameAmt headMatchName headMatchGrams
-  headMatchName = fst . head $ ms
-  headMatchGrams = snd . head $ ms
-  ms = filter prev $ M.assocs allU
-  prev ((Name n), _) = m n
-  err = if' (null ms) R.NoMatchingUnit (R.MultipleMatchingUnits ms)
-
-changeCurrUnits :: (T.Traversable t)
-                   => (Text -> Bool) -> t Food -> Either R.Error (t Food)
-changeCurrUnits m = T.mapM (changeCurrUnit m)
-
 foodGrams :: Food -> Grams
 foodGrams f = Grams $ q `mult` u where
   (Qty quan) = qty f
@@ -327,28 +307,6 @@ foodGrams f = Grams $ q `mult` u where
     (Left nn) -> nn
     (Right mix) -> toNonNeg mix
   (UnitNameAmt _ (Grams u)) = currUnit f
-
--- Nut manipulations
-addNut :: NutNameAmt -> Food -> Either R.Error Food
-addNut (NutNameAmt n a) f = if' notZero (Right newFood) (Left err) where
-  g = foodGrams f
-  notZero = g /= zero
-  newFood = f {nutsPerGs = newPerGs}
-  (NutNamesPerGs oldPerGs) = nutsPerGs f
-  newPerG = NutsPerG . fromJust $ rat `divide` gr where
-    (NutAmt rat) = a
-    (Grams gr) = g
-  newPerGs = NutNamesPerGs $ M.insert n newPerG oldPerGs
-  err = R.AddNutToZeroQty
-
-addNuts :: (F.Foldable f) => f NutNameAmt -> Food -> Either R.Error Food
-addNuts ns f = F.foldlM (flip addNut) f ns
-
-addNutsToFoods :: (F.Foldable a, T.Traversable t)
-                  => a NutNameAmt
-                  -> t Food
-                  -> Either R.Error (t Food)
-addNutsToFoods ns = T.mapM (addNuts ns)
 
 nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
 nutsPerGToAmt (Grams g) (NutsPerG r) = NutAmt $ g `mult` r

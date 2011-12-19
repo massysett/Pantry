@@ -43,7 +43,6 @@ import Pantry.Tray ( Tray, nextId, filename, unsaved,
 import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
-import qualified Pantry.Types as T
 
 -- * The conveyor
 type Convey = Tray -> E.ErrorT R.Error IO Tray
@@ -77,9 +76,6 @@ newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 ------------------------------------------------------------
 -- * Filtering foods from volatile
 ------------------------------------------------------------
-find :: T.NameFood -> Bool
-find = undefined
-
 clear :: Volatile
 clear = Volatile []
 
