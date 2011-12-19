@@ -1,6 +1,107 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Pantry.Food where
 
+-- | This module containts the Food data type, along with types that
+-- are within the Food type. There are some simple functions in here
+-- to manipulate Food values; to the extent that such functions can
+-- fail, they do not return anything that is defined in the
+-- Pantry.Error module becuase that would introduce a circular
+-- dependency.
+module Pantry.Food ( 
+  -- * Data types within Foods
+  -- ** FoodId
+  FoodId ( FoodId, unFoodId ),
+  zeroFoodId,
+  oneFoodId,
+  
+  -- ** Name
+  Name ( Name, unName ),
+  
+  -- ** Grams
+  Grams ( Grams, unGrams),
+  MixedGrams ( MixedGrams, unMixedGrams ),
+  
+  -- ** Nutrients
+  NutAmt ( NutAmt, unNutAmt ),
+  NutNameAmt ( NutNameAmt, nutName, nutAmt ),
+  NutNamesAmts ( NutNamesAmts, unNutNamesAmts ),
+  NutsPerG ( NutsPerG, unNutsPerG ),
+  NutNamesPerGs ( NutNamesPerGs, unNutNamesPerGs ),
+
+  -- ** Units
+  UnitNameAmt ( UnitNameAmt, unitName, unitGrams ),
+  UnitNamesAmts ( UnitNamesAmts, unUnitNamesAmts ),
+  absGrams,
+  absOunces,
+  absPounds,
+  addUnit,
+  addUnits,
+  addUnitsToFoods,
+  deleteUnit,
+  deleteUnits,
+  deleteUnitsFromFoods,
+  allAvailUnits,
+  allUnits,
+  
+  -- ** Tags
+  TagVal ( TagVal, unTagVal ),
+  TagNameVal ( TagNameVal, tagName, tagVal ),
+  TagNamesVals ( TagNamesVals, unTagNamesVals ),
+  hasTag,
+  getTag,
+  tagPred,
+  changeTag,
+  changeTags,
+  changeTagsInFoods,
+  deleteTag,
+  deleteTagByPat,
+  deleteTagsByPat,
+  deleteTagsInFoodsByPat,
+  foodMatch,
+  
+  -- ** Quantity, yield, ingredients, PctRefuse
+  Qty ( Qty, unQty ),
+  changeQty,
+  Yield ( Yield, unYield ),
+  PctRefuse ( PctRefuse, unPctRefuse ),
+  setPctRefuse,
+  minusPctRefuse,
+  Ingr ( Ingr, unIngr ),
+  ingredientMass,
+  recipeYield,
+  addIngredient,
+  addIngredients,
+  addIngredientsToFoods,
+  deleteIngredients,
+  
+  -- ** NutRatio
+  NutRatio ( NutRatio, unNutRatio ),
+  nutRatio,
+  
+  -- * Food
+  Food ( Food, tags, units, nutsPerGs, currUnit,
+         pctRefuse, qty, yield, ingr, foodId ),
+  emptyFood,
+  
+  -- * Queries on foods
+  foodGrams,
+  nutsPerGToAmt,
+  foodIngrNuts,
+  foodNuts,
+  getNut,
+  foodAbsNuts,
+  sumNuts,
+  foldNuts,
+  foldFoodNuts,
+  
+  -- * Generic functions
+  deleteMapKeys,
+  
+
+  -- * Typeclasses
+  -- ** HasName
+  HasName ( name )
+  ) where
+  
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Maybe
@@ -15,7 +116,7 @@ import Pantry.Rounded(Rounded)
 import Data.Serialize (Serialize(put, get))
 import Data.Monoid as Monoid
 
-type Matcher = (Text -> Bool)
+type Matcher = Text -> Bool
 
 -- * Data types within Foods
 
@@ -144,7 +245,7 @@ newtype Ingr = Ingr { unIngr :: [Food] }
 
 -- | NutRatio is not within the Food datatype, but reports use it. For
 -- now this seems to be the best module to put this in.
-newtype NutRatio = NutRatio NonNeg
+newtype NutRatio = NutRatio { unNutRatio :: NonNeg }
                    deriving (Show, Exact, Rounded, Serialize)
 
 nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio

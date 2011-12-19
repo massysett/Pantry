@@ -6,7 +6,7 @@ import Prelude((.), ($), maybe, return, Int, (==), map,
 import Data.Text (empty, pack, append, Text, concat)
 import Pantry.Food(NutAmt, nutRatio, Food, getNut,
             NutNamesAmts(NutNamesAmts), foodNuts,
-            Name(Name))
+            Name)
 import Pantry.Reports.Render(Render(render))
 import Pantry.Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
                      goals, showAllNuts)
