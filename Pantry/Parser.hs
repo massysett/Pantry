@@ -155,9 +155,11 @@ move = OptDesc "" ["move"] a where
           c = C.trayMToConvey . C.filterMToTrayM $ volatileChanger
       return $ addConveyor o c
 
-{-
 undo = OptDesc "" ["undo"] a where
   a = Single f
   f o a1 = do
--}  
+    i <- strToNonNegInteger a1
+    let u = C.undo i
+        c = C.trayMToConvey u
+    return $ addConveyor o c
 
