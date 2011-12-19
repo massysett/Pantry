@@ -34,6 +34,9 @@ data Error = NoMatchingUnit
            | ParseError String
            | IDsNotFound [FoodId]
            | IDStringNotValid String
+           | NonNegIntegerStringNotValid String
+           | NoMoveIDsGiven
+           | OneMoveIDGiven
 
 instance E.Error Error where
   strMsg = Other

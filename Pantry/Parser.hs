@@ -13,7 +13,7 @@ import qualified Pantry.Conveyor as C
 import qualified Pantry.Reports.Types as RT
 import qualified Pantry.Food as F
 import Control.Monad ((>=>), mapM)
-import Pantry.Types ( fromStr )
+import Pantry.Types ( fromStr, NonNegInteger )
 
 getConveyor :: Request
                -> T.Tray
@@ -76,6 +76,9 @@ raiseMatcher ::
   -> String -> Either Error (Text -> Bool)
 raiseMatcher f s = Right $ f s
 
+addConveyor :: Opts -> (T.Tray -> E.ErrorT Error IO T.Tray) -> Opts
+addConveyor o c = o { conveyor = conveyor o >=> c }
+
 -- Filtering
 find = OptDesc "f" ["find"] a where
   a = Double f
@@ -85,7 +88,7 @@ find = OptDesc "f" ["find"] a where
         c = C.trayFilterToConvey .
             C.filterToTrayFilter .
             C.predToFilter $ p
-        newO = o { conveyor = conveyor o >=> c }
+        newO = addConveyor o c
     return newO
 
 strToId :: String -> Either R.Error F.FoodId
@@ -97,8 +100,64 @@ findIds = OptDesc "" ["id"] a where
   a = Variable f
   f o as = do
     is <- mapM strToId as
-    let newO = o { conveyor = conveyor o >=> c }
+    let newO = addConveyor o c
         c = C.trayMToConvey . C.filterMToTrayM $ volatileFilter
         volatileFilter = C.findIds is
     return newO
+
+clear = OptDesc "" ["clear"] a where
+  a = Flag f
+  f o = return $ addConveyor o c where
+    c = C.newVolatileToConvey C.clear
+
+recopy = OptDesc "" ["recopy"] a where
+  a = Flag f
+  f o = return $ addConveyor o c where
+    c = C.trayFilterToConvey C.recopy
+
+strToNonNegInteger :: String -> Either R.Error NonNegInteger
+strToNonNegInteger s = case fromStr s of
+  Nothing -> Left (R.NonNegIntegerStringNotValid s)
+  (Just i) -> Right i
+
+head = OptDesc "" ["head"] a where
+  a = Single f
+  f o a = do
+    i <- strToNonNegInteger a
+    return $ C.filterToConvey (C.head i)
+
+tail = OptDesc "" ["tail"] a where
+  a = Single f
+  f o a = do
+    i <- strToNonNegInteger a
+    return $ C.filterToConvey (C.tail i)
+
+create = OptDesc "" ["create"] a where
+  a = Flag f
+  f o = return $ C.filterToConvey C.create
+
+move = OptDesc "" ["move"] a where
+  a = Variable f
+  f o as = case as of
+    [] -> Left R.NoMoveIDsGiven
+    (_:[]) -> Left R.OneMoveIDGiven
+    (as1:ass) -> do
+      first <- case as1 of
+        "f" -> return C.Beginning
+        "F" -> return C.Beginning
+        n -> do
+          i <- strToNonNegInteger n
+          return (C.After (F.FoodId i))
+      rest <- do
+        is <- mapM strToNonNegInteger ass
+        return $ map F.FoodId is
+      let volatileChanger = C.move first rest
+          c = C.trayMToConvey . C.filterMToTrayM $ volatileChanger
+      return $ addConveyor o c
+
+{-
+undo = OptDesc "" ["undo"] a where
+  a = Single f
+  f o a1 = do
+-}  
 
