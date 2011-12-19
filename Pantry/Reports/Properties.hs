@@ -8,8 +8,7 @@ import Data.Text(Text, pack, append, snoc, concat, cons)
 import Pantry.Food(Food(qty, foodId, currUnit, pctRefuse),
             UnitNameAmt(UnitNameAmt),
             recipeYield, foodGrams,
-            PctRefuse(PctRefuse))
-import Pantry.Types(Name(Name))
+            PctRefuse(PctRefuse), Name(Name))
 import Pantry.Exact(Exact(exact))
 
 properties :: ReportOpts -> Food -> Text

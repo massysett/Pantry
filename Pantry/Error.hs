@@ -1,21 +1,22 @@
 module Pantry.Error where
 
 import qualified Control.Monad.Error as E
-import qualified Pantry.Types as T
+import Pantry.Food (Name, Grams, FoodId)
 import Control.Exception ( IOException )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
+import Pantry.Types (NonNegInteger)
 
 data Error = NoMatchingUnit
-           | MultipleMatchingUnits [(T.Name, T.Grams)]
+           | MultipleMatchingUnits [(Name, Grams)]
            | AddNutToZeroQty
            | RegexComp String
            | NoReportMatch String [String]
            | Other String
-           | MoveIdNotFound T.FoodId
-           | MultipleMoveIdMatches T.FoodId
-           | MultipleEditIdMatches T.FoodId
-           | MoveStartNotFound T.FoodId
+           | MoveIdNotFound FoodId
+           | MultipleMoveIdMatches FoodId
+           | MultipleEditIdMatches FoodId
+           | MoveStartNotFound FoodId
            | CanonicalizeError IOException
            | FileSaveError IOException
            | FileReadError IOException
@@ -23,12 +24,12 @@ data Error = NoMatchingUnit
            | NotPantryFile
            | WrongFileVersion
            | NoSaveFilename
-           | UndoTooBig T.NonNegInteger Integer
+           | UndoTooBig NonNegInteger Integer
            | EmptyFilePath
            | FindLoadFileError IOException
            | FindSaveDirError IOException
-           | IngrToVolatileLookup [T.FoodId]
-           | IngrFromVolatileNotFound [T.FoodId]
+           | IngrToVolatileLookup [FoodId]
+           | IngrFromVolatileNotFound [FoodId]
 
 
 instance E.Error Error where

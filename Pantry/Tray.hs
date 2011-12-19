@@ -1,12 +1,11 @@
 module Pantry.Tray where
 
-import Pantry.Food(Food)
+import Pantry.Food(Food, oneFoodId)
 import qualified Data.DList as DL
 import qualified Data.Text as X
 import Pantry.Paths ( CanonPath )
 
 import qualified Pantry.Bag as Bag
-import Pantry.Types ( oneFoodId )
 
 newtype Volatile = Volatile { unVolatile :: [Food] }
 newtype Output = Output { unOutput :: DL.DList X.Text }

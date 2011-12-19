@@ -12,8 +12,7 @@ import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger),
-                    FoodId)
+import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger))
 import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
@@ -28,7 +27,7 @@ import qualified Pantry.Error as R
 
 import Pantry.Food(Food,
             unIngr, ingr, Ingr(Ingr), foodId,
-            emptyFood, addIngredients)
+            emptyFood, addIngredients, FoodId)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),

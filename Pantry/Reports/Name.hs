@@ -1,9 +1,9 @@
 module Pantry.Reports.Name (name) where
 
 import Prelude((.), ($), Maybe(Nothing, Just))
-import Pantry.Food(TagNameVal(TagNameVal), TagVal(TagVal), getTag, Food)
+import Pantry.Food(TagNameVal(TagNameVal), TagVal(TagVal), getTag, Food,
+                   Name(Name))
 import Data.Text(snoc, pack, Text)
-import Pantry.Types(Name(Name))
 
 name :: Food -> Text
 name f = snoc n '\n' where

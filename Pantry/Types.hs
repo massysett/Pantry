@@ -18,15 +18,7 @@ module Pantry.Types( NonNeg
             , HasZero(..)
             , Add(..)
             , Divide(..)
-            , FromStr(..) 
-            , Grams(Grams, unGrams) 
-            , FoodId(FoodId)
-            , unFoodId
-            , zeroFoodId
-            , oneFoodId 
-            , Name(Name)
-            , unName
-            , HasName(name) ) where
+            , FromStr(..) ) where
 
 import Data.Ratio((%), numerator, denominator)
 import Pantry.Exact(Exact, exact)
@@ -34,10 +26,9 @@ import Data.Decimal(Decimal, DecimalRaw(Decimal))
 import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
 import Control.Monad(when)
-import Data.Text(Text, snoc, append, pack)
 import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
-import Data.Text.Encoding(encodeUtf8, decodeUtf8)
+import Data.Text(snoc, append, pack)
 
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
@@ -203,35 +194,6 @@ instance FromStr PosInteger where
                 _ -> Just . PosInteger $ i
     _ -> Nothing
 
--- | Grams expressed as a simple NonNeg number.
-newtype Grams = Grams { unGrams :: NonNeg }
-                deriving (Eq, Ord, Show, Add,
-                          HasZero, Exact, Rounded, Serialize)
-
--- | A food's unique identifier. Do not make FoodId an instance of
--- Enum. This would allow prec to be called on it. In theory this
--- would be OK (prec can be partial) but better to avoid that. Instead
--- use the Next typeclass.
-newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord, Next, Serialize)
-
--- | FoodID of zero
-zeroFoodId :: FoodId
-zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
-
--- | FoodID of one
-oneFoodId :: FoodId
-oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
-
-class HasName a where
-  name :: a -> Name
-
--- | The name of a tag, nutrient, or unit
-newtype Name = Name { unName :: Text } deriving (Eq, Ord, Show, Exact)
-instance Serialize Name where
-  put (Name t) = put . encodeUtf8 $ t
-  get = get >>= return . Name . decodeUtf8
-
 -- Parsec basement
 
 parseNonNegMixed :: Parser NonNegMixed
@@ -294,7 +256,3 @@ decimalStr = do
   _ <- char '.'
   frac <- many1 digit
   return $ whole ++ "." ++ frac
-
--- Local Variables:
--- compile-command: "ghc -Wall -outputdir temp Types.hs"
--- End:

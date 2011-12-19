@@ -19,6 +19,35 @@ type Matcher = (Text -> Bool)
 
 -- * Data types within Foods
 
+-- | A food's unique identifier. Do not make FoodId an instance of
+-- Enum. This would allow prec to be called on it. In theory this
+-- would be OK (prec can be partial) but better to avoid that. Instead
+-- use the Next typeclass.
+newtype FoodId = FoodId { unFoodId :: NonNegInteger }
+                 deriving (Show, Eq, Ord, Next, Serialize)
+
+-- | FoodID of zero
+zeroFoodId :: FoodId
+zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
+
+-- | FoodID of one
+oneFoodId :: FoodId
+oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
+
+class HasName a where
+  name :: a -> Name
+
+-- | The name of a tag, nutrient, or unit
+newtype Name = Name { unName :: Text } deriving (Eq, Ord, Show, Exact)
+instance Serialize Name where
+  put (Name t) = put . encodeUtf8 $ t
+  get = get >>= return . Name . decodeUtf8
+
+-- | Grams expressed as a simple NonNeg number.
+newtype Grams = Grams { unGrams :: NonNeg }
+                deriving (Eq, Ord, Show, Add,
+                          HasZero, Exact, Rounded, Serialize)
+
 -- | Amount of a nutrient
 newtype NutAmt = NutAmt { unNutAmt :: NonNeg }
                  deriving (Eq, Ord, Show, Add, HasZero,
