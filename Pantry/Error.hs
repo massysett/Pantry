@@ -6,6 +6,7 @@ import Control.Exception ( IOException )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
 import Pantry.Types (NonNegInteger)
+import qualified System.Console.OptParse.OptParse as O
 
 data Error = NoMatchingUnit
            | MultipleMatchingUnits [(Name, Grams)]
@@ -30,10 +31,15 @@ data Error = NoMatchingUnit
            | FindSaveDirError IOException
            | IngrToVolatileLookup [FoodId]
            | IngrFromVolatileNotFound [FoodId]
-
+           | ParseError String
+           | IDsNotFound [FoodId]
+           | IDStringNotValid String
 
 instance E.Error Error where
   strMsg = Other
+
+instance O.ParseErr Error where
+  store = ParseError
 
 showError :: Error -> X.Text
 showError = undefined

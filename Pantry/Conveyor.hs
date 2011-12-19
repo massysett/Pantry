@@ -75,10 +75,32 @@ newVolatileToConvey = trayFilterToConvey . filterToTrayFilter . const
 ------------------------------------------------------------
 -- * Filtering foods from volatile
 ------------------------------------------------------------
+-- | Remove all foods from volatile that match one of the IDs
+-- given. Fails if one of the IDs is not found.
+--
+-- Works by running a right fold over the FoodId list. The accumulator
+-- in the fold looks up the FoodId in a map which maps all the FoodIds
+-- in Volatile to the foods in Volatile. If the food is found, it is
+-- added to the result; if not, the FoodId is added to a list of
+-- FoodIds not found. Therefore the foods returned are in the order of
+-- the FoodId given. Also, it is not an error if a FoodId is given
+-- more than once--the food is simply in the list more than once.
+findIds :: [FoodId] -> Volatile -> Either R.Error Volatile
+findIds is (Volatile v) = let
+  g m i (Left es) = case Map.lookup i m of
+    (Just _) -> Left es
+    (Nothing) -> Left (i : es)
+  g m i (Right fs) = case Map.lookup i m of
+    (Just found) -> Right (found : fs)
+    Nothing -> Left [i]
+  ei = foldr (g foodMap) (Right []) is
+  foodMap = Map.fromList $ zip (map foodId v) v
+  in case ei of
+    (Left es) -> Left $ R.IDsNotFound es
+    (Right fs) -> Right $ Volatile fs
+
 clear :: Volatile
 clear = Volatile []
-
-
 
 data FirstPos = Beginning | After FoodId
 
