@@ -27,7 +27,7 @@ import qualified Pantry.Error as R
 
 import Pantry.Food(Food,
             unIngr, ingr, Ingr(Ingr), foodId,
-            emptyFood, addIngredients, FoodId)
+            emptyFood, addIngredient, FoodId)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),
@@ -313,7 +313,8 @@ delete t =
 -- ID. Fails if one of the given FoodIds is not found.
 ingrFromVolatile :: [FoodId] -> Tray -> Either R.Error Tray
 ingrFromVolatile is t = let
-  add = addIngredients (unVolatile . volatile $ t)
+  add f = foldl (flip addIngredient) f (unVolatile . volatile $ t)
+  --add = addIngredients (unVolatile . volatile $ t)
   g f = do
     s <- St.get
     case Set.member (foodId f) s of

@@ -34,11 +34,7 @@ module Pantry.Food (
   absOunces,
   absPounds,
   addUnit,
-  addUnits,
-  addUnitsToFoods,
   deleteUnit,
-  deleteUnits,
-  deleteUnitsFromFoods,
   allAvailUnits,
   allUnits,
   
@@ -50,12 +46,7 @@ module Pantry.Food (
   getTag,
   tagPred,
   changeTag,
-  changeTags,
-  changeTagsInFoods,
   deleteTag,
-  deleteTagByPat,
-  deleteTagsByPat,
-  deleteTagsInFoodsByPat,
   foodMatch,
   
   -- ** Quantity, yield, ingredients, PctRefuse
@@ -69,8 +60,6 @@ module Pantry.Food (
   ingredientMass,
   recipeYield,
   addIngredient,
-  addIngredients,
-  addIngredientsToFoods,
   deleteIngredients,
   
   -- ** NutRatio
@@ -96,7 +85,6 @@ module Pantry.Food (
   -- * Generic functions
   deleteMapKeys,
   
-
   -- * Typeclasses
   -- ** HasName
   HasName ( name )
@@ -346,35 +334,11 @@ changeTag (TagNameVal n (TagVal v)) f = f {tags = new} where
   (TagNamesVals old) = tags f
   new = TagNamesVals (M.insert n (TagVal v) old)
 
-changeTags :: F.Foldable f => f TagNameVal -> Food -> Food
-changeTags ts f = F.foldl' (flip changeTag) f ts
-
-changeTagsInFoods :: (F.Foldable a, Functor b) =>
-                     a TagNameVal
-                     -> b Food
-                     -> b Food
-changeTagsInFoods ts = fmap (changeTags ts)
-
-deleteTag :: Name -> Food -> Food
-deleteTag t f = f { tags = new } where
-  (TagNamesVals old) = tags f
-  new = TagNamesVals $ M.delete t old
-
-deleteTagByPat :: (Text -> Bool) -> Food -> Food
-deleteTagByPat m f = f { tags = new } where
+deleteTag :: (Text -> Bool) -> Food -> Food
+deleteTag m f = f { tags = new } where
   (TagNamesVals old) = tags f
   new = TagNamesVals . M.fromList . filter p . M.assocs $ old
   p (Name n, _) = not $ m n
-
-deleteTagsByPat :: (F.Foldable f)
-              => f (Text -> Bool) -> Food -> Food
-deleteTagsByPat ms f = F.foldl' (flip deleteTagByPat) f ms
-
-deleteTagsInFoodsByPat :: (F.Foldable a, Functor b)
-                     => a (Text -> Bool)
-                     -> b Food
-                     -> b Food
-deleteTagsInFoodsByPat ms fs = fmap (deleteTagsByPat ms) fs
 
 changeQty :: Qty -> Food -> Food
 changeQty q f = f { qty = q }
@@ -386,21 +350,11 @@ foodMatch n v f = isJust $ do
   (TagNameVal _ (TagVal val)) <- getTag n f
   guard $ v val
 
--- Units manipulations
 -- |Add an arbitrary unit to a food.
 addUnit :: UnitNameAmt -> Food -> Food
 addUnit (UnitNameAmt n a) f = f {units = new} where
   (UnitNamesAmts old) = units f
   new = UnitNamesAmts $ M.insert n a old
-
-addUnits :: F.Foldable f => f UnitNameAmt -> Food -> Food
-addUnits us f = F.foldl' (flip addUnit) f us
-
-addUnitsToFoods :: (F.Foldable f, Functor l)
-                   => f UnitNameAmt
-                   -> l Food
-                   -> l Food
-addUnitsToFoods us = fmap (addUnits us)
 
 -- | Delete arbitrary units whose name matches a matcher.
 deleteUnit :: (Text -> Bool) -> Food -> Food
@@ -409,16 +363,6 @@ deleteUnit m f = f {units = new} where
   new = UnitNamesAmts $ M.fromList ns
   ns = filter (not . m . uN . fst) (M.assocs old)
   uN n = let (Name v) = n in v
-
-deleteUnits :: (F.Foldable f)
-               => f (Text -> Bool)
-               -> Food
-               -> Food
-deleteUnits ms f = F.foldl' (flip deleteUnit) f ms
-
-deleteUnitsFromFoods :: (F.Foldable a, Functor b)
-                        => a (Text -> Bool) -> b Food -> b Food
-deleteUnitsFromFoods ms = fmap (deleteUnits ms)
 
 allAvailUnits :: Food -> UnitNamesAmts
 allAvailUnits = allUnits . units
@@ -516,19 +460,14 @@ recipeYield f = if' (isJust y) gr i where
 
 -- Ingredient functions
 
-addIngredient :: Food -> Food -> Food
+-- | Appends an ingredient to a Food's ingredients.
+addIngredient :: Food    -- ^ The ingredient to add
+                 -> Food -- ^ The food to add it to
+                 -> Food
 addIngredient i f = f {ingr = Ingr new} where
   (Ingr old) = ingr f
   new = old ++ [i]
   
-addIngredients :: F.Foldable f =>
-                  f Food -> Food -> Food
-addIngredients fs f = F.foldl' (flip addIngredient) f fs
-
-addIngredientsToFoods :: (F.Foldable f, Functor u)
-                         => f Food -> u Food -> u Food
-addIngredientsToFoods fs = fmap (addIngredients fs)
-
 deleteIngredients :: Food -> Food
 deleteIngredients f = f {ingr = Ingr [] }
 
