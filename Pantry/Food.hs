@@ -193,11 +193,22 @@ data SetQtyByNutFailure
 -- | Given a matcher and a quantity, set the food's quantity so that
 -- the amount of the given nutrient is what was given. See
 -- documentation for SetQtyByNutResult for details.
+
 setQtyByNut :: (Text -> Bool)
                -> NutAmt
                -> Food
                -> Either SetQtyByNutFailure Food
 setQtyByNut = undefined
+{-
+setQtyByNut m nutAmt f = let
+  p ((Name n), _) = m n
+  matches = filter p . M.assocs . unNutNamesAmts . foodNuts $ f
+  in case matches of
+    [] -> Left QBNNoMatchingNut
+    (x:[]) -> let
+-}
+    
+-- | Given a nutrient amount and a nutrient ratio, 
 
 -- | A unit's name paired with its amount.
 data UnitNameAmt = UnitNameAmt { unitName :: Name
@@ -445,9 +456,17 @@ foodGrams f = Grams $ q `mult` u where
     (Right mix) -> toNonNeg mix
   (UnitNameAmt _ (Grams u)) = currUnit f
 
+------------------------------------------------------------
+-- NUTRIENT FUNCTIONS
+------------------------------------------------------------
+
+-- | Given the total mass of a food, and the nutrient per gram of this
+-- food, return the amount of the nutrient.
 nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
 nutsPerGToAmt (Grams g) (NutsPerG r) = NutAmt $ g `mult` r
 
+-- | Given a food, return the nutrients that come from the
+-- ingredients.
 foodIngrNuts :: Food -> NutNamesAmts
 foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
   raw = (\(NutNamesAmts m) -> m) . foldFoodNuts
@@ -521,13 +540,6 @@ recipeYield f = case yield f of
     case m > zero of
       False -> Nothing
       True -> Just . Grams $ m
-{-
-recipeYield f = if' (isJust y) gr i where
-  gr = Just . Grams . toNonNeg . (\(MixedGrams m) -> m) . fromJust $ y
-  (Yield y) = yield f
-  i = if' (mR > zero) (Just . Grams $ mR) Nothing
-  (Grams mR) = ingredientMass f
--}
 
 -- Ingredient functions
 
