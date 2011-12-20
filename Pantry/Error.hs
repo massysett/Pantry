@@ -1,15 +1,14 @@
 module Pantry.Error where
 
 import qualified Control.Monad.Error as E
-import Pantry.Food (Name, Grams, FoodId)
+import Pantry.Food (Name, FoodId)
 import Control.Exception ( IOException )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
 import Pantry.Types (NonNegInteger)
 import qualified System.Console.OptParse.OptParse as O
 
-data Error = NoMatchingUnit
-           | MultipleMatchingUnits [(Name, Grams)]
+data Error = NotExactlyOneMatchingUnit [Name]
            | AddNutToZeroQty
            | RegexComp String
            | NoReportMatch String [String]
@@ -37,6 +36,8 @@ data Error = NoMatchingUnit
            | NonNegIntegerStringNotValid String
            | NoMoveIDsGiven
            | OneMoveIDGiven
+           | NonNegMixedNotValid String
+           | BoundedPercentNotValid String
 
 instance E.Error Error where
   strMsg = Other

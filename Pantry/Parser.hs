@@ -13,7 +13,7 @@ import qualified Pantry.Conveyor as C
 import qualified Pantry.Reports.Types as RT
 import qualified Pantry.Food as F
 import Control.Monad ((>=>), mapM)
-import Pantry.Types ( fromStr, NonNegInteger )
+import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
 
 getConveyor :: Request
                -> T.Tray
@@ -163,3 +163,54 @@ undo = OptDesc "" ["undo"] a where
         c = C.trayMToConvey u
     return $ addConveyor o c
 
+------------------------------------------------------------
+-- CHANGE TAGS AND PROPERTIES
+------------------------------------------------------------
+changeTag = OptDesc "c" ["change-tag"] a where
+  a = Double f
+  f o a1 a2 = return newO where
+    nameVal = F.TagNameVal n v
+    n = F.Name . pack $ a1
+    v = F.TagVal . pack $ a2
+    ct = F.changeTag nameVal
+    c = C.xformToConvey (return . ct)
+    newO = addConveyor o c
+
+deleteTag = OptDesc "" ["delete-tag"] a where
+  a = Single f
+  f o a1 = matcher o a1 >>= \m ->
+    let xformer = F.deleteTag m
+        c = C.xformToConvey (return . xformer)
+    in return $ addConveyor o c
+
+setCurrUnit = OptDesc "u" ["change-unit"] a where
+  a = Single f
+  f o a1 = matcher o a1 >>= \m ->
+    let changeWithErr fd = case F.changeCurrUnit m fd of
+          (Right good) -> Right good
+          (Left err) -> Left (R.NotExactlyOneMatchingUnit err)
+        c = C.xformToConvey changeWithErr
+    in return $ addConveyor o c
+
+changeQty = OptDesc "q" ["change-quantity"] a where
+  a = Single f
+  f o a1 = case fromStr a1 of
+    Nothing -> Left (R.NonNegMixedNotValid a1)
+    (Just n) ->
+      let q = F.Qty (Right (n :: NonNegMixed))
+          xform = F.changeQty q
+          c = C.xformToConvey (return . xform)
+      in return $ addConveyor o c
+
+changePctRefuse = OptDesc "" ["change-percent-refuse"] a where
+  a = Single f
+  f o a1 = case fromStr a1 of
+    Nothing -> Left (R.BoundedPercentNotValid a1)
+    (Just n) ->
+      let xform = F.setPctRefuse (F.PctRefuse n)
+          c = C.xformToConvey (return . xform)
+      in return $ addConveyor o c
+
+{-
+changeYield = OptDesc "" ["change-yield"] a where
+-}

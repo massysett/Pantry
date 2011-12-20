@@ -2,19 +2,6 @@ module Pantry.FoodFns where
 
 import Pantry.Food
 
--- | Change current unit to the one matching a matcher.
-changeCurrUnit :: (Text -> Bool) -> Food -> Either R.Error Food
-changeCurrUnit m f = if' oneMatch (Right newFood) (Left err) where
-  oneMatch = length ms == 1
-  (UnitNamesAmts allU) = allUnits $ units f
-  newFood = f {currUnit = newUnit}
-  newUnit = UnitNameAmt headMatchName headMatchGrams
-  headMatchName = fst . head $ ms
-  headMatchGrams = snd . head $ ms
-  ms = filter prev $ M.assocs allU
-  prev ((Name n), _) = m n
-  err = if' (null ms) R.NoMatchingUnit (R.MultipleMatchingUnits ms)
-
 changeCurrUnits :: (T.Traversable t)
                    => (Text -> Bool) -> t Food -> Either R.Error (t Food)
 changeCurrUnits m = T.mapM (changeCurrUnit m)

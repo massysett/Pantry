@@ -37,6 +37,7 @@ module Pantry.Food (
   deleteUnit,
   allAvailUnits,
   allUnits,
+  changeCurrUnit,
   
   -- ** Tags
   TagVal ( TagVal, unTagVal ),
@@ -329,6 +330,9 @@ tagPred n m f = case getTag n f of
   Nothing -> False
   (Just (TagNameVal _ (TagVal x))) -> m x
 
+-- | Changes the value of a tag. Supply this function with the exact
+-- name of the tag (not a pattern) and the new value of the tag. If
+-- the tag already had a value, it is replaced with the new value.
 changeTag :: TagNameVal -> Food -> Food
 changeTag (TagNameVal n (TagVal v)) f = f {tags = new} where
   (TagNamesVals old) = tags f
@@ -373,6 +377,26 @@ allUnits (UnitNamesAmts m) = UnitNamesAmts $ M.fromList new where
   ars = M.assocs m
   absU = map (\(UnitNameAmt n a) -> (n, a))
          [absGrams, absOunces, absPounds]
+
+-- | Change current unit to the one matching a matcher. Fails if there
+-- is not exactly one available unit that matches; Left will hold a
+-- list with the number of matches (might be zero, might be two or
+-- more).
+changeCurrUnit :: (Text -> Bool) -> Food -> Either [Name] Food
+changeCurrUnit m f = let
+  p ((Name n), _) = m n
+  matches = filter p .
+            M.assocs .
+            unUnitNamesAmts .
+            allUnits .
+            units $ f
+  in case matches of
+    [] -> Left []
+    (x:[]) -> let
+      nameAmt = uncurry UnitNameAmt x
+      newFood = f { currUnit = nameAmt }
+      in Right newFood
+    xs -> Left (map fst xs)
 
 foodGrams :: Food -> Grams
 foodGrams f = Grams $ q `mult` u where
@@ -451,6 +475,7 @@ ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
 -- prepared. If there is a Yield already set for the food, return
 -- that. Otherwise, if the food has ingredients and they have positive
 -- mass, return that. Otherwise, return Nothing.
+-- TODO use an algebraic data type rather than Maybe; this is unclear
 recipeYield :: Food -> Maybe Grams
 recipeYield f = if' (isJust y) gr i where
   gr = Just . Grams . toNonNeg . (\(MixedGrams m) -> m) . fromJust $ y
