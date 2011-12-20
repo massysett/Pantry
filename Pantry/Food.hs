@@ -26,6 +26,7 @@ module Pantry.Food (
   NutNamesAmts ( NutNamesAmts, unNutNamesAmts ),
   NutsPerG ( NutsPerG, unNutsPerG ),
   NutNamesPerGs ( NutNamesPerGs, unNutNamesPerGs ),
+  setQtyByNut,
 
   -- ** Units
   UnitNameAmt ( UnitNameAmt, unitName, unitGrams ),
@@ -53,7 +54,7 @@ module Pantry.Food (
   -- ** Quantity, yield, ingredients, PctRefuse
   Qty ( Qty, unQty ),
   changeQty,
-  Yield ( Yield, unYield ),
+  Yield ( AutoYield, ExplicitYield ),
   PctRefuse ( PctRefuse, unPctRefuse ),
   setPctRefuse,
   minusPctRefuse,
@@ -102,8 +103,9 @@ import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Pantry.Exact(Exact(exact))
 import Pantry.Rounded(Rounded)
-import Data.Serialize (Serialize(put, get))
+import Data.Serialize (Serialize(put, get), putWord8)
 import Data.Monoid as Monoid
+import Data.Word ( Word8 )
 
 type Matcher = Text -> Bool
 
@@ -173,6 +175,30 @@ newtype NutNamesPerGs =
 newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
                      deriving (Show, Exact, Serialize)
 
+-- | setQtyByNut can fail in a multitude of ways so this data type
+-- indicates the various failures.
+data SetQtyByNutFailure
+
+  = QBNNoMatchingNut
+    -- ^ No nutrients matched the matcher given
+    
+  | QBNMultipleMatchingNuts [Name]
+    -- ^ Multiple nutrients matched the pattern given
+
+  | QBNNutIsZero Name
+    -- ^ One nutrient matched but the value of that nutrient is
+    -- zero. (Not returned if the requested food amount is zero; that
+    -- computation will succeed and set the food's quantity to zero.)
+
+-- | Given a matcher and a quantity, set the food's quantity so that
+-- the amount of the given nutrient is what was given. See
+-- documentation for SetQtyByNutResult for details.
+setQtyByNut :: (Text -> Bool)
+               -> NutAmt
+               -> Food
+               -> Either SetQtyByNutFailure Food
+setQtyByNut = undefined
+
 -- | A unit's name paired with its amount.
 data UnitNameAmt = UnitNameAmt { unitName :: Name
                                , unitGrams :: Grams } deriving Show
@@ -223,8 +249,21 @@ instance Exact Qty where
 -- | A food's recipe yield. If this was input by the user, it will be Just
 -- MixedGrams. If not input, or if explicitly unset, it will be
 -- Nothing; then Pantry will compute the yield.
-newtype Yield = Yield { unYield :: (Maybe MixedGrams) }
-              deriving (Show, Serialize)
+data Yield = AutoYield
+              | ExplicitYield MixedGrams
+              deriving Show
+
+instance Serialize Yield where
+  put AutoYield = putWord8 0
+  put (ExplicitYield m) = putWord8 1 >> put m
+  get = do
+    c <- get
+    case (c :: Word8) of
+      0 -> return AutoYield
+      1 -> do
+        m <- get
+        return $ ExplicitYield (MixedGrams m)
+      _ -> fail "non-matching number"
 
 -- | Ingredients
 newtype Ingr = Ingr { unIngr :: [Food] }
@@ -304,7 +343,7 @@ emptyFood = Food { tags = TagNamesVals M.empty
                  , currUnit = absGrams
                  , pctRefuse = zero
                  , qty = Qty (Left zero)
-                 , yield = Yield Nothing
+                 , yield = AutoYield
                  , ingr = Ingr []
                  , foodId = zeroFoodId }
 
@@ -475,13 +514,20 @@ ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
 -- prepared. If there is a Yield already set for the food, return
 -- that. Otherwise, if the food has ingredients and they have positive
 -- mass, return that. Otherwise, return Nothing.
--- TODO use an algebraic data type rather than Maybe; this is unclear
 recipeYield :: Food -> Maybe Grams
+recipeYield f = case yield f of
+  (ExplicitYield e) -> Just . Grams . toNonNeg . unMixedGrams $ e
+  AutoYield -> let m = unGrams (ingredientMass f) in
+    case m > zero of
+      False -> Nothing
+      True -> Just . Grams $ m
+{-
 recipeYield f = if' (isJust y) gr i where
   gr = Just . Grams . toNonNeg . (\(MixedGrams m) -> m) . fromJust $ y
   (Yield y) = yield f
   i = if' (mR > zero) (Just . Grams $ mR) Nothing
   (Grams mR) = ingredientMass f
+-}
 
 -- Ingredient functions
 

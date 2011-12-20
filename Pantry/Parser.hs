@@ -122,14 +122,14 @@ strToNonNegInteger s = case fromStr s of
 
 head = OptDesc "" ["head"] a where
   a = Single f
-  f o a = do
-    i <- strToNonNegInteger a
+  f o a1 = do
+    i <- strToNonNegInteger a1
     return $ C.filterToConvey (C.head i)
 
 tail = OptDesc "" ["tail"] a where
   a = Single f
-  f o a = do
-    i <- strToNonNegInteger a
+  f o a1 = do
+    i <- strToNonNegInteger a1
     return $ C.filterToConvey (C.tail i)
 
 create = OptDesc "" ["create"] a where
@@ -211,6 +211,16 @@ changePctRefuse = OptDesc "" ["change-percent-refuse"] a where
           c = C.xformToConvey (return . xform)
       in return $ addConveyor o c
 
-{-
 changeYield = OptDesc "" ["change-yield"] a where
--}
+  a = Single f
+  f o a1 = case fromStr a1 of
+    Nothing -> Left (R.NonNegMixedNotValid a1)
+    (Just n) -> return $ addConveyor o c where
+      c = C.xformToConvey (return . setYield)
+      setYield fd = fd { F.yield = F.ExplicitYield . F.MixedGrams $ n }
+
+removeYield = OptDesc "" ["remove-yield"] a where
+  a = Flag f
+  f o = return $ addConveyor o c where
+    c = C.xformToConvey (return . setYield)
+    setYield fd = fd { F.yield = F.AutoYield }
