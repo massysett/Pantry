@@ -37,7 +37,12 @@ module Pantry.Types (
   , HasZero(..)
   , Add(..)
   , Divide(..)
-  , FromStr(..) ) where
+  , FromStr(..)
+  
+  -- * Arithmetic
+  , nonNegDivPos
+
+  ) where
 
 import Data.Ratio((%), numerator, denominator)
 import Pantry.Exact(Exact, exact)
@@ -259,7 +264,8 @@ instance Add PosInteger where
   add (PosInteger l) (PosInteger r) = PosInteger $ l + r
   mult (PosInteger l) (PosInteger r) = PosInteger $ l * r
 
--- | Real division where the result has full precision.
+-- | Real division where the result has full precision, but where
+-- division might fail because the denominator might be zero.
 class Divide a where
   -- | Returns a Nothing for division by zero.
   divide :: a -> a -> Maybe a
@@ -311,6 +317,13 @@ instance FromStr PosInteger where
       case i of 0 -> Nothing
                 _ -> Just . PosInteger $ i
     _ -> Nothing
+
+-- | Divide any non-negative by a positive. Always succeeds.
+nonNegDivPos :: (HasNonNeg a, HasPos b)
+          => a -> b -> NonNeg
+nonNegDivPos a b = let (NonNeg ra) = toNonNeg a
+                       (Pos rb) = toPos b
+                   in NonNeg $ ra / rb
 
 -- Parsec basement
 

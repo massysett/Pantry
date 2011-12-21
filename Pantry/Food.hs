@@ -99,7 +99,7 @@ import Data.Maybe
 import Control.Monad
 import Data.List
 import qualified Data.Foldable as F
-import Pantry.Types
+import Pantry.Types as T
 import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Pantry.Exact(Exact(exact))
@@ -140,7 +140,8 @@ instance Serialize Name where
 -- | Grams expressed as a simple NonNeg number.
 newtype Grams = Grams { unGrams :: NonNeg }
                 deriving (Eq, Ord, Show, Add,
-                          HasZero, Exact, Rounded, Serialize)
+                          HasZero, Exact, Rounded, Serialize,
+                          HasNonNeg)
 
 -- | Amount of a nutrient
 newtype NutAmt = NutAmt { unNutAmt :: NonNeg }
@@ -175,12 +176,12 @@ newtype NutNamesPerGs =
 
 -- | Grams expressed as a mixed number.
 newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
-                     deriving (Show, Exact, Serialize)
+                     deriving (Show, Exact, Serialize, HasNonNeg)
 
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
   PosMixedGrams { unPosMixedGrams :: PosMixed }
-  deriving (Show, Serialize)
+  deriving (Show, Serialize, HasPos)
 
 -- | setQtyByNut can fail in a multitude of ways so this data type
 -- indicates the various failures.
@@ -476,7 +477,7 @@ nutNamesPerGsToNutNamesAmts g (NutNamesPerGs m) =
 -- the scaling factor. To obtain the scaling factor, divide the
 -- estimated recipe yield (which comes from adding up the mass of all
 -- the ingredients) by the actual recipe yield. (If the yield is
--- AutoYield, then the scaling factor is zero.) Then, multiply the
+-- AutoYield, then the scaling factor is one.) Then, multiply the
 -- NutsPerG by the scaling factor to obtain the scaled NutsPerG.
 data ScalingFactor = ScalingFactor { unScalingFactor :: NonNeg }
 
@@ -484,7 +485,16 @@ scalingFactor ::
   Grams -- ^ Estimated yield - total weight of ingredients
   -> Yield -- ^ Yield - perhaps input by user
   -> ScalingFactor
-scalingFactor (Grams g) y = undefined
+scalingFactor g y = case y of
+  AutoYield -> ScalingFactor $ T.partialNewNonNeg 1
+  (ExplicitYield pmg) -> ScalingFactor $ T.nonNegDivPos g pmg
+
+-- | Nutrients per gram of food, after being scaled by the scaling
+-- factor. To get this, multiply the unscaled NutsPerG by the scaling
+-- factor.
+data ScaledNutsPerG = ScaledNutsPerG { unScaledNutsPerG :: NonNeg }
+
+
 
 -- | Given a food, return the NutNamesPerGs coming from the
 -- ingredients. 
