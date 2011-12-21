@@ -1,27 +1,43 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Pantry.Types( NonNeg
-            , nonNegToRational
-            , partialNewNonNeg
-            , NonNegMixed
-            , mixedDec
-            , mixedRatio
-            , toNonNeg
-            , PosMixed
-            , posMixedDec
-            , posMixedRatio
-            , NonNegInteger
-            , unNonNegInteger
-            , partialNewNonNegInteger
-            , PosInteger
-            , partialNewPosInteger
-            , BoundedPercent
-            , pctToMixed
-            , subtractPercent
-            , Next(..)
-            , HasZero(..)
-            , Add(..)
-            , Divide(..)
-            , FromStr(..) ) where
+module Pantry.Types (
+  -- * Numeric types
+  -- ** Non-negative
+  NonNeg
+  , nonNegToRational
+  , partialNewNonNeg
+
+  , NonNegInteger
+  , unNonNegInteger
+  , partialNewNonNegInteger
+
+  , NonNegMixed
+  , mixedDec
+  , mixedRatio
+
+    -- ** Positive
+  , Pos
+  , unPos
+  , partialNewPos
+    
+  , PosInteger
+  , partialNewPosInteger
+    
+  , PosMixed
+  , posMixedDec
+  , posMixedRatio
+
+  , BoundedPercent
+  , pctToMixed
+  , subtractPercent
+
+    -- * Typeclasses
+  , HasNonNeg(toNonNeg)
+  , HasPos(toPos)
+  , Next(..)
+  , HasZero(..)
+  , Add(..)
+  , Divide(..)
+  , FromStr(..) ) where
 
 import Data.Ratio((%), numerator, denominator)
 import Pantry.Exact(Exact, exact)
@@ -34,7 +50,7 @@ import Data.Serialize(Serialize(put, get))
 import Data.Text(snoc, append, pack, Text)
 
 -- | Non negative, rational numbers. Their value can be zero or
--- greater.
+-- greater. This is the broadest numeric type.
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
                deriving (Eq, Ord, Show, Exact, Rounded)
 
@@ -49,6 +65,25 @@ instance Serialize NonNeg where
 partialNewNonNeg :: Rational -> NonNeg
 partialNewNonNeg r = if r < 0 then e else NonNeg r where
   e = error "partialNewNonNeg: value out of range"
+
+-- | Non negative integers. Can be zero or greater. This is not a
+-- member of many Prelude typeclasses (such as Enum) because those
+-- typeclasses have partial functions.
+newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
+                        deriving (Eq, Ord, Show)
+
+instance Serialize NonNegInteger where
+  put (NonNegInteger i) = put i
+  get = get >>= return . NonNegInteger
+
+-- | Create a new non negative integer. Partial. Will crash if its
+-- argument is less than zero.
+partialNewNonNegInteger :: (Integral i) => i -> NonNegInteger
+partialNewNonNegInteger i
+  | ii < 0 = error "partialNewNonNegInteger: integer is negative."
+  | otherwise = NonNegInteger $ ii
+    where
+      ii = fromIntegral i
 
 -- | Non negative, mixed numbers. Have both a decimal part and a
 -- rational part.
@@ -87,57 +122,22 @@ instance Eq NonNegMixed where
 instance Ord NonNegMixed where
   compare l r = compare (toNonNeg l) (toNonNeg r)
 
--- | Things that can be converted to non negative numbers.
-class HasNonNeg a where
-  toNonNeg :: a -> NonNeg
+-- | Positive rational numbers. Their value must be greater than zero.
+newtype Pos = Pos { unPos :: Rational }
+              deriving (Show, Serialize, Eq, Ord)
 
-instance HasNonNeg NonNegMixed where
-  toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
-
--- | Positive mixed numbers. Must be greater than zero.
-data PosMixed = PosMixed { posMixedDec :: Decimal
-                         , posMixedRatio :: Rational }
-                deriving Show
-
-instance HasNonNeg PosMixed where
-  toNonNeg (PosMixed d r) = NonNeg $ toRational d + r
-
-instance Exact PosMixed where
-  exact n = mixedExact (posMixedDec n) (posMixedRatio n)
-
-instance Serialize PosMixed where
-  put (PosMixed (Decimal p m) r) = put p >> put m >> put r
-  get = liftM3 f get get get where
-    f p m r = PosMixed (Decimal p m) r
-
--- | Non negative integers. Can be zero or greater. This is not a
--- member of many Prelude typeclasses (such as Enum) because those
--- typeclasses have partial functions.
-newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
-                        deriving (Eq, Ord, Show)
-
-instance Serialize NonNegInteger where
-  put (NonNegInteger i) = put i
-  get = get >>= return . NonNegInteger
-
--- | Create a new non negative integer. Partial. Will crash if its
--- argument is less than zero.
-partialNewNonNegInteger :: (Integral i) => i -> NonNegInteger
-partialNewNonNegInteger i
-  | ii < 0 = error "partialNewNonNegInteger: integer is negative."
-  | otherwise = NonNegInteger $ ii
-    where
-      ii = fromIntegral i
+-- | Make a new positive number. This function is partial. It is
+-- bottom if its argument is not greater than zero.
+partialNewPos :: Rational -> Pos
+partialNewPos r = case r > 0 of
+  True -> Pos r
+  False -> error "partialNewPos: argument not positive"
 
 -- | Positive integers. Must be greater than zero. Not a member of
 -- Prelude typeclasses such as Enum becuase these functions are
 -- partial.
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
-                     deriving (Eq, Ord, Show)
-
-instance Serialize PosInteger where
-  put (PosInteger i) = put i
-  get = get >>= return . PosInteger
+                     deriving (Eq, Ord, Show, Serialize)
 
 -- | Create a new positive integer. Partial. Will crash if its
 -- argument is less than zero.
@@ -147,6 +147,19 @@ partialNewPosInteger i
   | otherwise = PosInteger $ ii
     where
       ii = fromIntegral i
+
+-- | Positive mixed numbers. Must be greater than zero.
+data PosMixed = PosMixed { posMixedDec :: Decimal
+                         , posMixedRatio :: Rational }
+                deriving Show
+
+instance Exact PosMixed where
+  exact n = mixedExact (posMixedDec n) (posMixedRatio n)
+
+instance Serialize PosMixed where
+  put (PosMixed (Decimal p m) r) = put p >> put m >> put r
+  get = liftM3 f get get get where
+    f p m r = PosMixed (Decimal p m) r
 
 -- | Bounded percent. Represents values between 0 and 100 percent,
 -- inclusive. Internally these are held as NonNegMixed values.
@@ -162,6 +175,40 @@ subtractPercent :: NonNeg -> BoundedPercent -> NonNeg
 subtractPercent (NonNeg n) (BoundedPercent pct) = nn where
   nn = NonNeg $ n - n * p / 100
   (NonNeg p) = toNonNeg pct
+
+-- | Things that can be converted to non negative numbers.
+class HasNonNeg a where
+  toNonNeg :: a -> NonNeg
+
+instance HasNonNeg NonNeg where
+  toNonNeg a = a
+
+instance HasNonNeg NonNegInteger where
+  toNonNeg (NonNegInteger a) = NonNeg $ toRational a
+
+instance HasNonNeg NonNegMixed where
+  toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
+
+instance HasNonNeg Pos where
+  toNonNeg (Pos a) = NonNeg a
+
+instance HasNonNeg PosInteger where
+  toNonNeg (PosInteger a) = NonNeg $ toRational a
+
+instance HasNonNeg PosMixed where
+  toNonNeg (PosMixed d r) = NonNeg $ toRational d + r
+
+class HasPos a where
+  toPos :: a -> Pos
+
+instance HasPos Pos where
+  toPos a = a
+
+instance HasPos PosInteger where
+  toPos (PosInteger i) = Pos $ fromIntegral i
+
+instance HasPos PosMixed where
+  toPos (PosMixed d r) = Pos ((toRational d) + r)
 
 -- | Numbers that can be incremented (e.g. integers, not floats)
 class Next a where
@@ -179,29 +226,40 @@ instance Next PosInteger where
 class HasZero a where
   zero :: a
 
-instance HasZero BoundedPercent where
-  zero = BoundedPercent zero
-instance HasZero NonNegMixed where
-  zero = NonNegMixed (Decimal 0 0) (0 % 1)
+instance HasZero NonNeg where
+  zero = NonNeg 0
+
 instance HasZero NonNegInteger where
   zero = NonNegInteger 0
 
-instance HasZero NonNeg where
-  zero = NonNeg $ 0 % 1
+instance HasZero NonNegMixed where
+  zero = NonNegMixed (Decimal 0 0) (0 % 1)
 
--- | Numbers that can be added. (FIXME - currently makes no sense?
--- Things that do not have a zero can be added?)
-class (HasZero a) => Add a where
+instance HasZero BoundedPercent where
+  zero = BoundedPercent zero
+
+-- | Numbers that can be added.
+class Add a where
   add :: a -> a -> a
   mult :: a -> a -> a
-  one :: a
 
 instance Add NonNeg where
   add (NonNeg l) (NonNeg r) = NonNeg $ l + r
   mult (NonNeg l) (NonNeg r) = NonNeg $ l * r
-  one = NonNeg 1
 
--- | Things that can be divided.
+instance Add NonNegInteger where
+  add (NonNegInteger l) (NonNegInteger r) = NonNegInteger $ l + r
+  mult (NonNegInteger l) (NonNegInteger r) = NonNegInteger $ l * r
+
+instance Add Pos where
+  add (Pos l) (Pos r) = Pos $ l + r
+  mult (Pos l) (Pos r) = Pos $ l + r
+
+instance Add PosInteger where
+  add (PosInteger l) (PosInteger r) = PosInteger $ l + r
+  mult (PosInteger l) (PosInteger r) = PosInteger $ l * r
+
+-- | Real division where the result has full precision.
 class Divide a where
   -- | Returns a Nothing for division by zero.
   divide :: a -> a -> Maybe a
@@ -210,6 +268,9 @@ instance Divide NonNeg where
   divide (NonNeg l) (NonNeg r)
     | r == 0 = Nothing
     | otherwise = Just . NonNeg $ l / r
+
+instance Divide Pos where
+  divide (Pos l) (Pos r) = Just . Pos $ l / r
 
 -- | Things that can be converted from a string.
 class FromStr a where
@@ -220,7 +281,9 @@ instance FromStr NonNeg where
               return . (toNonNeg :: NonNegMixed -> NonNeg)
 
 instance FromStr NonNegMixed where
-  fromStr = either (const Nothing) Just . parse parseNonNegMixed ""
+  fromStr s = case parse parseNonNegMixed "" s of
+    (Left _) -> Nothing
+    (Right nnm) -> Just nnm
 
 instance FromStr PosMixed where
   fromStr s = do
