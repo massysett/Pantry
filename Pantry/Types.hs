@@ -222,6 +222,14 @@ instance FromStr NonNeg where
 instance FromStr NonNegMixed where
   fromStr = either (const Nothing) Just . parse parseNonNegMixed ""
 
+instance FromStr PosMixed where
+  fromStr s = do
+    nnm <- either (const Nothing) Just (parse parseNonNegMixed "" s)
+    case (mixedDec nnm == 0, mixedRatio nnm == 0) of
+      (True, True) -> Nothing
+      _ -> Just $ PosMixed (mixedDec nnm) (mixedRatio nnm)
+      
+
 instance FromStr BoundedPercent where
   fromStr s = do
     m <- fromStr s

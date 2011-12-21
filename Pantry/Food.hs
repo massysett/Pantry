@@ -19,6 +19,7 @@ module Pantry.Food (
   -- ** Grams
   Grams ( Grams, unGrams),
   MixedGrams ( MixedGrams, unMixedGrams ),
+  PosMixedGrams ( PosMixedGrams, unPosMixedGrams),
   
   -- ** Nutrients
   NutAmt ( NutAmt, unNutAmt ),
@@ -334,27 +335,7 @@ instance Serialize Food where
         <*> get
         <*> get
         <*> get
-{-
-  get = do
-    gtags <- get
-    gunits <- get
-    gnutsPerGs <- get
-    gcurrUnit <- get
-    gpctRefuse <- get
-    gqty <- get
-    gyield <- get
-    gingr <- get
-    gfoodId <- get
-    return Food { tags = gtags
-                , units = gunits
-                , nutsPerGs = gnutsPerGs
-                , currUnit = gcurrUnit
-                , pctRefuse = gpctRefuse
-                , qty = gqty
-                , yield = gyield
-                , ingr = gingr
-                , foodId = gfoodId }
--}
+
 absGrams :: UnitNameAmt
 absGrams = UnitNameAmt (Name . pack $ "grams") (Grams . partialNewNonNeg $ 1 % 1)
 

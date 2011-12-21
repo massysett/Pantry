@@ -217,7 +217,7 @@ changeYield = OptDesc "" ["change-yield"] a where
     Nothing -> Left (R.NonNegMixedNotValid a1)
     (Just n) -> return $ addConveyor o c where
       c = C.xformToConvey (return . setYield)
-      setYield fd = fd { F.yield = F.ExplicitYield . F.MixedGrams $ n }
+      setYield fd = fd { F.yield = F.ExplicitYield . F.PosMixedGrams $ n }
 
 removeYield = OptDesc "" ["remove-yield"] a where
   a = Flag f
