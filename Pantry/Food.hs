@@ -106,6 +106,7 @@ import Pantry.Rounded(Rounded)
 import Data.Serialize (Serialize(put, get), putWord8)
 import Data.Monoid as Monoid
 import Data.Word ( Word8 )
+import Control.Applicative((<*>), (*>), pure)
 
 type Matcher = Text -> Bool
 
@@ -174,6 +175,11 @@ newtype NutNamesPerGs =
 -- | Grams expressed as a mixed number.
 newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
                      deriving (Show, Exact, Serialize)
+
+-- | Grams that must be positive (that is, greater than zero.)
+newtype PosMixedGrams =
+  PosMixedGrams { unPosMixedGrams :: PosMixed }
+  deriving (Show, Serialize)
 
 -- | setQtyByNut can fail in a multitude of ways so this data type
 -- indicates the various failures.
@@ -261,7 +267,7 @@ instance Exact Qty where
 -- MixedGrams. If not input, or if explicitly unset, it will be
 -- Nothing; then Pantry will compute the yield.
 data Yield = AutoYield
-              | ExplicitYield MixedGrams
+              | ExplicitYield PosMixedGrams
               deriving Show
 
 instance Serialize Yield where
@@ -273,7 +279,7 @@ instance Serialize Yield where
       0 -> return AutoYield
       1 -> do
         m <- get
-        return $ ExplicitYield (MixedGrams m)
+        return $ ExplicitYield (PosMixedGrams m)
       _ -> fail "non-matching number"
 
 -- | Ingredients
@@ -310,14 +316,25 @@ data Food = Food { tags :: TagNamesVals
 
 instance Serialize Food where
   put f = put (tags f)
-          >> put (units f)
-          >> put (nutsPerGs f)
-          >> put (currUnit f)
-          >> put (pctRefuse f)
-          >> put (qty f)
-          >> put (yield f)
-          >> put (ingr f)
-          >> put (foodId f)
+          *> put (units f)
+          *> put (nutsPerGs f)
+          *> put (currUnit f)
+          *> put (pctRefuse f)
+          *> put (qty f)
+          *> put (yield f)
+          *> put (ingr f)
+          *> put (foodId f)
+  get = pure Food
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+        <*> get
+{-
   get = do
     gtags <- get
     gunits <- get
@@ -337,7 +354,7 @@ instance Serialize Food where
                 , yield = gyield
                 , ingr = gingr
                 , foodId = gfoodId }
-
+-}
 absGrams :: UnitNameAmt
 absGrams = UnitNameAmt (Name . pack $ "grams") (Grams . partialNewNonNeg $ 1 % 1)
 
@@ -465,6 +482,32 @@ foodGrams f = Grams $ q `mult` u where
 nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
 nutsPerGToAmt (Grams g) (NutsPerG r) = NutAmt $ g `mult` r
 
+-- | Given the total mass of a food, and all the nutrients per gram of
+-- that food, return the nutrient amounts in the food.
+nutNamesPerGsToNutNamesAmts ::
+  Grams -- ^ Total mass of food
+  -> NutNamesPerGs
+  -> NutNamesAmts
+nutNamesPerGsToNutNamesAmts g (NutNamesPerGs m) =
+  NutNamesAmts $ M.map (nutsPerGToAmt g) m
+
+-- | Nutrients for recipes must be scaled. This data type represents
+-- the scaling factor. To obtain the scaling factor, divide the
+-- estimated recipe yield (which comes from adding up the mass of all
+-- the ingredients) by the actual recipe yield. (If the yield is
+-- AutoYield, then the scaling factor is zero.) Then, multiply the
+-- NutsPerG by the scaling factor to obtain the scaled NutsPerG.
+data ScalingFactor = ScalingFactor { unScalingFactor :: NonNeg }
+
+scalingFactor ::
+  Grams -- ^ Estimated yield - total weight of ingredients
+  -> Yield -- ^ Yield - perhaps input by user
+  -> ScalingFactor
+scalingFactor (Grams g) y = undefined
+
+-- | Given a food, return the NutNamesPerGs coming from the
+-- ingredients. 
+
 -- | Given a food, return the nutrients that come from the
 -- ingredients.
 foodIngrNuts :: Food -> NutNamesAmts
@@ -535,7 +578,7 @@ ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
 -- mass, return that. Otherwise, return Nothing.
 recipeYield :: Food -> Maybe Grams
 recipeYield f = case yield f of
-  (ExplicitYield e) -> Just . Grams . toNonNeg . unMixedGrams $ e
+  (ExplicitYield e) -> Just . Grams . toNonNeg . unPosMixedGrams $ e
   AutoYield -> let m = unGrams (ingredientMass f) in
     case m > zero of
       False -> Nothing

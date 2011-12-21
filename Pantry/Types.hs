@@ -6,6 +6,9 @@ module Pantry.Types( NonNeg
             , mixedDec
             , mixedRatio
             , toNonNeg
+            , PosMixed
+            , posMixedDec
+            , posMixedRatio
             , NonNegInteger
             , unNonNegInteger
             , partialNewNonNegInteger
@@ -25,10 +28,10 @@ import Pantry.Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
 import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
-import Control.Monad(when)
+import Control.Monad(when, liftM3)
 import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
-import Data.Text(snoc, append, pack)
+import Data.Text(snoc, append, pack, Text)
 
 -- | Non negative, rational numbers. Their value can be zero or
 -- greater.
@@ -61,14 +64,15 @@ instance Serialize NonNegMixed where
     return $ NonNegMixed (Decimal p m) r
 
 instance Exact NonNegMixed where
-  exact n = result where
+  exact n = mixedExact (mixedDec n) (mixedRatio n)
+
+mixedExact :: Decimal -> Rational -> Text
+mixedExact nd nr = result where
     result = case (d, r) of
       (Just ds, Just rs) -> ds `snoc` ' ' `append` rs
       (Just ds, Nothing) -> ds
       (Nothing, Just rs) -> rs
       (Nothing, Nothing) -> pack "0"
-    nd = mixedDec n
-    nr = mixedRatio n
     d | nd == Decimal 0 0 = Nothing
       | otherwise = Just . pack . show $ nd
     r | numerator nr == 0 = Nothing
@@ -83,10 +87,28 @@ instance Eq NonNegMixed where
 instance Ord NonNegMixed where
   compare l r = compare (toNonNeg l) (toNonNeg r)
 
--- | Convet a non negative mixed number to a non negative rational
--- number.
-toNonNeg :: NonNegMixed -> NonNeg
-toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
+-- | Things that can be converted to non negative numbers.
+class HasNonNeg a where
+  toNonNeg :: a -> NonNeg
+
+instance HasNonNeg NonNegMixed where
+  toNonNeg (NonNegMixed d r) = NonNeg $ toRational d + r
+
+-- | Positive mixed numbers. Must be greater than zero.
+data PosMixed = PosMixed { posMixedDec :: Decimal
+                         , posMixedRatio :: Rational }
+                deriving Show
+
+instance HasNonNeg PosMixed where
+  toNonNeg (PosMixed d r) = NonNeg $ toRational d + r
+
+instance Exact PosMixed where
+  exact n = mixedExact (posMixedDec n) (posMixedRatio n)
+
+instance Serialize PosMixed where
+  put (PosMixed (Decimal p m) r) = put p >> put m >> put r
+  get = liftM3 f get get get where
+    f p m r = PosMixed (Decimal p m) r
 
 -- | Non negative integers. Can be zero or greater. This is not a
 -- member of many Prelude typeclasses (such as Enum) because those
@@ -194,7 +216,8 @@ class FromStr a where
   fromStr :: String -> Maybe a
 
 instance FromStr NonNeg where
-  fromStr s = fromStr s >>= return . toNonNeg
+  fromStr s = fromStr s >>=
+              return . (toNonNeg :: NonNegMixed -> NonNeg)
 
 instance FromStr NonNegMixed where
   fromStr = either (const Nothing) Just . parse parseNonNegMixed ""
