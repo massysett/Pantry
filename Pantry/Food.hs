@@ -93,6 +93,7 @@ import Data.Serialize (Serialize(put, get), putWord8)
 import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
+import Data.Maybe ( fromMaybe )
 
 ------------------------------------------------------------
 -- FOODID
@@ -147,7 +148,7 @@ instance Serialize NutName where
   put (NutName n) = put . encodeUtf8 $ n
   get = get >>= return . NutName . decodeUtf8
 
--- | The amount of a nutrient
+-- | The amount of a nutrient.
 newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
                  deriving (Eq, Ord, Show, Serialize)
 
@@ -155,13 +156,35 @@ newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
 newtype NutPerG = NutPerG { unNutPerG :: T.NonNeg }
                   deriving (Eq, Ord, Show, Serialize)
 
+
+-- | Portions explicit nutrients for the portion size of the food.
+portionNutPerG :: Grams -- ^ Weight of food
+                  -> NutPerG
+                  -> PortionedNut
+portionNutPerG (Grams g) (NutPerG perG) =
+  PortionedNut $ g `T.mult` perG
+
+-- | Converts a PortionedNut to a NutAmt. The NutAmt is the tidy
+-- representation that the API uses (otherwise the NutAmt is not used
+-- in the Food.hs module).
+toNutAmt :: PortionedNut -> NutAmt
+toNutAmt = NutAmt . unPortionedNut
+
 -- | Get the current nutrients in a food. These will be properly
--- scaled depending on the current amount of the food, the
+-- scaled and portioned depending on the current amount of the food, the
 -- ingredients, and the yield. Nutrients that are explicitly set with
 -- setNuts will take precedence over those that are in the
 -- ingredients.
 getNuts :: Food -> M.Map NutName NutAmt
-getNuts = undefined
+getNuts f = M.union explNuts ingrNuts where
+  foodGr = foodGrams f
+  explNuts = M.map toNutAmt
+             . M.map (portionNutPerG foodGr)
+             . nutsPerG
+             $ f
+  ingrNuts = M.map toNutAmt
+             $ fromMaybe M.empty (foodPortionedNuts f)
+
 
 -- | Set the nutrients in a food. These will be properly scaled when
 -- stored inside the food. This computation fails if the current mass
@@ -414,8 +437,8 @@ portionFactor g i y = do
   return . PortionFactor . unGrams $ r
 
 -- | Portion a scaled nutrient.
-portionNutrient :: PortionFactor -> ScaledNutAmt -> PortionedNut
-portionNutrient (PortionFactor f) (ScaledNutAmt s) =
+portionScaledNutrient :: PortionFactor -> ScaledNutAmt -> PortionedNut
+portionScaledNutrient (PortionFactor f) (ScaledNutAmt s) =
   PortionedNut $ s `T.mult` f
    
 -- | Gets the portioned nutrients of a food. If this computation
@@ -426,7 +449,7 @@ foodPortionedNuts f = do
   scalingFac <- scalingFactor (ingr f) (yield f)
   portionFac <- portionFactor (foodGrams f) (ingr f) (yield f)
   return
-    . M.map (portionNutrient portionFac)
+    . M.map (portionScaledNutrient portionFac)
     . M.map (scaleNutrient scalingFac)
     . ingrUnscaledNuts
     . ingr
