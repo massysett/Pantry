@@ -83,18 +83,14 @@ module Pantry.Food (
   ) where
   
 import qualified Data.Map as M
-import Data.Ratio
-import Data.Maybe
-import Control.Monad
-import Data.List
-import qualified Data.Foldable as F
-import Pantry.Types as T
+import Data.List ( foldl' )
+import qualified Pantry.Types as T
 import Data.Text(Text, pack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Pantry.Exact(Exact(exact))
 import Pantry.Rounded(Rounded)
 import Data.Serialize (Serialize(put, get), putWord8)
-import Data.Monoid as Monoid
+import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
 
@@ -107,16 +103,16 @@ type Matcher = Text -> Bool
 -- Enum. This would allow prec to be called on it. In theory this
 -- would be OK (prec can be partial) but better to avoid that. Instead
 -- use the Next typeclass.
-newtype FoodId = FoodId { unFoodId :: NonNegInteger }
-                 deriving (Show, Eq, Ord, Next, Serialize)
+newtype FoodId = FoodId { unFoodId :: T.NonNegInteger }
+                 deriving (Show, Eq, Ord, T.Next, Serialize)
 
 -- | FoodID of zero
 zeroFoodId :: FoodId
-zeroFoodId = FoodId . partialNewNonNegInteger $ (0 :: Int)
+zeroFoodId = FoodId . T.partialNewNonNegInteger $ (0 :: Int)
 
 -- | FoodID of one
 oneFoodId :: FoodId
-oneFoodId = FoodId . partialNewNonNegInteger $ (1 :: Int)
+oneFoodId = FoodId . T.partialNewNonNegInteger $ (1 :: Int)
 
 -- | Gets the FoodID of a food.
 getFoodId :: Food -> FoodId
@@ -127,19 +123,19 @@ setFoodId :: FoodId -> Food -> Food
 setFoodId i f = f { foodId = i }
 
 -- | Grams expressed as a simple NonNeg number.
-newtype Grams = Grams { unGrams :: NonNeg }
-                deriving (Eq, Ord, Show, Add,
-                          HasZero, Exact, Rounded, Serialize,
-                          HasNonNeg)
+newtype Grams = Grams { unGrams :: T.NonNeg }
+                deriving (Eq, Ord, Show, T.Add,
+                          T.HasZero, Exact, Rounded, Serialize,
+                          T.HasNonNeg)
 
 -- | Grams expressed as a mixed number.
-newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
-                     deriving (Show, Exact, Serialize, HasNonNeg)
+newtype MixedGrams = MixedGrams { unMixedGrams :: T.NonNegMixed }
+                     deriving (Show, Exact, Serialize, T.HasNonNeg)
 
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
-  PosMixedGrams { unPosMixedGrams :: PosMixed }
-  deriving (Show, Serialize, HasPos, HasNonNeg)
+  PosMixedGrams { unPosMixedGrams :: T.PosMixed }
+  deriving (Show, Serialize, T.HasPos, T.HasNonNeg)
 
 ------------------------------------------------------------
 -- NUTRIENTS
@@ -213,7 +209,7 @@ instance Serialize UnitName where
 
 -- | The amount of a unit
 newtype UnitAmt = UnitAmt { unUnitAmt :: PosMixedGrams }
-                  deriving (Show, Serialize, HasPos)
+                  deriving (Show, Serialize, T.HasPos)
 
 -- | A food's current unit.
 data CurrUnit = CurrUnit { currUnitName :: UnitName,
@@ -273,7 +269,7 @@ setTags m f = f { tags = m }
 ------------------------------------------------------------
 -- | A food's quantity. If this was human input, it will be a
 -- NonNegMixed. If it was computed, it will be a NonNeg.
-newtype Qty = Qty { unQty :: (Either NonNeg NonNegMixed) }
+newtype Qty = Qty { unQty :: (Either T.NonNeg T.NonNegMixed) }
             deriving (Show, Serialize)
 
 instance Exact Qty where
@@ -348,8 +344,8 @@ ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
 -- PCT REFUSE
 ------------------------------------------------------------
 -- | The percentage of refuse in a food.
-newtype PctRefuse = PctRefuse {unPctRefuse :: BoundedPercent }
-                    deriving (Eq, Ord, Show, HasZero, Exact, Serialize)
+newtype PctRefuse = PctRefuse {unPctRefuse :: T.BoundedPercent }
+                    deriving (Eq, Ord, Show, T.HasZero, Exact, Serialize)
 
 getPctRefuse :: Food -> PctRefuse
 getPctRefuse = pctRefuse
@@ -359,11 +355,11 @@ setPctRefuse p f = f { pctRefuse = p }
 
 minusPctRefuse :: Food -> Food
 minusPctRefuse f = f {qty = newQty} where
-  newQty = Qty (Left . subtractPercent q $ p)
+  newQty = Qty (Left . T.subtractPercent q $ p)
   (Qty quan) = qty f
   q = case quan of
     (Left nn) -> nn
-    (Right mx) -> toNonNeg mx
+    (Right mx) -> T.toNonNeg mx
   (PctRefuse p) = pctRefuse f
 
 ------------------------------------------------------------
