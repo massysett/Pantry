@@ -383,11 +383,55 @@ scalingFactor i y = do
   return . ScalingFactor . unGrams $ g
 
 -- | Scale a nutrient.
-scaleNutrient :: UnscaledNutAmt -> ScalingFactor -> ScaledNutAmt
-scaleNutrient unscaled factor = ScaledNutAmt $ u `T.mult` f where
+scaleNutrient :: ScalingFactor -> UnscaledNutAmt -> ScaledNutAmt
+scaleNutrient factor unscaled = ScaledNutAmt $ u `T.mult` f where
   u = unUnscaledNutAmt unscaled
   f = unScalingFactor factor
+
+-- | After a nutrient is scaled, it must be portioned--that is,
+-- adjusted depending on the weight of the food. Scaling is adjusting
+-- for the yield; portioning is adjusting for the portion size.
+newtype PortionedNut = PortionedNut { unPortionedNut :: T.NonNeg }
+                       deriving (Eq, Ord, Show, T.HasNonNeg)
+
+-- | The portion factor is a ratio of the food's weight in grams to
+-- the actual yield of the food.
+newtype PortionFactor = PortionFactor { unPortionFactor :: T.NonNeg }
+                        deriving (Eq, Ord, Show, T.HasNonNeg)
+
+-- | Gets the portion factor. If the food's actual yield is
+-- zero--either because the ingredients all have zero quantity or
+-- because there are no ingredients--this computation fails.
+portionFactor :: Grams -- ^ Weight of the food
+                 -> Ingr
+                 -> Yield
+                 -> Maybe PortionFactor
+portionFactor g i y = do
+  let actualYield = case y of
+        AutoYield -> ingrGrams i
+        (ExplicitYield pmg) -> Grams . T.toNonNeg $ pmg
+  r <- g `T.divide` actualYield
+  return . PortionFactor . unGrams $ r
+
+-- | Portion a scaled nutrient.
+portionNutrient :: PortionFactor -> ScaledNutAmt -> PortionedNut
+portionNutrient (PortionFactor f) (ScaledNutAmt s) =
+  PortionedNut $ s `T.mult` f
    
+-- | Gets the portioned nutrients of a food. If this computation
+-- fails, the food has no portioned nutrients--it might have no
+-- ingredients, or the mass of all the ingredients might be zero.
+foodPortionedNuts :: Food -> Maybe (M.Map NutName PortionedNut)
+foodPortionedNuts f = do
+  scalingFac <- scalingFactor (ingr f) (yield f)
+  portionFac <- portionFactor (foodGrams f) (ingr f) (yield f)
+  return
+    . M.map (portionNutrient portionFac)
+    . M.map (scaleNutrient scalingFac)
+    . ingrUnscaledNuts
+    . ingr
+    $ f
+
 ------------------------------------------------------------
 -- PCT REFUSE
 ------------------------------------------------------------
