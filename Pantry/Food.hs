@@ -94,8 +94,6 @@ import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
 
-type Matcher = Text -> Bool
-
 ------------------------------------------------------------
 -- FOODID
 ------------------------------------------------------------
