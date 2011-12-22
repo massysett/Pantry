@@ -29,3 +29,13 @@ defaultReportOpts = ReportOpts { goals = []
                                , oneColumn = False }
 
 
+-- | NutRatio is not within the Food datatype, but reports use it. For
+-- now this seems to be the best module to put this in.
+newtype NutRatio = NutRatio { unNutRatio :: NonNeg }
+                   deriving (Show, Exact, Rounded, Serialize)
+
+nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio
+nutRatio (NutAmt x) (NutAmt y) = do
+  q <- divide x y
+  return $ NutRatio q
+
