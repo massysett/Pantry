@@ -13,7 +13,7 @@ module Pantry.Sorter( foodcmp
              , addTag
              ) where
 
-import Pantry.Food
+import Pantry.Food ( TagName, TagVal, getTags, Food )
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -33,7 +33,7 @@ type ValueMap = M.Map TagVal Int
 -- order. For instance, to sort the @meal" tag in a certain order (see
 -- example under documentation for ValueMap) then put a value in this
 -- map.
-type TagMap = M.Map Name ValueMap
+type TagMap = M.Map TagName ValueMap
 
 -- | Add a value to a ValueMap, properly incrementing the count of the
 -- value.
@@ -44,8 +44,8 @@ addValue s old = case M.member s old of
 
 -- | Adds a tag name and value pair to a TagMap. Can be used inside of
 -- a foldr.
-addTag :: TagNameVal -> TagMap -> TagMap
-addTag (TagNameVal n v) m = M.insert n vm' m where
+addTag :: TagName -> TagVal -> TagMap -> TagMap
+addTag n v m = M.insert n vm' m where
   vm' = addValue v vmOld
   vmOld = M.findWithDefault M.empty n m
 
@@ -58,7 +58,7 @@ data Direction = Descending | Ascending
 -- items is significant; foods are first ordered based on the first
 -- key; the second key is consulted only if the foods are equal
 -- according to the first key; etc.
-data Key = Key Name Direction
+data Key = Key TagName Direction
 
 -- | Compares foods based on a particular TagMap and a series of Key
 -- items. Foods are compared only based upon the Key items; having
@@ -116,12 +116,12 @@ keyPred ts (Key n d) x y = rev r d where
   rev LT Descending = GT
   rev GT Descending = LT
   rev o _ = o
-  get = getTag n
+  get = M.lookup n . getTags
   r = case (get x, get y) of
     ((Just _), Nothing) -> LT
     (Nothing, (Just _)) -> GT
     (Nothing, Nothing) -> EQ
-    ((Just (TagNameVal _ vx)), (Just (TagNameVal _ vy))) ->
+    ((Just vx), (Just vy)) ->
       case M.lookup n ts of
         Nothing -> compare vx vy
         (Just vm) -> case (M.lookup vx vm, M.lookup vy vm) of

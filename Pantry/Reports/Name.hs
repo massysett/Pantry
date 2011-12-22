@@ -1,14 +1,12 @@
 module Pantry.Reports.Name (name) where
 
-import Prelude((.), ($), Maybe(Nothing, Just))
-import Pantry.Food(TagNameVal(TagNameVal), TagVal(TagVal), getTag, Food,
-                   Name(Name))
+import qualified Pantry.Food as F
 import Data.Text(snoc, pack, Text)
+import qualified Data.Map as M
 
-name :: Food -> Text
+name :: F.Food -> Text
 name f = snoc n '\n' where
-  n = case getTag t f of
+  n = case M.lookup (F.TagName . pack $ "name") (F.getTags f) of
     Nothing -> pack "(No name)"
-    (Just (TagNameVal _ (TagVal v))) -> v
-  t = Name . pack $ "name"
+    (Just (F.TagVal v)) -> v
 

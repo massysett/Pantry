@@ -85,7 +85,7 @@ module Pantry.Food (
 import qualified Data.Map as M
 import Data.List ( foldl' )
 import qualified Pantry.Types as T
-import Data.Text(Text, pack)
+import Data.Text(Text)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Pantry.Exact(Exact(exact))
 import Pantry.Rounded(Rounded)
@@ -154,7 +154,7 @@ newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
                            T.Add)
 
 -- | The amount of a nutrient per gram of food.
-newtype NutPerG = NutPerG { unNutPerG :: T.NonNeg }
+newtype NutPerG = NutPerG T.NonNeg
                   deriving (Eq, Ord, Show, Serialize)
 
 -- | Portions explicit nutrients for the portion size of the food.
@@ -233,8 +233,8 @@ setQtyByNut :: (Text -> Bool)
                -> Either SetQtyByNutFailure Food
 setQtyByNut m (NutAmt a) f = let
   p ((NutName n), _) = m n
-  matches = filter p . M.assocs . nutsPerG $ f
-  in case matches of
+  ms = filter p . M.assocs . nutsPerG $ f
+  in case ms of
     [] -> Left QBNNoMatchingNut
     (((NutName n), (NutPerG perG)):[]) -> case T.divide a perG of
       Nothing -> Left . QBNNutIsZero . NutName $ n
@@ -254,7 +254,7 @@ setQtyByNut m (NutAmt a) f = let
 
 -- | The name of a unit
 newtype UnitName = UnitName { unUnitName :: Text }
-                   deriving (Show, Eq, Ord)
+                   deriving (Show, Eq, Ord, Exact)
 instance Serialize UnitName where
   put (UnitName n) = put . encodeUtf8 $ n
   get = get >>= return . UnitName . decodeUtf8
@@ -394,9 +394,8 @@ ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
 
 -- | Unportioned nutrients of the ingredients. These must be portioned
 -- depending on the yield of the recipe.
-newtype UnportionedNutAmt = UnportionedNutAmt {
-  unUnportionedNutAmt :: T.NonNeg
-  } deriving (Eq, Ord, Show, T.Add)
+newtype UnportionedNutAmt = UnportionedNutAmt T.NonNeg
+                          deriving (Eq, Ord, Show, T.Add)
 
 -- | After a nutrient is scaled, it must be portioned--that is,
 -- adjusted depending on the weight of the food. Scaling is adjusting
@@ -416,7 +415,7 @@ ingrUnportionedNuts (Ingr fs) = foldl' c M.empty fs where
 
 -- | The portion factor is a ratio of the food's weight in grams to
 -- the actual yield of the food.
-newtype PortionFactor = PortionFactor { unPortionFactor :: T.NonNeg }
+newtype PortionFactor = PortionFactor T.NonNeg
                         deriving (Eq, Ord, Show, T.HasNonNeg)
 
 -- | Gets the portion factor. If the food's actual yield is
@@ -558,10 +557,10 @@ deleteMapKeys p = M.fromList . filter p' . M.assocs where
 changeCurrUnit :: (Text -> Bool) -> Food -> Either [UnitName] Food
 changeCurrUnit m f = let
   p ((UnitName n), _) = m n
-  matches = filter p .
-            M.assocs .
-            units $ f
-  in case matches of
+  ms = filter p .
+       M.assocs .
+       units $ f
+  in case ms of
     [] -> Left []
     (x:[]) -> let
       nameAmt = uncurry CurrUnit x
