@@ -124,7 +124,7 @@ setFoodId i f = f { foodId = i }
 newtype Grams = Grams { unGrams :: T.NonNeg }
                 deriving (Eq, Ord, Show, T.Add,
                           T.HasZero, Exact, Rounded, Serialize,
-                          T.HasNonNeg)
+                          T.HasNonNeg, T.Divide)
 
 -- | Grams expressed as a mixed number.
 newtype MixedGrams = MixedGrams { unMixedGrams :: T.NonNegMixed }
@@ -338,6 +338,56 @@ ingrGrams :: Ingr -> Grams
 ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
   f g fd = g `T.add` (foodGrams fd)
 
+-- | Unscaled nutrients of the ingredients. These must be scaled
+-- depending on the yield of the recipe.
+newtype UnscaledNutAmt = UnscaledNutAmt { unUnscaledNutAmt :: T.NonNeg }
+                         deriving (Eq, Ord, Show, T.Add)
+
+-- | Nutrients after they have been scaled.
+newtype ScaledNutAmt = ScaledNutAmt { unScaledNutAmt :: T.NonNeg }
+                       deriving (Eq, Ord, Show, T.Add)
+
+-- | Gets all the unscaled nutrients of a food. Simply converts the
+-- NutAmts to UnscaledNutAmts.
+foodUnscaledNuts :: Food -> M.Map NutName UnscaledNutAmt
+foodUnscaledNuts = M.map (UnscaledNutAmt . unNutAmt ) . getNuts
+
+-- | Gets all the unscaled nutrients of a list of ingredients.
+ingrUnscaledNuts :: Ingr -> M.Map NutName UnscaledNutAmt
+ingrUnscaledNuts (Ingr fs) = foldl' c M.empty fs where
+  c m f = M.unionWith T.add m (foodUnscaledNuts f)
+
+-- | Indicates how ingredient nutrients must be scaled. This depends
+-- on the estimated yield (which comes from the mass of the
+-- ingredients) and the actual yield (which may have been supplied by
+-- the user.) The scaled nutrient amount is the unscaled amount times
+-- the scaling factor. The scaling factor is is a ratio of the
+-- estimated yield over the actual yield. As the actual yield grows,
+-- the ratio shrinks; therefore, the actual NutAmt will shrink.
+newtype ScalingFactor = ScalingFactor { unScalingFactor :: T.NonNeg }
+                        deriving (Eq, Ord, Show, T.HasNonNeg)
+
+-- | The scalingFactor computation fails if the actual yield is zero
+-- (this would be division by zero.) Thus the computation will succeed
+-- with foods that have an explicit yield, as the explicit yield must
+-- be greater than zero. The computation will fail if the Yield is
+-- AutoYield and the ingredients have no mass (either because there
+-- are no ingredients, or because all their quantities are zero.)
+scalingFactor :: Ingr -> Yield -> Maybe ScalingFactor
+scalingFactor i y = do
+  let estYield = ingrGrams i
+      actualYield = case y of
+        AutoYield -> estYield
+        (ExplicitYield pmg) -> Grams . T.toNonNeg $ pmg
+  g <- estYield `T.divide` actualYield
+  return . ScalingFactor . unGrams $ g
+
+-- | Scale a nutrient.
+scaleNutrient :: UnscaledNutAmt -> ScalingFactor -> ScaledNutAmt
+scaleNutrient unscaled factor = ScaledNutAmt $ u `T.mult` f where
+  u = unUnscaledNutAmt unscaled
+  f = unScalingFactor factor
+   
 ------------------------------------------------------------
 -- PCT REFUSE
 ------------------------------------------------------------
