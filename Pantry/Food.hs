@@ -160,15 +160,15 @@ newtype NutPerG = NutPerG { unNutPerG :: T.NonNeg }
 -- | Portions explicit nutrients for the portion size of the food.
 portionNutPerG :: Grams -- ^ Weight of food
                   -> NutPerG
-                  -> PortionedNut
+                  -> PortionedNutAmt
 portionNutPerG (Grams g) (NutPerG perG) =
-  PortionedNut $ g `T.mult` perG
+  PortionedNutAmt $ g `T.mult` perG
 
--- | Converts a PortionedNut to a NutAmt. The NutAmt is the tidy
+-- | Converts a PortionedNutAmt to a NutAmt. The NutAmt is the tidy
 -- representation that the API uses (otherwise the NutAmt is not used
 -- in the Food.hs module).
-toNutAmt :: PortionedNut -> NutAmt
-toNutAmt = NutAmt . unPortionedNut
+toNutAmt :: PortionedNutAmt -> NutAmt
+toNutAmt = NutAmt . unPortionedNutAmt
 
 -- | Get the current nutrients in a food. These will be properly
 -- scaled and portioned depending on the current amount of the food, the
@@ -361,61 +361,27 @@ ingrGrams :: Ingr -> Grams
 ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
   f g fd = g `T.add` (foodGrams fd)
 
--- | Unscaled nutrients of the ingredients. These must be scaled
+-- | Unportioned nutrients of the ingredients. These must be portioned
 -- depending on the yield of the recipe.
-newtype UnscaledNutAmt = UnscaledNutAmt { unUnscaledNutAmt :: T.NonNeg }
-                         deriving (Eq, Ord, Show, T.Add)
-
--- | Nutrients after they have been scaled.
-newtype ScaledNutAmt = ScaledNutAmt { unScaledNutAmt :: T.NonNeg }
-                       deriving (Eq, Ord, Show, T.Add)
-
--- | Gets all the unscaled nutrients of a food. Simply converts the
--- NutAmts to UnscaledNutAmts.
-foodUnscaledNuts :: Food -> M.Map NutName UnscaledNutAmt
-foodUnscaledNuts = M.map (UnscaledNutAmt . unNutAmt ) . getNuts
-
--- | Gets all the unscaled nutrients of a list of ingredients.
-ingrUnscaledNuts :: Ingr -> M.Map NutName UnscaledNutAmt
-ingrUnscaledNuts (Ingr fs) = foldl' c M.empty fs where
-  c m f = M.unionWith T.add m (foodUnscaledNuts f)
-
--- | Indicates how ingredient nutrients must be scaled. This depends
--- on the estimated yield (which comes from the mass of the
--- ingredients) and the actual yield (which may have been supplied by
--- the user.) The scaled nutrient amount is the unscaled amount times
--- the scaling factor. The scaling factor is is a ratio of the
--- estimated yield over the actual yield. As the actual yield grows,
--- the ratio shrinks; therefore, the actual NutAmt will shrink.
-newtype ScalingFactor = ScalingFactor { unScalingFactor :: T.NonNeg }
-                        deriving (Eq, Ord, Show, T.HasNonNeg)
-
--- | The scalingFactor computation fails if the actual yield is zero
--- (this would be division by zero.) Thus the computation will succeed
--- with foods that have an explicit yield, as the explicit yield must
--- be greater than zero. The computation will fail if the Yield is
--- AutoYield and the ingredients have no mass (either because there
--- are no ingredients, or because all their quantities are zero.)
-scalingFactor :: Ingr -> Yield -> Maybe ScalingFactor
-scalingFactor i y = do
-  let estYield = ingrGrams i
-      actualYield = case y of
-        AutoYield -> estYield
-        (ExplicitYield pmg) -> Grams . T.toNonNeg $ pmg
-  g <- estYield `T.divide` actualYield
-  return . ScalingFactor . unGrams $ g
-
--- | Scale a nutrient.
-scaleNutrient :: ScalingFactor -> UnscaledNutAmt -> ScaledNutAmt
-scaleNutrient factor unscaled = ScaledNutAmt $ u `T.mult` f where
-  u = unUnscaledNutAmt unscaled
-  f = unScalingFactor factor
+newtype UnportionedNutAmt = UnportionedNutAmt {
+  unUnportionedNutAmt :: T.NonNeg
+  } deriving (Eq, Ord, Show, T.Add)
 
 -- | After a nutrient is scaled, it must be portioned--that is,
 -- adjusted depending on the weight of the food. Scaling is adjusting
 -- for the yield; portioning is adjusting for the portion size.
-newtype PortionedNut = PortionedNut { unPortionedNut :: T.NonNeg }
-                       deriving (Eq, Ord, Show, T.HasNonNeg)
+newtype PortionedNutAmt = PortionedNutAmt { unPortionedNutAmt :: T.NonNeg }
+                       deriving (Eq, Ord, Show, T.Add)
+
+-- | Gets all the unportioned nutrients of a food. Simply converts the
+-- NutAmts to UnportionedNutAmts.
+foodUnportionedNuts :: Food -> M.Map NutName UnportionedNutAmt
+foodUnportionedNuts = M.map (UnportionedNutAmt . unNutAmt ) . getNuts
+
+-- | Gets all the unportioned nutrients of a list of ingredients.
+ingrUnportionedNuts :: Ingr -> M.Map NutName UnportionedNutAmt
+ingrUnportionedNuts (Ingr fs) = foldl' c M.empty fs where
+  c m f = M.unionWith T.add m (foodUnportionedNuts f)
 
 -- | The portion factor is a ratio of the food's weight in grams to
 -- the actual yield of the food.
@@ -437,21 +403,21 @@ portionFactor g i y = do
   return . PortionFactor . unGrams $ r
 
 -- | Portion a scaled nutrient.
-portionScaledNutrient :: PortionFactor -> ScaledNutAmt -> PortionedNut
-portionScaledNutrient (PortionFactor f) (ScaledNutAmt s) =
-  PortionedNut $ s `T.mult` f
+portionUnportionedNutrient :: PortionFactor
+                         -> UnportionedNutAmt
+                         -> PortionedNutAmt
+portionUnportionedNutrient (PortionFactor f) (UnportionedNutAmt s) =
+  PortionedNutAmt $ s `T.mult` f
    
 -- | Gets the portioned nutrients of a food. If this computation
 -- fails, the food has no portioned nutrients--it might have no
 -- ingredients, or the mass of all the ingredients might be zero.
-foodPortionedNuts :: Food -> Maybe (M.Map NutName PortionedNut)
+foodPortionedNuts :: Food -> Maybe (M.Map NutName PortionedNutAmt)
 foodPortionedNuts f = do
-  scalingFac <- scalingFactor (ingr f) (yield f)
   portionFac <- portionFactor (foodGrams f) (ingr f) (yield f)
   return
-    . M.map (portionScaledNutrient portionFac)
-    . M.map (scaleNutrient scalingFac)
-    . ingrUnscaledNuts
+    . M.map (portionUnportionedNutrient portionFac)
+    . ingrUnportionedNuts
     . ingr
     $ f
 
