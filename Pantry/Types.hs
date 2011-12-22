@@ -18,6 +18,7 @@ module Pantry.Types (
   , Pos
   , unPos
   , partialNewPos
+  , nonNegToPos
     
   , PosInteger
   , partialNewPosInteger
@@ -137,6 +138,12 @@ partialNewPos :: Rational -> Pos
 partialNewPos r = case r > 0 of
   True -> Pos r
   False -> error "partialNewPos: argument not positive"
+
+-- | Convert a NonNeg to a Pos. Fails if the NonNeg is zero.
+nonNegToPos :: NonNeg -> Maybe Pos
+nonNegToPos (NonNeg nn) = case nn == 0 of
+  True -> Nothing
+  False -> Just $ Pos nn
 
 -- | Positive integers. Must be greater than zero. Not a member of
 -- Prelude typeclasses such as Enum becuase these functions are

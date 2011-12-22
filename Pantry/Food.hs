@@ -150,12 +150,12 @@ instance Serialize NutName where
 
 -- | The amount of a nutrient.
 newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
-                 deriving (Eq, Ord, Show, Serialize)
+                 deriving (Eq, Ord, Show, Serialize,
+                           T.Add)
 
 -- | The amount of a nutrient per gram of food.
 newtype NutPerG = NutPerG { unNutPerG :: T.NonNeg }
                   deriving (Eq, Ord, Show, Serialize)
-
 
 -- | Portions explicit nutrients for the portion size of the food.
 portionNutPerG :: Grams -- ^ Weight of food
@@ -169,6 +169,20 @@ portionNutPerG (Grams g) (NutPerG perG) =
 -- in the Food.hs module).
 toNutAmt :: PortionedNutAmt -> NutAmt
 toNutAmt = NutAmt . unPortionedNutAmt
+
+toPortionedNutAmt :: NutAmt -> PortionedNutAmt
+toPortionedNutAmt = PortionedNutAmt . unNutAmt
+
+-- | Creates a computation that will take a PortionedNutAmt and
+-- converts it to a NutPerG. Will fail to produce a computation if
+-- Grams is zero. (This function is written this way so that the
+-- resulting computation can be used with Data.Map.Map.)
+toNutPerG :: Grams -- ^ Weight of food
+             -> Maybe (PortionedNutAmt -> NutPerG)
+toNutPerG (Grams g) = do
+  p <- T.nonNegToPos g
+  let f (PortionedNutAmt na) = NutPerG $ na `T.nonNegDivPos` p
+  return f
 
 -- | Get the current nutrients in a food. These will be properly
 -- scaled and portioned depending on the current amount of the food, the
@@ -185,12 +199,15 @@ getNuts f = M.union explNuts ingrNuts where
   ingrNuts = M.map toNutAmt
              $ fromMaybe M.empty (foodPortionedNuts f)
 
-
--- | Set the nutrients in a food. These will be properly scaled when
--- stored inside the food. This computation fails if the current mass
--- of the food is zero because then the scaling mechanism would fail.
+-- | Set the nutrients in a food. These will be properly portioned
+-- when stored inside the food. This computation fails if the current
+-- mass of the food is zero because then the portioning mechanism
+-- would fail.
 setNuts :: M.Map NutName NutAmt -> Food -> Maybe Food
-setNuts = undefined
+setNuts m f = do
+  c <- toNutPerG $ foodGrams f
+  let newNuts = M.map c . M.map toPortionedNutAmt $ m
+  return $ f { nutsPerG = newNuts }
 
 -- | setQtyByNut can fail in a multitude of ways so this data type
 -- indicates the various failures.
@@ -214,8 +231,22 @@ setQtyByNut :: (Text -> Bool)
                -> NutAmt
                -> Food
                -> Either SetQtyByNutFailure Food
-setQtyByNut = undefined
-
+setQtyByNut m (NutAmt a) f = let
+  p ((NutName n), _) = m n
+  matches = filter p . M.assocs . nutsPerG $ f
+  in case matches of
+    [] -> Left QBNNoMatchingNut
+    (((NutName n), (NutPerG perG)):[]) -> case T.divide a perG of
+      Nothing -> Left . QBNNutIsZero . NutName $ n
+      (Just g) -> let
+        newQ = Qty
+               . Left
+               . T.nonNegDivPos g
+               . currUnitAmt
+               . currUnit
+               $ f
+        in Right f { qty = newQ }
+    xs -> Left . QBNMultipleMatchingNuts . map fst $ xs
 
 ------------------------------------------------------------
 -- UNITS
@@ -495,7 +526,7 @@ emptyFood c = Food {
 sumNuts :: M.Map NutName NutAmt
            -> M.Map NutName NutAmt
            -> M.Map NutName NutAmt
-sumNuts = undefined
+sumNuts = M.unionWith T.add
 
 -- | Typeclass for Text wrappers.
 class HasText a where
