@@ -9,6 +9,19 @@ import Pantry.Food(Food, TagNamesVals(TagNamesVals), tags,
             TagVal(TagVal), unFoodId, Name(Name))
 import Data.Map(lookup, keys)
 
+{- The paste report looks like this:
+
+<hash> Name of food
+pantry --id <ID number> --set-unit unit-name unit-value
+
+The first line is the current unit of the food. Additional lines are
+other available units. If an additional available unit is an exact
+duplicate of the food's current unit, then that available unit is
+skipped.
+
+-}
+
+
 paste :: Food -> Text
 paste = printFood
 
