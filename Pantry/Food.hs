@@ -26,7 +26,7 @@ module Pantry.Food (
   getNuts,
   setNuts,
   SetQtyByNutFailure( QBNNoMatchingNut, QBNMultipleMatchingNuts,
-                      QBNNutIsZero )
+                      QBNNutIsZero ),
   setQtyByNut,
   
   -- ** Units
@@ -139,7 +139,7 @@ newtype MixedGrams = MixedGrams { unMixedGrams :: NonNegMixed }
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
   PosMixedGrams { unPosMixedGrams :: PosMixed }
-  deriving (Show, Serialize, HasPos)
+  deriving (Show, Serialize, HasPos, HasNonNeg)
 
 ------------------------------------------------------------
 -- NUTRIENTS
@@ -147,7 +147,7 @@ newtype PosMixedGrams =
 
 -- | The name of a nutrient
 newtype NutName = NutName { unNutName :: Text }
-                  deriving Show
+                  deriving (Eq, Ord, Show)
 
 instance Serialize NutName where
   put (NutName n) = put . encodeUtf8 $ n
@@ -156,6 +156,10 @@ instance Serialize NutName where
 -- | The amount of a nutrient
 newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
                  deriving (Eq, Ord, Show, Serialize)
+
+-- | The amount of a nutrient per gram of food.
+newtype NutPerG = NutPerG { unNutPerG :: T.NonNeg }
+                  deriving (Eq, Ord, Show, Serialize)
 
 -- | Get the current nutrients in a food. These will be properly
 -- scaled depending on the current amount of the food, the
@@ -178,10 +182,10 @@ data SetQtyByNutFailure
   = QBNNoMatchingNut
     -- ^ No nutrients matched the matcher given
     
-  | QBNMultipleMatchingNuts [Name]
+  | QBNMultipleMatchingNuts [NutName]
     -- ^ Multiple nutrients matched the pattern given
 
-  | QBNNutIsZero Name
+  | QBNNutIsZero NutName
     -- ^ One nutrient matched but the value of that nutrient is
     -- zero. (Not returned if the requested food amount is zero; that
     -- computation will succeed and set the food's quantity to zero.)
@@ -202,7 +206,7 @@ setQtyByNut = undefined
 
 -- | The name of a unit
 newtype UnitName = UnitName { unUnitName :: Text }
-                   deriving (Show, Ord)
+                   deriving (Show, Eq, Ord)
 instance Serialize UnitName where
   put (UnitName n) = put . encodeUtf8 $ n
   get = get >>= return . UnitName . decodeUtf8
@@ -244,7 +248,7 @@ setCurrUnit c f = f { currUnit = c }
 
 -- | The name of a tag
 newtype TagName = TagName { unTagName :: Text }
-                  deriving (Show, Ord)
+                  deriving (Show, Eq, Ord)
 instance Serialize TagName where
   get = get >>= return . TagName . decodeUtf8
   put (TagName t) = put . encodeUtf8 $ t
@@ -261,7 +265,7 @@ getTags :: Food -> M.Map TagName TagVal
 getTags = tags
 
 -- | Set the tags in a food
-setTags :: M.Map TagName Val -> Food -> Food
+setTags :: M.Map TagName TagVal -> Food -> Food
 setTags m f = f { tags = m }
 
 ------------------------------------------------------------
@@ -307,17 +311,19 @@ instance Serialize Yield where
 setYield :: Yield -> Food -> Food
 setYield y f = f { yield = y }
 
--- | Returns the yield - that is, the total mass when one recipe is
--- prepared. If there is a Yield already set for the food, return
--- that. Otherwise, if the food has ingredients and they have positive
--- mass, return that. Otherwise, return Nothing.
+-- | Get the yield of the recipe, in grams, if the food has a
+-- yield. If the food has an explicit yield, return that. If the food
+-- an AutoYield, and the ingredients have mass, return that. If the
+-- food is an AutoYield, and its ingredients have no mass, return
+-- Nothing.
 getYieldGrams :: Food -> Maybe Grams
 getYieldGrams f = case yield f of
-  (ExplicitYield e) -> Just . Grams . toNonNeg $ e
-  AutoYield -> let m = unGrams (ingredientMass f) in
-    case m > zero of
+  (ExplicitYield pmg) -> Just . Grams . T.toNonNeg $ pmg
+  AutoYield -> let
+    gr = ingrGrams (ingr f)
+    in case gr > T.zero of
+      True -> Just gr
       False -> Nothing
-      True -> Just . Grams $ m
 
 ------------------------------------------------------------
 -- INGREDIENTS
@@ -332,6 +338,11 @@ getIngr = ingr
 
 setIngr :: Ingr -> Food -> Food
 setIngr i f = f { ingr = i }
+
+-- | Returns the mass in grams of the ingredients.
+ingrGrams :: Ingr -> Grams
+ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
+  f g fd = g `T.add` (foodGrams fd)
 
 ------------------------------------------------------------
 -- PCT REFUSE
@@ -358,27 +369,27 @@ minusPctRefuse f = f {qty = newQty} where
 ------------------------------------------------------------
 -- FOOD
 ------------------------------------------------------------
-data Food = Food { tags :: M.Map TagName TagVal
-                 , units :: M.Map UnitName UnitVal
-                 , nutsPerG :: M.Map NutName NutPerG
-                 , units :: M.Map UnitName UnitAmt
-                 , currUnit :: CurrUnit
-                 , pctRefuse :: PctRefuse
-                 , qty :: Qty
-                 , yield :: Yield
-                 , ingr :: Ingr
-                 , foodId :: FoodId } deriving Show
+data Food = Food { 
+  foodId :: FoodId
+  , nutsPerG :: M.Map NutName NutPerG
+  , units :: M.Map UnitName UnitAmt
+  , currUnit :: CurrUnit                            
+  , tags :: M.Map TagName TagVal
+  , qty :: Qty
+  , yield :: Yield  
+  , ingr :: Ingr  
+  , pctRefuse :: PctRefuse } deriving Show
 
 instance Serialize Food where
-  put f = put (tags f)
-          *> put (units f)
+  put f = put (foodId f)
           *> put (nutsPerG f)
+          *> put (units f)
           *> put (currUnit f)
-          *> put (pctRefuse f)
+          *> put (tags f)
           *> put (qty f)
           *> put (yield f)
           *> put (ingr f)
-          *> put (foodId f)
+          *> put (pctRefuse f)
   get = pure Food
         <*> get
         <*> get
@@ -391,16 +402,17 @@ instance Serialize Food where
         <*> get
 
 emptyFood :: CurrUnit -> Food
-emptyFood c = Food { tags = M.empty
-                   , units = M.empty
-                   , nutsPerGs = M.empty
-                   , currUnit = c
-                   , pctRefuse = T.zero
-                   , qty = Qty (Left T.zero)
-                   , yield = AutoYield
-                   , ingr = Ingr []
-                   , foodId = zeroFoodId }
-
+emptyFood c = Food { 
+  foodId = zeroFoodId
+  , nutsPerG = M.empty
+  , units = M.empty
+  , currUnit = c
+  , tags = M.empty
+  , qty = Qty (Left T.zero)
+  , yield = AutoYield
+  , ingr = Ingr []
+  , pctRefuse = T.zero
+  }
     
 -- | Add the nutrients in two maps of nutrients.
 sumNuts :: M.Map NutName NutAmt
@@ -421,21 +433,21 @@ instance HasText TagVal where  toText = unTagVal
 -- UTILITIES
 ------------------------------------------------------------
 matches :: HasText a => (Text -> Bool) -> a -> Bool
-matchees f a = f (toText a)
+matches f a = f (toText a)
 
 -- | Delete all items from a map whose names match a matcher.
-deleteMapKeys :: HasText a
+deleteMapKeys :: (Ord a, HasText a)
                  => (Text -> Bool)
                  -> M.Map a v
                  -> M.Map a v
 deleteMapKeys p = M.fromList . filter p' . M.assocs where
-  p' a = not $ f (toText a)
+  p' (a, _) = not $ p (toText a)
 
 -- | Change current unit to the one matching a matcher. Fails if there
 -- is not exactly one available unit that matches; Left will hold a
 -- list with the number of matches (might be zero, might be two or
 -- more).
-changeCurrUnit :: (Text -> Bool) -> Food -> Either [Name] Food
+changeCurrUnit :: (Text -> Bool) -> Food -> Either [UnitName] Food
 changeCurrUnit m f = let
   p ((UnitName n), _) = m n
   matches = filter p .
@@ -458,118 +470,3 @@ foodGrams f = Grams $ q `T.mult` u where
     (Right mix) -> T.toNonNeg mix
   (CurrUnit _ (UnitAmt pmg)) = currUnit f
   u = T.toNonNeg pmg
-
-------------------------------------------------------------
--- NUTRIENT FUNCTIONS
-------------------------------------------------------------
-
--- | Given the total mass of a food, and the nutrient per gram of this
--- food, return the amount of the nutrient.
-nutsPerGToAmt :: Grams -> NutsPerG -> NutAmt
-nutsPerGToAmt (Grams g) (NutsPerG r) = NutAmt $ g `mult` r
-
--- | Given the total mass of a food, and all the nutrients per gram of
--- that food, return the nutrient amounts in the food.
-nutNamesPerGsToNutNamesAmts ::
-  Grams -- ^ Total mass of food
-  -> NutNamesPerGs
-  -> NutNamesAmts
-nutNamesPerGsToNutNamesAmts g (NutNamesPerGs m) =
-  NutNamesAmts $ M.map (nutsPerGToAmt g) m
-
--- | Nutrients for recipes must be scaled. This data type represents
--- the scaling factor. To obtain the scaling factor, divide the
--- estimated recipe yield (which comes from adding up the mass of all
--- the ingredients) by the actual recipe yield. (If the yield is
--- AutoYield, then the scaling factor is one.) Then, multiply the
--- NutsPerG by the scaling factor to obtain the scaled NutsPerG.
-data ScalingFactor = ScalingFactor { unScalingFactor :: NonNeg }
-
-scalingFactor ::
-  Grams -- ^ Estimated yield - total weight of ingredients
-  -> Yield -- ^ Yield - perhaps input by user
-  -> ScalingFactor
-scalingFactor g y = case y of
-  AutoYield -> ScalingFactor $ T.partialNewNonNeg 1
-  (ExplicitYield pmg) -> ScalingFactor $ T.nonNegDivPos g pmg
-
--- | Nutrients per gram of food, after being scaled by the scaling
--- factor. To get this, multiply the unscaled NutsPerG by the scaling
--- factor.
-data ScaledNutsPerG = ScaledNutsPerG { unScaledNutsPerG :: NonNeg }
-
-
-
--- | Given a food, return the NutNamesPerGs coming from the
--- ingredients. 
-
--- | Given a food, return the nutrients that come from the
--- ingredients.
-foodIngrNuts :: Food -> NutNamesAmts
-foodIngrNuts f = if' ingrZero (NutNamesAmts M.empty) adjusted where
-  raw = (\(NutNamesAmts m) -> m) . foldFoodNuts
-        . (\(Ingr fs) -> fs) . ingr $ f
-  y = fromJust $ recipeYield f
-  im = ingredientMass f
-  ingrZero = im == (Grams zero)
-  adjusted = NutNamesAmts $ M.map recipeAdjustedAmt raw
-  recipeAdjustedAmt n = NutAmt $ qu `mult` ng where
-    qu = fromJust $ ig `divide` yg
-    (Grams ig) = im
-    (Grams yg) = y
-    (NutAmt ng) = n
-
-foodNuts :: Food -> NutNamesAmts
-foodNuts f = NutNamesAmts new where
-  new = M.union absU ing
-  (NutNamesAmts absU) = foodAbsNuts f
-  (NutNamesAmts ing) = foodIngrNuts f
-
-getNut :: Name -> Food -> Maybe NutAmt
-getNut n = M.lookup n
-           . (\(NutNamesAmts m) -> m)
-           . foodNuts
-
-foodAbsNuts :: Food -> NutNamesAmts
-foodAbsNuts f = NutNamesAmts $ M.map (nutsPerGToAmt g) old where
-  g = foodGrams f
-  (NutNamesPerGs old) = nutsPerGs f
-
-sumNuts :: NutNamesAmts -> NutNamesAmts -> NutNamesAmts
-sumNuts (NutNamesAmts l) (NutNamesAmts r) =
-  NutNamesAmts $ M.unionWith add l r
-
-foldNuts :: (F.Foldable f) => f NutNamesAmts -> NutNamesAmts
-foldNuts = F.foldl' sumNuts (NutNamesAmts M.empty)
-
-foldFoodNuts :: (F.Foldable f, Functor f) => f Food -> NutNamesAmts
-foldFoodNuts = foldNuts . fmap foodNuts
-
--- PctRefuse functions
-setPctRefuse :: PctRefuse -> Food -> Food
-setPctRefuse p f = f {pctRefuse = p}
-
--- Ingredient functions
-
--- | Returns total mass of all ingredients in the food. If there are
--- no ingredients, or if all ingredients have mass of zero, returns
--- zero.
-ingredientMass :: Food -> Grams
-ingredientMass f = F.foldl' add zero (fmap foodGrams ins) where
-  (Ingr ins) = ingr f
-
--- Ingredient functions
-
--- | Appends an ingredient to a Food's ingredients.
-addIngredient :: Food    -- ^ The ingredient to add
-                 -> Food -- ^ The food to add it to
-                 -> Food
-addIngredient i f = f {ingr = Ingr new} where
-  (Ingr old) = ingr f
-  new = old ++ [i]
-  
-deleteIngredients :: Food -> Food
-deleteIngredients f = f {ingr = Ingr [] }
-
-if' :: Bool -> a -> a -> a
-if' b x y = case b of True -> x; False -> y
