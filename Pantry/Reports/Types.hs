@@ -6,7 +6,7 @@ module Pantry.Reports.Types (GoalNameAmt(GoalNameAmt),
                       defaultReportOpts) where
 
 import Data.Text(Text)
-import Pantry.Food(Food, NutName, NutAmt(NutAmt))
+import Pantry.Food(Food, NutName, NutAmt(NutAmt), TagName)
 import Pantry.Tray(Tray)
 import qualified Data.Map as M
 import qualified Pantry.Types as T
@@ -18,7 +18,7 @@ type TotalRpt = ReportOpts -> M.Map NutName NutAmt -> Tray -> [Food] -> Text
 
 data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool
-                             , showTags :: [NutName]
+                             , showTags :: [TagName]
                              , showAllTags :: Bool
                              , oneColumn :: Bool }
 

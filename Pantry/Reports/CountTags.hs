@@ -5,8 +5,7 @@ import Prelude(Int, Ord, succ, show,
                zip, (==), Bool(True, False))
 import Data.Maybe (catMaybes)
 import Data.List (deleteFirstsBy)
-import Pantry.Food(Food, tags, TagNamesVals(TagNamesVals),
-                   TagVal(TagVal), Name(Name))
+import qualified Pantry.Food as F
 import Data.Map(Map, findWithDefault, insertWith, empty, insert,
                 assocs, elems, lookup)
 import Pantry.Reports.Types(showAllTags, showTags, ReportOpts)
@@ -16,33 +15,32 @@ import qualified Data.Text as X
 import Data.Foldable(Foldable, foldr, sum)
 import Data.Functor(fmap)
 
-countTags :: (Foldable f) => ReportOpts -> f Food -> Text
+countTags :: (Foldable f) => ReportOpts -> f F.Food -> Text
 countTags o = count (showAllTags o) (showTags o)
 
-type ValMap = Map TagVal Int
-type NameMap = Map Name ValMap
+type ValMap = Map F.TagVal Int
+type NameMap = Map F.TagName ValMap
 
-countValue :: (Name, TagVal) -> NameMap -> NameMap
+countValue :: (F.TagName, F.TagVal) -> NameMap -> NameMap
 countValue (k, v) old = insert k vm old where
   vmOld = findWithDefault empty k old
   vm = insertWith f v 1 vmOld
   f _ o = succ o
 
-countFood :: Food -> NameMap -> NameMap
-countFood f ns = foldr countValue ns (assocs m) where
-  (TagNamesVals m) = tags f
+countFood :: F.Food -> NameMap -> NameMap
+countFood f ns = foldr countValue ns (assocs . F.getTags $ f)
 
-nameMap :: (Foldable f) => f Food -> NameMap
+nameMap :: (Foldable f) => f F.Food -> NameMap
 nameMap = foldr countFood empty
 
-showValPair :: (TagVal, Int) -> Text
-showValPair ((TagVal t), i) = ldr `append` num `snoc` ' ' `append` txt where
+showValPair :: (F.TagVal, Int) -> Text
+showValPair ((F.TagVal t), i) = ldr `append` num `snoc` ' ' `append` txt where
   ldr = replicate 5 (singleton ' ')
   num = pack . show $ i
   txt = t `snoc` '\n'
 
-showMapPair :: (Name, Maybe ValMap) -> Text
-showMapPair ((Name n), m) = fir `append` rest `snoc` '\n' where
+showMapPair :: (F.TagName, Maybe ValMap) -> Text
+showMapPair ((F.TagName n), m) = fir `append` rest `snoc` '\n' where
   fir = num `snoc` ' ' `append` n `snoc` '\n' where
     num = case m of
       Nothing -> singleton '0'
@@ -76,8 +74,8 @@ orderedWithLeftovers m ks = (orig, left) where
 count :: (Foldable f) => 
          Bool      -- ^ If true, show all tags. If false, only show all
                    -- tags if next list is empty.
-         -> [Name] -- ^ Tags to show
-         -> f Food -- ^ Foods whose tags to show
+         -> [F.TagName] -- ^ Tags to show
+         -> f F.Food -- ^ Foods whose tags to show
          -> Text
 count a ns fs = firsts `append` rests where
   nm = nameMap fs
