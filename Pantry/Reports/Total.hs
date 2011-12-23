@@ -3,9 +3,9 @@ module Pantry.Reports.Total (total) where
 import Pantry.Food
 import Pantry.Reports.Types
 import Pantry.Reports.Render
-import Pantry.Reports.Columns
+import Pantry.Reports.Columns ( fmtColumnRow, txtColWidth, numColWidth )
 import Pantry.Reports.ElemBy
-import Data.Text hiding (null, replicate, map, foldr)
+import Data.Text ( Text, pack, append )
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.Text as X
@@ -25,7 +25,7 @@ totRptHdr = X.concat [first, second, third] where
   first = pack "Total of all nutrients:\n"
   second = fmtColumnRow totRptColWidths
            . map pack $ ["Name", "Goal", "Tot", "%G"]
-  third = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
+  third = (pack . concat . replicate n $ "-") `append` (pack "\n")
   n = sum totRptColWidths + numColWidth
 
 instance Render TotGoalNut where
