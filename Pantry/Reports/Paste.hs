@@ -1,13 +1,12 @@
 module Pantry.Reports.Paste(paste) where
 
-import Prelude(show, (.), ($), maybe, return, id, fmap)
-import Data.Text(Text, append, pack, snoc, replace, singleton,
-                 empty, concat)
-import Pantry.Types(NonNegInteger)
-import Pantry.Food(Food, TagNamesVals(TagNamesVals), tags,
-            units, UnitNamesAmts(UnitNamesAmts), foodId,
-            TagVal(TagVal), unFoodId, Name(Name))
-import Data.Map(lookup, keys)
+import Data.Text ( Text, append, snoc, pack, replace,
+                   singleton )
+import qualified Data.Text as X
+import Pantry.Types ( )
+import Pantry.Exact ( exact )
+import qualified Pantry.Food as F
+import qualified Data.Map as M
 
 {- The paste report looks like this:
 
@@ -22,24 +21,33 @@ skipped.
 -}
 
 
-paste :: Food -> Text
-paste = printFood
+paste :: F.Food -> Text
+paste f = com `append` lns `snoc` '\n' where
+  com = pack "# " `append` (exact n) `snoc` '\n'
+  n = M.findWithDefault (F.TagVal . pack $ "(no name)")
+      (F.TagName . pack $ "name") (F.getTags f)
+  currUnit = let cu = F.getCurrUnit f
+             in (F.currUnitName cu, F.currUnitAmt cu)
+  lns = currUnitTxt `append` otherUnitsTxt
+  currUnitTxt = printUnit (F.getFoodId f) currUnit
+  otherUnitsTxt = X.concat
+                  . map (printUnit (F.getFoodId f))
+                  . filter ((/=) currUnit)
+                  . M.assocs
+                  . F.getUnits
+                  $ f
 
-printLine :: NonNegInteger -> Name -> Text
-printLine i (Name n) = cmd `append` iTxt `append` unit where
-  cmd = pack "pantry id "
-  iTxt = pack . show $ i
-  unit = pack " -x " `append` quoted `snoc` '\n'
-  quoted = singleton '\'' `append` q `snoc` '\''
-  q = replace (pack "\'") (pack "\'\\\'\'") n
+printUnit :: F.FoodId -> (F.UnitName, F.UnitAmt) -> Text
+printUnit i (n, a) = X.concat [
+  pack "pantry --id "
+  , exact i
+  , pack " --set-unit "
+  , quoted . exact $ n
+  , singleton ' '
+  , quoted . exact $ a
+  , singleton '\n'
+  ]
 
-printFood :: Food -> Text
-printFood f = com `append` us `snoc` '\n' where
-  com = pack "# " `append` n `snoc` '\n'
-  (TagVal n) = maybe (TagVal empty) id $ do
-    let (TagNamesVals m) = tags f
-    name <- lookup (Name . pack $ "name") m
-    return name
-  us = concat . fmap (printLine . unFoodId $ i) $ ns
-  ns = keys . (\(UnitNamesAmts m) -> m) . units $ f
-  i = foodId f
+quoted :: Text -> Text
+quoted t = singleton '\'' `append` q `snoc` '\'' where
+  q = replace (pack "\'") (pack "\'\\\'\'") t

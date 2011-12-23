@@ -1,7 +1,5 @@
 module Pantry.Exact(Exact(exact)) where
 
-import Prelude(show, (.), ($), (==), Integral,
-               otherwise, id)
 import Data.Text(Text, snoc, append, pack)
 import Data.Ratio(Ratio, numerator, denominator)
 import Data.Decimal(DecimalRaw)
@@ -23,3 +21,6 @@ instance (Integral i) => Exact (DecimalRaw i) where
 
 instance Exact Text where
   exact = id
+
+instance Exact Integer where
+  exact = pack . show

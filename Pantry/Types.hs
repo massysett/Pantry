@@ -76,7 +76,7 @@ partialNewNonNeg r = if r < 0 then e else NonNeg r where
 -- member of many Prelude typeclasses (such as Enum) because those
 -- typeclasses have partial functions.
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
-                        deriving (Eq, Ord, Show)
+                        deriving (Eq, Ord, Show, Exact)
 
 instance Serialize NonNegInteger where
   put (NonNegInteger i) = put i
@@ -149,7 +149,7 @@ nonNegToPos (NonNeg nn) = case nn == 0 of
 -- Prelude typeclasses such as Enum becuase these functions are
 -- partial.
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
-                     deriving (Eq, Ord, Show, Serialize)
+                     deriving (Eq, Ord, Show, Serialize, Exact)
 
 -- | Create a new positive integer. Partial. Will crash if its
 -- argument is less than zero.
@@ -221,6 +221,9 @@ instance HasPos PosInteger where
 
 instance HasPos PosMixed where
   toPos (PosMixed d r) = Pos ((toRational d) + r)
+
+instance Eq PosMixed where
+  (==) l r = toPos l == toPos r
 
 -- | Numbers that can be incremented (e.g. integers, not floats)
 class Next a where

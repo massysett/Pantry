@@ -103,7 +103,8 @@ import Data.Maybe ( fromMaybe )
 -- would be OK (prec can be partial) but better to avoid that. Instead
 -- use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: T.NonNegInteger }
-                 deriving (Show, Eq, Ord, T.Next, Serialize)
+                 deriving (Show, Eq, Ord, T.Next, Serialize,
+                           Exact)
 
 -- | FoodID of zero
 zeroFoodId :: FoodId
@@ -134,7 +135,7 @@ newtype MixedGrams = MixedGrams { unMixedGrams :: T.NonNegMixed }
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
   PosMixedGrams { unPosMixedGrams :: T.PosMixed }
-  deriving (Show, Serialize, T.HasPos, T.HasNonNeg)
+  deriving (Show, Serialize, T.HasPos, T.HasNonNeg, Exact, Eq)
 
 ------------------------------------------------------------
 -- NUTRIENTS
@@ -142,7 +143,7 @@ newtype PosMixedGrams =
 
 -- | The name of a nutrient
 newtype NutName = NutName { unNutName :: Text }
-                  deriving (Eq, Ord, Show)
+                  deriving (Eq, Ord, Show, Exact)
 
 instance Serialize NutName where
   put (NutName n) = put . encodeUtf8 $ n
@@ -261,7 +262,7 @@ instance Serialize UnitName where
 
 -- | The amount of a unit
 newtype UnitAmt = UnitAmt { unUnitAmt :: PosMixedGrams }
-                  deriving (Show, Serialize, T.HasPos)
+                  deriving (Show, Serialize, T.HasPos, Exact, Eq)
 
 -- | A food's current unit.
 data CurrUnit = CurrUnit { currUnitName :: UnitName,
@@ -296,7 +297,7 @@ setCurrUnit c f = f { currUnit = c }
 
 -- | The name of a tag
 newtype TagName = TagName { unTagName :: Text }
-                  deriving (Show, Eq, Ord)
+                  deriving (Show, Eq, Ord, Exact)
 instance Serialize TagName where
   get = get >>= return . TagName . decodeUtf8
   put (TagName t) = put . encodeUtf8 $ t
