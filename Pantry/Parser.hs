@@ -7,7 +7,8 @@ import qualified Pantry.Error as R
 import Pantry.Radio.Messages ( Request )
 import System.Console.OptParse.OptParse (
   OptDesc(OptDesc), ArgDesc(Flag, Single, Double, Variable))
-import qualified Pantry.Matchers as M
+import qualified Data.Map as M
+import qualified Pantry.Matchers as Matchers
 import Data.Text ( Text, pack )
 import qualified Pantry.Conveyor as C
 import qualified Pantry.Reports.Types as RT
@@ -21,17 +22,17 @@ getConveyor :: Request
 getConveyor = undefined
 
 data Opts = Opts {
-  sensitive :: M.CaseSensitive,
+  sensitive :: Matchers.CaseSensitive,
   invert :: Bool,
   matcher :: String -> Either Error (Text -> Bool),
   conveyor :: T.Tray -> E.ErrorT Error IO T.Tray,
   reportOpts :: RT.ReportOpts }
 
 ignoreCase = OptDesc "i" ["ignore-case"] a where
-  a = Flag (\o -> return $ o { sensitive = M.CaseSensitive False })
+  a = Flag (\o -> return $ o { sensitive = Matchers.CaseSensitive False })
 
 caseSensitive = OptDesc "" ["case-sensitive"] a where
-  a = Flag (\o -> return $ o { sensitive = M.CaseSensitive True })
+  a = Flag (\o -> return $ o { sensitive = Matchers.CaseSensitive True })
 
 invertOpt = OptDesc "v" ["invert"] a where
   a = Flag (\o -> return $ o { invert = True })
@@ -53,23 +54,23 @@ within = OptDesc "" ["within"] a where
   a = Flag f
   f o = return $ o { matcher = newMatcher } where
     newMatcher = flipCase (invert o)
-                 (raiseMatcher (M.within (sensitive o)))
+                 (raiseMatcher (Matchers.within (sensitive o)))
 
 posix = OptDesc "" ["posix"] a where
   a = Flag f
   f o = return $ o { matcher = new } where
-    new = flipCase (invert o) (M.tdfa (sensitive o))
+    new = flipCase (invert o) (Matchers.tdfa (sensitive o))
 
 pcre = OptDesc "" ["pcre"] a where
   a = Flag f
   f o = return $ o { matcher = new } where
-    new = flipCase (invert o) (M.pcre (sensitive o))
+    new = flipCase (invert o) (Matchers.pcre (sensitive o))
 
 exact = OptDesc "" ["exact"] a where
   a = Flag f
   f o = return $ o { matcher = new } where
     new = flipCase (invert o)
-          (raiseMatcher (M.exact (sensitive o)))
+          (raiseMatcher (Matchers.exact (sensitive o)))
 
 raiseMatcher ::
   (String -> Text -> Bool)
@@ -169,17 +170,26 @@ undo = OptDesc "" ["undo"] a where
 changeTag = OptDesc "c" ["change-tag"] a where
   a = Double f
   f o a1 a2 = return newO where
-    nameVal = F.TagNameVal n v
-    n = F.Name . pack $ a1
+    n = F.TagName . pack $ a1
     v = F.TagVal . pack $ a2
-    ct = F.changeTag nameVal
+    changeTag fd = F.setTags newTags fd where
+      oldTags = F.getTags fd
+      newTags = M.insert n v oldTags
+    ct = changeTag
     c = C.xformToConvey (return . ct)
     newO = addConveyor o c
 
 deleteTag = OptDesc "" ["delete-tag"] a where
   a = Single f
   f o a1 = matcher o a1 >>= \m ->
-    let xformer = F.deleteTag m
+    let xformer = deleteTag
+        deleteTag fd = F.setTags new fd where
+          old = F.getTags fd
+          p ((F.TagName n), _) = not . m $ n
+          new = M.fromList
+                . filter p
+                . M.assocs
+                $ old
         c = C.xformToConvey (return . xformer)
     in return $ addConveyor o c
 
@@ -198,7 +208,8 @@ changeQty = OptDesc "q" ["change-quantity"] a where
     Nothing -> Left (R.NonNegMixedNotValid a1)
     (Just n) ->
       let q = F.Qty (Right (n :: NonNegMixed))
-          xform = F.changeQty q
+          changeQty fd = F.setQty q fd
+          xform = changeQty
           c = C.xformToConvey (return . xform)
       in return $ addConveyor o c
 
@@ -217,10 +228,12 @@ changeYield = OptDesc "" ["change-yield"] a where
     Nothing -> Left (R.NonNegMixedNotValid a1)
     (Just n) -> return $ addConveyor o c where
       c = C.xformToConvey (return . setYield)
-      setYield fd = fd { F.yield = F.ExplicitYield . F.PosMixedGrams $ n }
+      setYield fd = F.setYield y fd where
+        y = F.ExplicitYield . F.PosMixedGrams $ n
 
 removeYield = OptDesc "" ["remove-yield"] a where
   a = Flag f
   f o = return $ addConveyor o c where
     c = C.xformToConvey (return . setYield)
-    setYield fd = fd { F.yield = F.AutoYield }
+    setYield fd = F.setYield F.AutoYield fd
+
