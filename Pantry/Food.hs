@@ -152,7 +152,7 @@ instance Serialize NutName where
 -- | The amount of a nutrient.
 newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
                  deriving (Eq, Ord, Show, Serialize,
-                           T.Add)
+                           T.Add, T.Divide, Rounded)
 
 -- | The amount of a nutrient per gram of food.
 newtype NutPerG = NutPerG T.NonNeg
