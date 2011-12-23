@@ -1,7 +1,7 @@
 module Pantry.Error where
 
 import qualified Control.Monad.Error as E
-import Pantry.Food (UnitName, FoodId)
+import Pantry.Food (UnitName, FoodId, SetQtyByNutFailure)
 import Control.Exception ( IOException )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
@@ -38,6 +38,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | OneMoveIDGiven
            | NonNegMixedNotValid String
            | BoundedPercentNotValid String
+           | QByNutFail SetQtyByNutFailure
 
 instance E.Error Error where
   strMsg = Other

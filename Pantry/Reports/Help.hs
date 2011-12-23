@@ -65,7 +65,7 @@ help = X.unlines . map X.pack $ [
 "    --remove-yield",
 "        Let Pantry determine the yield for you",
 "",
-"    --by-nutrient nut-name qty",
+"    --by-nutrient pattern qty",
 "        set quantity of foods so amount of nut-name = qty",
 "    -r, --refuse",
 "        reduce quantity of foods by percent refuse",

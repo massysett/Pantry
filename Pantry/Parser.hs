@@ -237,3 +237,15 @@ removeYield = OptDesc "" ["remove-yield"] a where
     c = C.xformToConvey (return . setYield)
     setYield fd = F.setYield F.AutoYield fd
 
+byNutrient = OptDesc "" ["by-nutrient"] a where
+  a = Double f
+  f o a1 a2 = do
+    m <- matcher o a1
+    q <- case fromStr a2 of
+      Nothing -> Left (R.NonNegMixedNotValid a2)
+      (Just g) -> Right g
+    let setQ f = case F.setQtyByNut m q f of
+          (Left err) -> Left (R.QByNutFail err)
+          (Right good) -> Right good
+        c = C.xformToConvey setQ
+    return $ addConveyor o c
