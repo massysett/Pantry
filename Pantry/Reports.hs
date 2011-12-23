@@ -17,7 +17,7 @@ import Pantry.Reports.Total(total)
 import Pantry.Reports.Units(units)
 import Pantry.Reports.Types(FoodRpt, TotalRpt, ReportOpts)
 import qualified Pantry.Reports.Version(version)
-import Pantry.Food(Food, foldFoodNuts, NutNamesAmts)
+import Pantry.Food(Food, sumNuts, NutName, NutAmt, getNuts)
 import qualified Pantry.Error as R
 import qualified Data.Text as X
 import qualified Data.Foldable as F
@@ -72,7 +72,7 @@ totalRpts = [
   ]
 
 printFoodRpts :: ReportOpts
-                 -> NutNamesAmts
+                 -> M.Map NutName NutAmt
                  -> [Food]
                  -> [FoodRpt]
                  -> DL.DList X.Text
@@ -80,7 +80,7 @@ printFoodRpts o ts fs rs = DL.fromList xs where
   xs = rs <*> pure o <*> pure ts <*> fs
 
 printTotalRpts :: ReportOpts
-                  -> NutNamesAmts
+                  -> M.Map NutName NutAmt
                   -> T.Tray
                   -> [Food]
                   -> [TotalRpt]
@@ -90,7 +90,7 @@ printTotalRpts o ts tr fs rs = DL.fromList xs where
 
 
 printEitherRpt :: ReportOpts
-                  -> NutNamesAmts
+                  -> M.Map NutName NutAmt
                   -> T.Tray
                   -> Either [FoodRpt] [TotalRpt]
                   -> DL.DList X.Text
@@ -106,7 +106,7 @@ printReportGroups :: ReportOpts
                      -> DL.DList X.Text
 printReportGroups o (ReportGroups ls) t = r where
   r = DL.concat . map (printEitherRpt o ts t) $ ls
-  ts = foldFoodNuts . B.unBuffer . T.buffer $ t
+  ts = foldr sumNuts M.empty . map getNuts . B.unBuffer . T.buffer $ t
 
 data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
 
