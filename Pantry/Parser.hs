@@ -193,7 +193,7 @@ deleteTag = OptDesc "" ["delete-tag"] a where
         c = C.xformToConvey (return . xformer)
     in return $ addConveyor o c
 
-setCurrUnit = OptDesc "u" ["change-unit"] a where
+setCurrUnit = OptDesc "u" ["match-unit"] a where
   a = Single f
   f o a1 = matcher o a1 >>= \m ->
     let changeWithErr fd = case F.changeCurrUnit m fd of
