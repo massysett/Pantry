@@ -5,19 +5,20 @@ module Pantry.Reports.Types (GoalNameAmt(GoalNameAmt),
                       FoodRpt, TotalRpt,
                       defaultReportOpts) where
 
-import Prelude(Bool(False))
 import Data.Text(Text)
-import Pantry.Food(Food, NutNamesAmts, NutAmt, Name)
+import Pantry.Food(Food, NutName, NutAmt(NutAmt))
 import Pantry.Tray(Tray)
+import qualified Data.Map as M
+import qualified Pantry.Types as T
 
-data GoalNameAmt = GoalNameAmt Name NutAmt
+data GoalNameAmt = GoalNameAmt NutName NutAmt
 
-type FoodRpt = ReportOpts -> NutNamesAmts -> Food -> Text
-type TotalRpt = ReportOpts -> NutNamesAmts -> Tray -> [Food] -> Text
+type FoodRpt = ReportOpts -> M.Map NutName NutAmt -> Food -> Text
+type TotalRpt = ReportOpts -> M.Map NutName NutAmt -> Tray -> [Food] -> Text
 
 data ReportOpts = ReportOpts { goals :: [GoalNameAmt]
                              , showAllNuts :: Bool
-                             , showTags :: [Name]
+                             , showTags :: [NutName]
                              , showAllTags :: Bool
                              , oneColumn :: Bool }
 
@@ -31,11 +32,10 @@ defaultReportOpts = ReportOpts { goals = []
 
 -- | NutRatio is not within the Food datatype, but reports use it. For
 -- now this seems to be the best module to put this in.
-newtype NutRatio = NutRatio { unNutRatio :: NonNeg }
-                   deriving (Show, Exact, Rounded, Serialize)
+newtype NutRatio = NutRatio { unNutRatio :: T.NonNeg } deriving Show
 
 nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio
 nutRatio (NutAmt x) (NutAmt y) = do
-  q <- divide x y
+  q <- T.divide x y
   return $ NutRatio q
 

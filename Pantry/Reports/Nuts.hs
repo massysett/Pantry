@@ -7,7 +7,6 @@ import Data.Text (empty, pack, append, Text, concat)
 import Pantry.Food(NutAmt, nutRatio, Food, getNut,
             NutNamesAmts(NutNamesAmts), foodNuts,
             Name)
-import Pantry.Reports.Render(Render(render))
 import Pantry.Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
                      goals, showAllNuts)
 import Data.Map (lookup, assocs)
@@ -21,6 +20,9 @@ data GoalNut = GoalNut { goalNutName :: Name
                        , goalNutGoal :: NutAmt
                        , goalNutAmt :: Maybe NutAmt
                        , goalTotalAmt :: Maybe NutAmt }
+
+class Render a where
+  render :: ReportOpts -> a -> Text
 
 instance Render GoalNut where
   render o n = fmtColumnRow nutRptColWidths ts where
