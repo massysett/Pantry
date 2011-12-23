@@ -59,7 +59,6 @@ Library
         Pantry.Reports.Name,
         Pantry.Reports.Paste,
         Pantry.Reports.Properties,
-        Pantry.Reports.Render,
         Pantry.Reports.Status,
         Pantry.Reports.Tags,
         Pantry.Reports.Total,
