@@ -1,38 +1,37 @@
 module Pantry.Reports.Tags(Pantry.Reports.Tags.tags) where
 
-import Pantry.Food
+import qualified Pantry.Food as F
 import Pantry.Reports.Types
-import Pantry.Reports.Columns
+import Pantry.Reports.Columns ( newspaper )
 import Data.Text(append, pack)
-import Data.Maybe
-import Data.Map hiding (map, null, (\\))
-import Data.List hiding (lookup)
+import Data.Maybe ( catMaybes )
+import qualified Data.Map as M
+import Data.List ((\\))
 import Prelude hiding (lookup)
 import Data.Text(Text)
 
-allTags :: Food -> [(Name, TagVal)]
-allTags f = assocs m where
-  (TagNamesVals m) = Pantry.Food.tags f
+allTags :: F.Food -> [(F.TagName, F.TagVal)]
+allTags = M.assocs . F.getTags
 
-orderedTags :: [Name] -- ^ Tags to show, in order
-               -> Food
-               -> [(Name, TagVal)]
+orderedTags :: [F.TagName] -- ^ Tags to show, in order
+               -> F.Food
+               -> [(F.TagName, F.TagVal)]
 orderedTags ns f = catMaybes . map toMaybe $ ns where
-  (TagNamesVals m) = Pantry.Food.tags f
+  m = F.getTags f
   toMaybe n = do
-    v <- lookup n m
+    v <- M.lookup n m
     return (n, v)
 
-removeRedundantTags :: [(Name, TagVal)] -- ^ Tags that must be shown
-                       -> [(Name, TagVal)] -- ^ All tags
-                       -> [(Name, TagVal)] -- ^ All tags, with redundant ones removed
+removeRedundantTags :: [(F.TagName, F.TagVal)] -- ^ Tags that must be shown
+                       -> [(F.TagName, F.TagVal)] -- ^ All tags
+                       -> [(F.TagName, F.TagVal)] -- ^ All tags, with redundant ones removed
 removeRedundantTags = flip (\\)
 
 tagsToShow :: Bool      -- ^ True to show all tags,
                         -- False to show ordered tags only
-              -> [Name] -- ^ Tag names to show
-              -> Food
-              -> [(Name, TagVal)]
+              -> [F.TagName] -- ^ Tag names to show
+              -> F.Food
+              -> [(F.TagName, F.TagVal)]
 tagsToShow showAll ns f
   | showAll = ordered ++ rest
   | null ns = rest
@@ -40,11 +39,11 @@ tagsToShow showAll ns f
     ordered = orderedTags ns f
     rest = removeRedundantTags ordered (allTags f)
 
-tags :: ReportOpts -> Food -> Text
+tags :: ReportOpts -> F.Food -> Text
 tags o f = newspaper cs ss where
   cs = if oneColumn o then [] else [35]
   ss = map toString ts
-  toString ((Name n), (TagVal v)) =
+  toString ((F.TagName n), (F.TagVal v)) =
     n `append` (pack ": ") `append` v
   ts = tagsToShow (showAllTags o) (showTags o) f
     
