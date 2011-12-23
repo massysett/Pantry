@@ -249,3 +249,11 @@ byNutrient = OptDesc "" ["by-nutrient"] a where
           (Right good) -> Right good
         c = C.xformToConvey setQ
     return $ addConveyor o c
+
+refuse = OptDesc "r" ["refuse"] a where
+  a = Flag f
+  f o = return
+        . addConveyor o
+        . C.xformToConvey
+        $ (return . F.minusPctRefuse)
+
