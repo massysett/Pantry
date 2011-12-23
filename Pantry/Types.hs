@@ -26,6 +26,7 @@ module Pantry.Types (
   , PosMixed
   , posMixedDec
   , posMixedRatio
+  , posMixedOne
 
   , BoundedPercent
   , pctToMixed
@@ -172,6 +173,10 @@ instance Serialize PosMixed where
   put (PosMixed (Decimal p m) r) = put p >> put m >> put r
   get = liftM3 f get get get where
     f p m r = PosMixed (Decimal p m) r
+
+-- | Make a new PosMixed whose value is 1.
+posMixedOne :: PosMixed
+posMixedOne = PosMixed (Decimal 0 1) 0
 
 -- | Bounded percent. Represents values between 0 and 100 percent,
 -- inclusive. Internally these are held as NonNegMixed values.

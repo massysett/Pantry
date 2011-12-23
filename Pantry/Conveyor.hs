@@ -4,7 +4,7 @@
 module Pantry.Conveyor where
 
 import qualified Data.List as L
-import qualified Data.Foldable as F
+import Data.Foldable ( Foldable, foldrM )
 import Control.Applicative(Applicative, (<*>), (<**>), pure, (<$>))
 import qualified Control.Monad.Error as E
 import Control.Monad ((>=>))
@@ -12,7 +12,8 @@ import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Control.Monad.State as St
 import Data.Map ((!))
-import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger))
+import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger),
+                    posMixedOne)
 import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
@@ -25,9 +26,10 @@ import qualified Pantry.Sorter as S
 import Pantry.Paths ( CanonPath, unCanonPath )
 import qualified Pantry.Error as R
 
+import qualified Pantry.Food as F
 import Pantry.Food(Food,
-            unIngr, ingr, Ingr(Ingr), foodId,
-            emptyFood, addIngredient, FoodId)
+            unIngr, getIngr, Ingr(Ingr), getFoodId,
+            emptyFood, FoodId)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),
@@ -94,7 +96,7 @@ findIds is (Volatile v) = let
     (Just found) -> Right (found : fs)
     Nothing -> Left [i]
   ei = foldr (g foodMap) (Right []) is
-  foodMap = Map.fromList $ zip (map foodId v) v
+  foodMap = Map.fromList $ zip (map F.getFoodId v) v
   in case ei of
     (Left es) -> Left $ R.IDsNotFound es
     (Right fs) -> Right $ Volatile fs
@@ -108,7 +110,7 @@ concatMoveIds ::
   [[Food]] -- ^ Output from findAllInOrder
   -> [FoodId] -- ^ FoodId items to look up
   -> Either R.Error [Food] -- ^ Concatenated result, or error
-concatMoveIds fss is = F.foldrM f [] (zip is fss) where
+concatMoveIds fss is = foldrM f [] (zip is fss) where
   f (i, []) _ = E.throwError $ R.MoveIdNotFound i
   f (_, (food:[])) rs = return $ food : rs
   f (i, _) _ = E.throwError $ R.MultipleMoveIdMatches i
@@ -124,15 +126,18 @@ tail i (Volatile v) = Volatile $ L.genericDrop
                       (L.genericLength v - unNonNegInteger i) v
 
 create :: Volatile -> Volatile
-create (Volatile vs) = Volatile $ vs ++ [emptyFood]
+create (Volatile vs) = Volatile $ vs ++ [e] where
+  e = F.emptyFood $ F.CurrUnit n a
+  n = F.UnitName . X.pack $ "grams"
+  a = F.UnitAmt . F.PosMixedGrams $ posMixedOne
 
 move :: FirstPos -> [FoodId] -> Volatile -> Either R.Error Volatile
 move p is (Volatile v) = do
-  let pd fid food = fid == foodId food
+  let pd fid food = fid == F.getFoodId food
       finds = findAllInOrder pd is v
   fs <- concatMoveIds finds is
-  let sorted = sortByOrder is foodId fs
-      deleted = deleteAll foodId is v
+  let sorted = sortByOrder is F.getFoodId fs
+      deleted = deleteAll F.getFoodId is v
   case p of
     Beginning -> return . Volatile $ sorted ++ deleted
     (After aft) ->
@@ -180,12 +185,12 @@ xformToConvey = trayMToConvey . filterMToTrayM . xformToFilterM
 ------------------------------------------------------------
 replaceWithIngr :: Volatile -> Volatile
 replaceWithIngr (Volatile fs) = Volatile n where
-  n = unIngr . mconcat . map ingr $ fs
+  n = unIngr . mconcat . map F.getIngr $ fs
 
 removeIngr :: Volatile -> Volatile
 removeIngr (Volatile fs) = Volatile ns where
   ns = map g fs
-  g f = f { ingr = Ingr [] }
+  g f = F.setIngr (F.Ingr []) f
 
 -- | Finds foods in the the buffer that have the FoodId given. Adds
 -- each food found to the ingredients of all the foods in
@@ -201,8 +206,8 @@ ingrToVolatile is t = case lookupFoodId is t of
 addIngrToVolatile :: [Food] -> Tray -> Tray
 addIngrToVolatile fs t = t { volatile = v } where
   v = Volatile $ map addFoods (unVolatile . volatile $ t)
-  addFoods f = f { ingr = newIngr } where
-    newIngr = Ingr ((unIngr . ingr $ f) ++ fs)
+  addFoods f = F.setIngr newIngr f where
+    newIngr = F.Ingr ((F.unIngr . F.getIngr $ f) ++ fs)
 
 -- | Looks up in the buffer the foods corresponding to a list of
 -- FoodId given. Returns Right [Food] if all the foods are found;
@@ -210,7 +215,7 @@ addIngrToVolatile fs t = t { volatile = v } where
 lookupFoodId :: [FoodId] -> Tray -> Either [FoodId] [Food]
 lookupFoodId is t = let
   b = unBuffer . buffer $ t
-  m = Map.fromList $ zip (map foodId b) b
+  m = Map.fromList $ zip (map F.getFoodId b) b
   f i (Left es) = case Map.lookup i m of
     Nothing -> Left (i:es)
     (Just _) -> Left es
@@ -230,7 +235,7 @@ report o g t = t { output = Output (DL.append old new) } where
 ------------------------------------------------------------
 -- SORTING
 ------------------------------------------------------------
-sort :: F.Foldable f => S.TagMap -> f S.Key -> Volatile -> Volatile
+sort :: Foldable f => S.TagMap -> f S.Key -> Volatile -> Volatile
 sort ts ks (Volatile v) = Volatile $ L.sortBy f v where
   f = S.foodcmp ts ks
 
@@ -265,7 +270,7 @@ assignId :: Food -> St.State NextId Food
 assignId f = do
   i <- St.get
   St.modify next
-  return f { foodId = unNextId i }
+  return $ F.setFoodId (unNextId i) f
 
 -- | Takes the Volatile from a Tray and assigns new IDs to it and
 -- combines the Volatile with the DB foods in the tray, using the
@@ -312,7 +317,7 @@ edit t =
     newUndo = Undos l where
       l = take maxUndos $ buffer t : (unUndos . undos $ t)
     f (Volatile v) (Buffer d) =
-      case replaceAll foodId v d of
+      case replaceAll F.getFoodId v d of
         (Left k) -> E.throwError $ R.MultipleEditIdMatches k
         (Right vs) -> return . Buffer $ vs
 
@@ -329,7 +334,14 @@ delete t =
       l = take maxUndos $ buffer t : (unUndos . undos $ t)
     newFoods = f (volatile t) (buffer t)
     f (Volatile v) (Buffer d) =
-      Buffer $ deleteAll foodId (map foodId v) d
+      Buffer $ deleteAll F.getFoodId (map F.getFoodId v) d
+
+-- | Adds an ingredient to a food.
+addIngredient :: Food -- ^ Ingredient to add
+                 -> Food -- ^ Add it to this food
+                 -> Food
+addIngredient i f = F.setIngr is f where
+  is = F.Ingr . (++ [i]) . F.unIngr . F.getIngr $ f
 
 -- | Add foods in volatile to foods in the buffer that match a given
 -- ID. Fails if one of the given FoodIds is not found.
@@ -339,10 +351,10 @@ ingrFromVolatile is t = let
   --add = addIngredients (unVolatile . volatile $ t)
   g f = do
     s <- St.get
-    case Set.member (foodId f) s of
+    case Set.member (F.getFoodId f) s of
       False -> return f
       True -> do
-        St.modify (Set.delete (foodId f))
+        St.modify (Set.delete (F.getFoodId f))
         return $ add f
   bufComp = mapM g (unBuffer . buffer $ t)
   initSet = Set.fromList is
@@ -356,7 +368,7 @@ ingrFromVolatile is t = let
 
 -- | True if two foods have equal IDs.
 eqId :: Food -> Food -> Bool
-eqId f1 f2 = foodId f1 == foodId f2
+eqId f1 f2 = F.getFoodId f1 == F.getFoodId f2
 
 ------------------------------------------------------------
 -- OPEN AND SAVE FILES
@@ -578,7 +590,7 @@ composeM [] = return
 composeM (f:fs) = f >=> (composeM fs)
 
 compose :: [a -> a] -> (a -> a)
-compose = F.foldl (flip (.)) id
+compose = foldl (flip (.)) id
 
 liftToErrorT :: (E.Error e, Monad m) => Either e a -> E.ErrorT e m a
 liftToErrorT e = case e of
