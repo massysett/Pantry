@@ -5,8 +5,6 @@ import Pantry.Reports.Types ( GoalNameAmt ( GoalNameAmt ),
                               showAllNuts,
                               goals,
                               ReportOpts )
-                              
-                              
 import Pantry.Reports.Columns ( fmtColumnRow, txtColWidth, numColWidth )
 import Pantry.Reports.ElemBy ( elemBy )
 import Data.Text ( Text, pack, append )

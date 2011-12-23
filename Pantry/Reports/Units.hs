@@ -1,15 +1,14 @@
 module Pantry.Reports.Units(units) where
 
-import Prelude((.), map)
-import Data.Map(assocs)
-import qualified Pantry.Food as F (units, UnitNamesAmts(UnitNamesAmts))
+import qualified Data.Map as M
+import Pantry.Food ( getUnits )
 import Pantry.Exact(Exact(exact))
-import Data.Text(unlines, pack, append, Text)
+import Data.Text(pack, append, Text)
+import qualified Data.Text as X
 import Pantry.Food(Food)
 
 units :: Food -> Text
-units = unlines . map toLine . assocs . toMap where
-  toMap = (\(F.UnitNamesAmts m) -> m) . F.units
+units = X.unlines . map toLine . M.assocs . getUnits where
   toLine (n, a) = pack "    " `append` na `append` amt where
     na = exact n
     amt = pack " (" `append` exact a `append` pack " g)"
