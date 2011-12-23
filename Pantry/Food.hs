@@ -79,7 +79,8 @@ module Pantry.Food (
   matches,
   deleteMapKeys,
   changeCurrUnit,
-  foodGrams
+  foodGrams,
+  foodMatch
   ) where
   
 import qualified Data.Map as M
@@ -578,3 +579,10 @@ foodGrams f = Grams $ q `T.mult` u where
     (Right mix) -> T.toNonNeg mix
   (CurrUnit _ (UnitAmt pmg)) = currUnit f
   u = T.toNonNeg pmg
+
+-- | Returns True if the food has a tag with TagName whose value
+-- matches the function given.
+foodMatch :: TagName -> (Text -> Bool) -> Food -> Bool
+foodMatch n m f = case M.lookup n (tags f) of
+  Nothing -> False
+  (Just (TagVal v)) -> m v

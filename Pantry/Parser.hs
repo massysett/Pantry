@@ -84,7 +84,7 @@ find = OptDesc "f" ["find"] a where
   a = Double f
   f o a1 a2 = do
     m <- (matcher o) a2    
-    let p = F.foodMatch (F.Name . pack $ a1) m
+    let p = F.foodMatch (F.TagName . pack $ a1) m
         c = C.trayFilterToConvey .
             C.filterToTrayFilter .
             C.predToFilter $ p
