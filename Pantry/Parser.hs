@@ -15,6 +15,7 @@ import qualified Pantry.Reports.Types as RT
 import qualified Pantry.Food as F
 import Control.Monad ((>=>), mapM)
 import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
+import Pantry.Reports ( buildReportGroups, printReportGroups )
 
 getConveyor :: Request
                -> T.Tray
@@ -367,3 +368,61 @@ renameAvailUnit = OptDesc "" ["rename-avail-unit"] a where
       . addConveyor o
       . C.xformToConvey
       $ (return . changer)
+
+deleteAvailUnit = OptDesc "" ["delete-avail-unit"] a where
+  a = Single f
+  f o a1 = do
+    m <- matcher o a1
+    let fltr (F.UnitName n) _ = not . m $ n
+        changer fd = F.setUnits new fd where
+          old = F.getUnits fd
+          new = M.filterWithKey fltr old
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . changer)
+
+------------------------------------------------------------
+-- INGREDIENTS
+------------------------------------------------------------
+replaceWithIngr = OptDesc "" ["replace-with-ingredients"] a where
+  a = Flag f
+  f o = return
+        . addConveyor o
+        . C.trayFilterToConvey
+        . C.filterToTrayFilter
+        $ C.replaceWithIngr
+
+removeIngr = OptDesc "" ["remove-ingredients"] a where
+  a = Flag f
+  f o = return
+        . addConveyor o
+        . C.trayFilterToConvey
+        . C.filterToTrayFilter
+        $ C.removeIngr
+
+ingrToVolatile = OptDesc "" ["ingredients-to-volatile"] a where
+  a = Variable f
+  f o as = do
+    let folder _ (Left err) = Left err
+        folder s (Right is) = case fromStr s of
+          Nothing -> (Left . R.IngrToVolatileBadIdStr $ s)
+          (Just i) -> Right ((F.FoodId i):is)
+    is <- foldr folder (Right []) as
+    return
+      . C.trayMToConvey
+      $ C.ingrToVolatile is
+
+------------------------------------------------------------
+-- REPORTING
+------------------------------------------------------------
+print = OptDesc "p" ["print"] a where
+  a = Variable f
+  f o as = do
+    gs <- buildReportGroups as
+    let x = printReportGroups (reportOpts o) gs
+    return
+      . addConveyor o
+      . C.trayFilterToConvey
+      $ C.printerToTrayFilter x
+

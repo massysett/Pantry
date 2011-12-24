@@ -41,6 +41,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | PosMixedNotValid String
            | BoundedPercentNotValid String
            | QByNutFail SetQtyByNutFailure
+           | IngrToVolatileBadIdStr String
            | AddNutError Food
 
 instance E.Error Error where
