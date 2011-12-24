@@ -39,7 +39,69 @@ parse ss = do
   return . fst $ r
 
 optDescs :: [OptDesc Opts Error]
-optDescs = undefined
+optDescs = [
+  ignoreCase
+  , caseSensitive
+  , invertOpt
+  , noInvert
+  , within
+  , posix
+  , pcre
+  , exact
+  , find
+  , findIds
+  , clear
+  , recopy
+  , Pantry.Parser.head
+  , Pantry.Parser.tail
+  , create
+  , move
+  , undo
+  , changeTag
+  , deleteTag
+  , setCurrUnit
+  , changeQty
+  , changePctRefuse
+  , changeYield
+  , removeYield
+  , byNutrient
+  , refuse
+  , addNut
+  , changeNut
+  , renameNut
+  , deleteNut
+  , addAvailUnit
+  , changeAvailUnit
+  , renameAvailUnit
+  , deleteAvailUnit
+  , replaceWithIngr
+  , removeIngr
+  , ingrToVolatile
+  , Pantry.Parser.print
+  , goal
+  , showAllNuts
+  , showTag
+  , showAllTags
+  , oneColumn
+  , key
+  , order
+  , append
+  , prepend
+  , replace
+  , edit
+  , delete
+  , ingrFromVolatile
+  , open
+  , Pantry.Parser.appendFile
+  , prependFile
+  , close
+  , save
+  , saveAs
+  , quit
+  , help
+  , version
+  , copyright
+  ]
 
 data Opts = Opts {
   sensitive :: Matchers.CaseSensitive,
