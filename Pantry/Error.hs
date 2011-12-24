@@ -46,6 +46,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | AddNutError Food
            | NoSortDirection String
            | KeyOddArguments
+           | NonOptionArguments [String]
 
 instance E.Error Error where
   strMsg = Other
