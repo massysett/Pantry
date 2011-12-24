@@ -16,6 +16,8 @@ import qualified Pantry.Food as F
 import Control.Monad ((>=>), mapM)
 import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
 import Pantry.Reports ( buildReportGroups, printReportGroups )
+import qualified Pantry.Sorter as S
+import Data.List ( isPrefixOf, isSuffixOf )
 
 getConveyor :: Request
                -> T.Tray
@@ -27,7 +29,8 @@ data Opts = Opts {
   invert :: Bool,
   matcher :: String -> Either Error (Text -> Bool),
   conveyor :: T.Tray -> E.ErrorT Error IO T.Tray,
-  reportOpts :: RT.ReportOpts }
+  reportOpts :: RT.ReportOpts,
+  tagMap :: S.TagMap }
 
 ignoreCase = OptDesc "i" ["ignore-case"] a where
   a = Flag (\o -> return $ o { sensitive = Matchers.CaseSensitive False })
@@ -426,3 +429,87 @@ print = OptDesc "p" ["print"] a where
       . C.trayFilterToConvey
       $ C.printerToTrayFilter x
 
+goal = OptDesc "g" ["goal"] a where
+  a = Double f
+  f o a1 a2 = do
+    let n = F.NutName . pack $ a1
+    v <- case fromStr a2 of
+      Nothing -> Left $ R.NonNegMixedNotValid a2
+      (Just nn) -> Right $ F.NutAmt nn
+    let gna = RT.GoalNameAmt n v
+        newO = o { reportOpts = newRo } where
+          newRo = (reportOpts o) { RT.goals = oldGoals ++ [gna] } where
+            oldGoals = RT.goals . reportOpts $ o
+    return newO
+
+showAllNuts = OptDesc "" ["show-all-nutrients"] a where
+  a = Flag f
+  f o = return newO where
+    newO = o { reportOpts = newRo } where
+      newRo = (reportOpts o) { RT.showAllNuts = True }
+
+showTag = OptDesc "t" ["show-tag"] a where
+  a = Single f
+  f o a1 = let
+    t = F.TagName . pack $ a1
+    newO = o { reportOpts = newRo } where
+      newRo = (reportOpts o) { RT.showTags = oldTags ++ [t] } where
+        oldTags = RT.showTags . reportOpts $ o
+    in return newO
+
+showAllTags = OptDesc "" ["show-all-tags"] a where
+  a = Flag f
+  f o = return newO where
+    newO = o { reportOpts = newRo } where
+      newRo = (reportOpts o) { RT.showAllTags = True }
+
+oneColumn = OptDesc "" ["one-column"] a where
+  a = Flag f
+  f o = return newO where
+    newO = o { reportOpts = newRo } where
+      newRo = (reportOpts o) { RT.oneColumn = True }
+
+------------------------------------------------------------
+-- SORTING
+------------------------------------------------------------
+-- | Zip a list into pairs. Returns Just [(a,a)] if successful;
+-- returns Nothing if there is an odd number of strings.
+zipPairs :: [a] -> Maybe [(a,a)]
+zipPairs = r (Just []) where
+  r _ (a:[]) = Nothing
+  r (Just rs) [] = Just rs
+  r (Just rs) (a1:a2:as) =
+    case r (Just rs) as of
+      (Just rs') -> (Just ((a1,a2) : rs'))
+      Nothing -> Nothing
+
+-- | This is strict - here for historical interest
+zipL = r [] where
+  r rs [] = rs
+  r _ (a:[]) = error "odd number of items"
+  r rs (a1:a2:as) = r (rs ++ [(a1, a2)]) as
+
+-- | This is lazy - here for historical interest
+zipR = r [] where
+  r _ (a:[]) = error "odd number of items"
+  r rs [] = rs
+  r rs (a1:a2:as) = (a1, a2) : r rs as
+
+
+-- | Generate a list of keys from a list of command-line arguments.
+makeKeys :: [String] -> Either R.Error [S.Key]
+makeKeys ss = case zipPairs ss of
+  Nothing -> Left R.KeyOddArguments
+  (Just ps) -> let
+    folder (f, s) ks = case ks of
+      (Left err) -> Left err
+      (Right gs) -> let
+        dir | f `isPrefixOf` "ascending" = Right S.Ascending
+            | f `isPrefixOf` "descending" = Right S.Descending
+            | otherwise = Left $ R.NoSortDirection f
+        in case dir of
+          (Right d) -> let
+            n = F.TagName . pack $ s
+            in Right ((S.Key n d) : gs)
+          (Left err) -> Left err
+    in foldr folder (Right []) ps

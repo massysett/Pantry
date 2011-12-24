@@ -43,6 +43,8 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | QByNutFail SetQtyByNutFailure
            | IngrToVolatileBadIdStr String
            | AddNutError Food
+           | NoSortDirection String
+           | KeyOddArguments
 
 instance E.Error Error where
   strMsg = Other
