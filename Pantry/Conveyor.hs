@@ -27,9 +27,7 @@ import Pantry.Paths ( CanonPath, unCanonPath )
 import qualified Pantry.Error as R
 
 import qualified Pantry.Food as F
-import Pantry.Food(Food,
-            unIngr, getIngr, Ingr(Ingr), getFoodId,
-            emptyFood, FoodId)
+import Pantry.Food(Food, unIngr, Ingr, FoodId)
 import Data.Monoid(mconcat)
 import Pantry.Bag ( NextId(unNextId),
              Unsaved(Unsaved),

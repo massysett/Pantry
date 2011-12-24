@@ -14,11 +14,11 @@ import Data.Text ( Text, pack )
 import qualified Pantry.Conveyor as C
 import qualified Pantry.Reports.Types as RT
 import qualified Pantry.Food as F
-import Control.Monad ((>=>), mapM)
+import Control.Monad ((>=>))
 import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
 import Pantry.Reports ( buildReportGroups, printReportGroups )
 import qualified Pantry.Sorter as S
-import Data.List ( isPrefixOf, isSuffixOf )
+import Data.List ( isPrefixOf )
 import qualified Pantry.Paths as P
 
 getConveyor :: Request

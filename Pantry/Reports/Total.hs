@@ -10,7 +10,6 @@ import Pantry.Reports.ElemBy ( elemBy )
 import Data.Text ( Text, pack, append )
 import Data.Maybe ( fromMaybe )
 import qualified Data.Map as M
-import qualified Data.List as L
 import qualified Data.Text as X
 import Pantry.Exact(exact)
 import Pantry.Rounded(rounded)

@@ -1,7 +1,7 @@
 module Pantry.Reports.Properties (properties) where
 
 import Pantry.Reports.Types (ReportOpts(oneColumn))
-import Data.Text(Text, pack, append, snoc, cons, singleton)
+import Data.Text(Text, pack, append, snoc, singleton)
 import qualified Data.Text as X
 import qualified Pantry.Food as F
 import Pantry.Exact(Exact(exact))
@@ -34,14 +34,18 @@ twoColReport f = X.unlines [
   let q = exact . F.getQty $ f
       u = exact . F.currUnitName . F.getCurrUnit $ f
       paren t = singleton '(' `append` t `append` singleton ')'
-  in q `snoc` ' ' `append` paren (rounded . F.foodGrams $ f)
+  in q
+     `snoc` ' '
+     `append` u
+     `snoc` ' '
+     `append` paren (rounded . F.foodGrams $ f)
 
   , let r = label "%R" (exact . F.getPctRefuse $ f)
         y = case F.getYieldGrams f of
           Nothing -> X.empty
           (Just yld) -> let
             yamt = rounded yld
-            in label "Yield" (exact yld `append` singleton 'g')
+            in label "Yield" (yamt `append` singleton 'g')
     in r `append` pack "    " `append` y
        
   , label "ID" (exact . F.getFoodId $ f)
