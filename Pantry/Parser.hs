@@ -257,3 +257,23 @@ refuse = OptDesc "r" ["refuse"] a where
         . C.xformToConvey
         $ (return . F.minusPctRefuse)
 
+addNut = OptDesc "" ["add-nutrient"] a where
+  a = Double f
+  f o a1 a2 = case fromStr a2 of
+    Nothing -> Left (R.NonNegMixedNotValid a2)
+    (Just nn) -> let
+      n = F.NutName . pack $ a1
+      v = F.NutAmt nn
+      adder fd = let
+        old = F.getNuts fd
+        new = M.insert n v old
+        in case F.setNuts new fd of
+          Nothing -> Left $ R.AddNutError fd
+          (Just fd') -> Right fd'
+      in Right
+         . addConveyor o
+         . C.xformToConvey
+         $ adder
+
+
+

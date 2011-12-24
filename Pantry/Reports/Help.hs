@@ -71,6 +71,8 @@ help = X.unlines . map X.pack $ [
 "        reduce quantity of foods by percent refuse",
 "",
 "CHANGING NUTRIENTS, AVAILABLE UNITS, AND INGREDIENTS",
+"    --add-nutrient name value",
+"        add new nutrient (overwrites existing)",
 "    --change-nutrient pattern value",
 "        change nutrient value",
 "    --rename-nutrient pattern new-name",
