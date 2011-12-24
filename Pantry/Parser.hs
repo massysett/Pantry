@@ -18,6 +18,7 @@ import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
 import Pantry.Reports ( buildReportGroups, printReportGroups )
 import qualified Pantry.Sorter as S
 import Data.List ( isPrefixOf, isSuffixOf )
+import qualified Pantry.Paths as P
 
 getConveyor :: Request
                -> T.Tray
@@ -404,14 +405,23 @@ removeIngr = OptDesc "" ["remove-ingredients"] a where
         . C.filterToTrayFilter
         $ C.removeIngr
 
+-- | Takes a list of strings and parses it into a list of FoodId.
+-- Returns the error given if something goes wrong.
+parseFoodIds :: (String -> R.Error) -- ^ For bad input
+                -> [String]
+                -> Either R.Error [F.FoodId]
+parseFoodIds err ss = let
+  folder str res = case res of
+    (Left e) -> Left e
+    (Right is) -> case fromStr str of
+      Nothing -> Left (err str)
+      (Just i) -> Right ((F.FoodId i):is)
+   in foldr folder (Right []) ss
+
 ingrToVolatile = OptDesc "" ["ingredients-to-volatile"] a where
   a = Variable f
   f o as = do
-    let folder _ (Left err) = Left err
-        folder s (Right is) = case fromStr s of
-          Nothing -> (Left . R.IngrToVolatileBadIdStr $ s)
-          (Just i) -> Right ((F.FoodId i):is)
-    is <- foldr folder (Right []) as
+    is <- parseFoodIds R.IngrToVolatileBadIdStr as
     return
       . C.trayMToConvey
       $ C.ingrToVolatile is
@@ -531,3 +541,48 @@ order = OptDesc "O" ["key-order"] a where
     newTagMap = S.addTag n v oldTagMap
     oldTagMap = tagMap o
     in return $ o { tagMap = newTagMap }
+
+append = OptDesc "a" ["append"] a where
+  a = Flag f
+  f o = return
+        . C.trayFilterToConvey
+        $ C.append
+
+prepend = OptDesc "" ["prepend"] a where
+  a = Flag f
+  f o = return
+        . C.trayFilterToConvey
+        $ C.prepend
+
+replace = OptDesc "" ["replace"] a where
+  a = Flag f
+  f o = return
+        . C.trayFilterToConvey
+        $ C.replace
+
+edit = OptDesc "" ["edit"] a where
+  a = Flag f
+  f o = return $ C.trayMToConvey C.edit
+
+delete = OptDesc "" ["delete"] a where
+  a = Flag f
+  f o = return
+        . C.trayFilterToConvey
+        $ C.delete
+
+ingrFromVolatile = OptDesc "" ["ingredients-from-volatile"] a where
+  a = Variable f
+  f o as = do
+    is <- parseFoodIds R.IngrFromVolatileBadIdStr as
+    let c = C.trayMToConvey (C.ingrFromVolatile is)
+    return
+      . addConveyor o
+      $ c
+
+--open = OptDesc "" ["open"] a where
+
+-- | Takes a String and returns a computa
+toCanonPath :: String -> E.ErrorT R.Error IO P.CanonPath
+toCanonPath s = do
+  u <- P.userPath s
+  

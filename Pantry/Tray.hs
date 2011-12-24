@@ -18,27 +18,33 @@ data Tray = Tray { nextId :: Bag.NextId
                  , undos :: Bag.Undos
                  , volatile :: Volatile
                  , done :: Done
-                 , output :: Output }
+                 , output :: Output
+                 , clientCurrDir :: CanonPath }
 
-blankTray :: Tray
-blankTray = Tray { nextId = Bag.NextId $ oneFoodId
-                 , filename = Nothing
-                 , unsaved = Bag.Unsaved False
-                 , buffer = Bag.Buffer []
-                 , undos = Bag.Undos []
-                 , volatile = Volatile []
-                 , done = NotDone
-                 , output = Output DL.empty }
-
-bagToTray :: Bag.Bag -> Tray
-bagToTray b = Tray { nextId = Bag.nextId b
-                   , filename = Bag.filename b
-                   , unsaved = Bag.unsaved b
-                   , buffer = Bag.buffer b
-                   , undos = Bag.undos b
-                   , volatile = v
+blankTray :: CanonPath -- ^ Current directory of the client
+             -> Tray
+blankTray c = Tray { nextId = Bag.NextId $ oneFoodId
+                   , filename = Nothing
+                   , unsaved = Bag.Unsaved False
+                   , buffer = Bag.Buffer []
+                   , undos = Bag.Undos []
+                   , volatile = Volatile []
                    , done = NotDone
-                   , output = o } where
+                   , output = Output DL.empty
+                   , clientCurrDir = c }
+
+bagToTray :: Bag.Bag
+             -> CanonPath -- ^ Current directory of the client
+             -> Tray
+bagToTray b d = Tray { nextId = Bag.nextId b
+                     , filename = Bag.filename b
+                     , unsaved = Bag.unsaved b
+                     , buffer = Bag.buffer b
+                     , undos = Bag.undos b
+                     , volatile = v
+                     , done = NotDone
+                     , output = o
+                     , clientCurrDir = d } where
   v = Volatile . Bag.unBuffer . Bag.buffer $ b
   o = Output (DL.empty)
 

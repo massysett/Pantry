@@ -42,6 +42,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | BoundedPercentNotValid String
            | QByNutFail SetQtyByNutFailure
            | IngrToVolatileBadIdStr String
+           | IngrFromVolatileBadIdStr String
            | AddNutError Food
            | NoSortDirection String
            | KeyOddArguments
