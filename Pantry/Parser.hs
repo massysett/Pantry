@@ -52,8 +52,8 @@ optDescs = [
   , findIds
   , clear
   , recopy
-  , Pantry.Parser.head
-  , Pantry.Parser.tail
+  , headOpt
+  , tailOpt
   , create
   , move
   , undo
@@ -77,7 +77,7 @@ optDescs = [
   , replaceWithIngr
   , removeIngr
   , ingrToVolatile
-  , Pantry.Parser.print
+  , printOpt
   , goal
   , showAllNuts
   , showTag
@@ -92,7 +92,7 @@ optDescs = [
   , delete
   , ingrFromVolatile
   , open
-  , Pantry.Parser.appendFile
+  , appendFileOpt
   , prependFile
   , close
   , save
@@ -227,15 +227,15 @@ strToNonNegInteger s = case fromStr s of
   Nothing -> Left (R.NonNegIntegerStringNotValid s)
   (Just i) -> Right i
 
-head :: OptDesc Opts Error
-head = OptDesc "" ["head"] a where
+headOpt :: OptDesc Opts Error
+headOpt = OptDesc "" ["head"] a where
   a = Single f
   f o a1 = do
     i <- strToNonNegInteger a1
     return . addConveyor o . C.filterToConvey $ C.head i
 
-tail :: OptDesc Opts Error
-tail = OptDesc "" ["tail"] a where
+tailOpt :: OptDesc Opts Error
+tailOpt = OptDesc "" ["tail"] a where
   a = Single f
   f o a1 = do
     i <- strToNonNegInteger a1
@@ -554,8 +554,8 @@ ingrToVolatile = OptDesc "" ["ingredients-to-volatile"] a where
 ------------------------------------------------------------
 -- REPORTING
 ------------------------------------------------------------
-print :: OptDesc Opts Error
-print = OptDesc "p" ["print"] a where
+printOpt :: OptDesc Opts Error
+printOpt = OptDesc "p" ["print"] a where
   a = Variable f
   f o as = do
     gs <- buildReportGroups as
@@ -754,8 +754,8 @@ canonSavePath s t = do
   let cd = T.clientCurrDir t
   P.canonSavePath cd u
 
-appendFile :: OptDesc Opts Error
-appendFile = OptDesc "" ["append-file"] a where
+appendFileOpt :: OptDesc Opts Error
+appendFileOpt = OptDesc "" ["append-file"] a where
   a = Single f
   f o a1 = let
     c t = do
