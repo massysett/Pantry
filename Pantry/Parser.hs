@@ -522,3 +522,12 @@ key = OptDesc "k" ["key"] a where
     let sorter = C.sort (tagMap o) ks
         c = C.filterToConvey sorter
     return $ addConveyor o c
+
+order = OptDesc "O" ["key-order"] a where
+  a = Double f
+  f o a1 a2 = let
+    n = F.TagName . pack $ a1
+    v = F.TagVal . pack $ a2
+    newTagMap = S.addTag n v oldTagMap
+    oldTagMap = tagMap o
+    in return $ o { tagMap = newTagMap }
