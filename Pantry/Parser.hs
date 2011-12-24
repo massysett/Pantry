@@ -32,9 +32,9 @@ getConveyor r t = do
 
 parse :: [String] -> Either Error Opts
 parse ss = do
-  let noPosArgs ps = case ps of
-        [] -> Right []
-        ps -> Left (R.NonOptionArguments (map snd ps))
+  let noPosArgs ps = case null ps of
+        True -> Right []
+        False -> Left (R.NonOptionArguments (map snd ps))
   r <- parseOptsArgs optDescs defaultOpts noPosArgs ss
   return . fst $ r
 
@@ -284,10 +284,9 @@ changeTag = OptDesc "c" ["change-tag"] a where
   f o a1 a2 = return newO where
     n = F.TagName . pack $ a1
     v = F.TagVal . pack $ a2
-    changeTag fd = F.setTags newTags fd where
+    ct fd = F.setTags newTags fd where
       oldTags = F.getTags fd
       newTags = M.insert n v oldTags
-    ct = changeTag
     c = C.xformToConvey (return . ct)
     newO = addConveyor o c
 
@@ -295,8 +294,7 @@ deleteTag :: OptDesc Opts Error
 deleteTag = OptDesc "" ["delete-tag"] a where
   a = Single f
   f o a1 = matcher o a1 >>= \m ->
-    let xformer = deleteTag
-        deleteTag fd = F.setTags new fd where
+    let xformer fd = F.setTags new fd where
           old = F.getTags fd
           p ((F.TagName n), _) = not . m $ n
           new = M.fromList
@@ -323,8 +321,7 @@ changeQty = OptDesc "q" ["change-quantity"] a where
     Nothing -> Left (R.NonNegMixedNotValid a1)
     (Just n) ->
       let q = F.Qty (Right (n :: NonNegMixed))
-          changeQty fd = F.setQty q fd
-          xform = changeQty
+          xform fd = F.setQty q fd
           c = C.xformToConvey (return . xform)
       in return $ addConveyor o c
 
@@ -363,7 +360,7 @@ byNutrient = OptDesc "" ["by-nutrient"] a where
     q <- case fromStr a2 of
       Nothing -> Left (R.NonNegMixedNotValid a2)
       (Just g) -> Right g
-    let setQ f = case F.setQtyByNut m q f of
+    let setQ fn = case F.setQtyByNut m q fn of
           (Left err) -> Left (R.QByNutFail err)
           (Right good) -> Right good
         c = C.xformToConvey setQ
@@ -630,14 +627,16 @@ zipPairs = r (Just []) where
         Nothing -> Nothing
 
 -- | This is strict - here for historical interest
-zipL = r [] where
+_zipL :: [t] -> [(t, t)]
+_zipL = r [] where
   r rs [] = rs
-  r _ (a:[]) = error "odd number of items"
+  r _ (_:[]) = error "odd number of items"
   r rs (a1:a2:as) = r (rs ++ [(a1, a2)]) as
 
 -- | This is lazy - here for historical interest
-zipR = r [] where
-  r _ (a:[]) = error "odd number of items"
+_zipR :: [t] -> [(t, t)]
+_zipR = r [] where
+  r _ (_:[]) = error "odd number of items"
   r rs [] = rs
   r rs (a1:a2:as) = (a1, a2) : r rs as
 
