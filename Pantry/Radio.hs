@@ -19,6 +19,7 @@ import System.Environment ( getEnvironment )
 import System.Directory ( getHomeDirectory )
 import qualified Control.Exception as Ex
 import qualified Network as N
+import qualified Pantry.Paths as P
 
 newtype Listener = Listener N.Socket
 
@@ -96,10 +97,11 @@ socketToClient = do
 -- error code to the client, and determines what new bag should be
 -- passed up to the session.
 processBag :: Bag
+              -> P.ClientDir
               -> (Tray -> E.ErrorT R.Error IO Tray)
               -> IO (Maybe Bag)
-processBag b f = do
-  let t = bagToTray b
+processBag b d f = do
+  let t = bagToTray b d
       acquire = socketToClient
       release r = case r of
         Nothing -> return ()

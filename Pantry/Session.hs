@@ -1,6 +1,7 @@
 module Pantry.Session ( session ) where
 
 import Pantry.Radio (getListener, getRequest, processBag, Listener)
+import Pantry.Radio.Messages ( clientCurrDir )
 import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
 
@@ -18,7 +19,8 @@ sessionLoop b l = do
     Nothing -> sessionLoop b l
     (Just m) -> do
       let conveyor = getConveyor m
-      maybeNewBag <- processBag b conveyor
+          cd = clientCurrDir m
+      maybeNewBag <- processBag b cd conveyor
       case maybeNewBag of
         Nothing -> return ()
         (Just newBag) -> sessionLoop newBag l

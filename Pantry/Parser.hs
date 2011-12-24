@@ -595,3 +595,69 @@ open = OptDesc "" ["open"] a where
       path <- canonLoadPath a1 t
       C.open path t
     in return . addConveyor o $ c
+
+-- | Get a canonical save path.
+canonSavePath :: String -> T.Tray -> E.ErrorT R.Error IO P.CanonPath
+canonSavePath s t = do
+  u <- case P.userPath s of
+    (Left e) -> E.throwError e
+    (Right g) -> return g
+  let cd = T.clientCurrDir t
+  P.canonSavePath cd u
+
+appendFile = OptDesc "" ["append-file"] a where
+  a = Single f
+  f o a1 = let
+    c t = do
+      path <- canonLoadPath a1 t
+      C.appendFile path t
+    in return . addConveyor o $ c
+
+prependFile = OptDesc "" ["prepend-file"] a where
+  a = Single f
+  f o a1 = let
+    c t = do
+      path <- canonLoadPath a1 t
+      C.prependFile path t
+    in return . addConveyor o $ c
+
+close = OptDesc "" ["close"] a where
+  a = Flag f
+  f o = return . addConveyor o . C.trayFilterToConvey $ C.close
+
+save = OptDesc "" ["save"] a where
+  a = Flag f
+  f o = return . addConveyor o $ C.save
+
+saveAs = OptDesc "" ["save-as"] a where
+  a = Single f
+  f o a1 = let
+    c t = do
+      path <- canonSavePath a1 t
+      C.saveAs path t
+    in return . addConveyor o $ c
+
+quit = OptDesc "" ["quit"] a where
+  a = Flag f
+  f o = return . addConveyor o . C.trayFilterToConvey $ C.quit
+
+------------------------------------------------------------
+-- HELP
+------------------------------------------------------------
+-- | Generic help option maker.
+helpOpt :: String  -- ^ Long option string
+           -> (RT.ReportOpts -> T.Tray -> T.Tray) -- ^ Tray filter
+           -> OptDesc Opts err
+helpOpt s g = OptDesc "" [s] a where
+  a = Flag f
+  f o = return
+        . addConveyor o
+        . C.trayFilterToConvey
+        . g
+        . reportOpts
+        $ o
+
+help = helpOpt "help" C.help
+version = helpOpt "version" C.version
+copyright = helpOpt "copyright" C.copyright
+
