@@ -38,6 +38,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | NoMoveIDsGiven
            | OneMoveIDGiven
            | NonNegMixedNotValid String
+           | PosMixedNotValid String
            | BoundedPercentNotValid String
            | QByNutFail SetQtyByNutFailure
            | AddNutError Food

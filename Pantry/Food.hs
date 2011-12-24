@@ -25,6 +25,8 @@ module Pantry.Food (
   NutAmt ( NutAmt, unNutAmt ),
   getNuts,
   setNuts,
+  renameNuts,
+  deleteNuts,
   SetQtyByNutFailure( QBNNoMatchingNut, QBNMultipleMatchingNuts,
                       QBNNutIsZero ),
   setQtyByNut,
@@ -94,7 +96,7 @@ import Data.Serialize (Serialize(put, get), putWord8)
 import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
-import Data.Maybe ( fromMaybe )
+import Data.Maybe ( fromMaybe, catMaybes )
 
 ------------------------------------------------------------
 -- FOODID
@@ -136,7 +138,8 @@ newtype MixedGrams = MixedGrams { unMixedGrams :: T.NonNegMixed }
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
   PosMixedGrams { unPosMixedGrams :: T.PosMixed }
-  deriving (Show, Serialize, T.HasPos, T.HasNonNeg, Exact, Eq)
+  deriving (Show, Serialize, T.HasPos, T.HasNonNeg, Exact, Eq,
+            T.FromStr)
 
 ------------------------------------------------------------
 -- NUTRIENTS
@@ -211,6 +214,38 @@ setNuts m f = do
   c <- toNutPerG $ foodGrams f
   let newNuts = M.map c . M.map toPortionedNutAmt $ m
   return $ f { nutsPerG = newNuts }
+
+-- | Rename nutrients. This computation is provided (in addition to
+-- setNuts) because unlike setNuts this computation always succeeds.
+renameNuts :: (Text -> Bool) -- ^ Nutrient name to match
+              -> NutName     -- ^ New name
+              -> Food
+              -> Food
+renameNuts m n f = f { nutsPerG = new } where
+  old = nutsPerG f
+  changer a@((NutName na), v) = case m na of
+    True -> (n, v)
+    False -> a
+  new = M.fromList
+        . map changer
+        . M.assocs
+        $ old
+        
+-- | Delete nutrients. This computation is provided (in addition to
+-- setNuts) because unlike setNuts this computation always succeeds.
+deleteNuts :: (Text -> Bool) -- ^ Delete nutrients matching this pattern
+              -> Food
+              -> Food
+deleteNuts m f = f { nutsPerG = new } where
+  old = nutsPerG f
+  changer a@((NutName na), _) = case m na of
+    True -> Just a
+    False -> Nothing
+  new = M.fromList
+        . catMaybes
+        . map changer
+        . M.assocs
+        $ old
 
 -- | setQtyByNut can fail in a multitude of ways so this data type
 -- indicates the various failures.

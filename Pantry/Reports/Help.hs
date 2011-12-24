@@ -80,6 +80,8 @@ help = X.unlines . map X.pack $ [
 "    --delete-nutrients pattern",
 "        delete nutrients matching pattern",
 "",
+"    --add-available-unit name value",
+"        add available unit value",
 "    --change-available-unit pattern value",
 "        change available unit value",
 "    --rename-available-unit pattern new-name",

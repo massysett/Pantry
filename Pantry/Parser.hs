@@ -275,5 +275,95 @@ addNut = OptDesc "" ["add-nutrient"] a where
          . C.xformToConvey
          $ adder
 
+changeNut = OptDesc "" ["change-nutrient"] a where
+  a = Double f
+  f o a1 a2 = do
+    m <- matcher o a1
+    q <- case fromStr a2 of
+      Nothing -> Left (R.NonNegMixedNotValid a2)
+      (Just nn) -> Right (F.NutAmt nn)
+    let changer fd = let
+          old = F.getNuts fd
+          nutChanger e@(nn@(F.NutName n), _) = case m n of
+            True -> (nn, q)
+            False -> e
+          new = M.fromList
+                . map nutChanger
+                . M.assocs
+                $ old
+          in case F.setNuts new fd of
+            (Nothing) -> Left $ R.AddNutError fd
+            (Just fd') -> Right fd'
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ changer
 
+renameNut = OptDesc "" ["rename-nutrient"] a where
+  a = Double f
+  f o a1 a2 = do
+    m <- matcher o a1
+    let n = F.NutName . pack $ a2
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . F.renameNuts m n)
 
+deleteNut = OptDesc "" ["delete-nutrients"] a where
+  a = Single f
+  f o a1 = do
+    m <- matcher o a1
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . F.deleteNuts m )
+
+addAvailUnit = OptDesc "" ["add-available-unit"] a where
+  a = Double f
+  f o a1 a2 = do
+    let n = F.UnitName . pack $ a1
+    v <- case fromStr a2 of
+      Nothing -> Left (R.PosMixedNotValid a2)
+      (Just pm) -> Right . F.UnitAmt $ pm
+    let adder fd = F.setUnits new fd where
+          old = F.getUnits fd
+          new = M.insert n v old
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . adder)
+
+changeAvailUnit = OptDesc "" ["change-avail-unit"] a where
+  a = Double f
+  f o a1 a2 = do
+    m <- matcher o a1
+    v <- case fromStr a2 of
+      Nothing -> Left (R.PosMixedNotValid a2)
+      (Just pm) -> Right . F.UnitAmt $ pm
+    let mapfn (F.UnitName n) amt = case m n of
+          True -> v
+          False -> amt
+        changer fd = F.setUnits new fd where
+          old = F.getUnits fd
+          new = M.mapWithKey mapfn old
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . changer)
+
+-- TODO on all renames, fail if more than one thing is renamed
+renameAvailUnit = OptDesc "" ["rename-avail-unit"] a where
+  a = Double f
+  f o a1 a2 = do
+    m <- matcher o a1
+    let v = F.UnitName . pack $ a2
+        mapfn u@(F.UnitName n) = case m n of
+          True -> v
+          False -> u
+        changer fd = F.setUnits new fd where
+          old = F.getUnits fd
+          new = M.mapKeys mapfn old
+    return
+      . addConveyor o
+      . C.xformToConvey
+      $ (return . changer)
