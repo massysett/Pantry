@@ -476,12 +476,14 @@ oneColumn = OptDesc "" ["one-column"] a where
 -- returns Nothing if there is an odd number of strings.
 zipPairs :: [a] -> Maybe [(a,a)]
 zipPairs = r (Just []) where
-  r _ (a:[]) = Nothing
-  r (Just rs) [] = Just rs
-  r (Just rs) (a1:a2:as) =
-    case r (Just rs) as of
-      (Just rs') -> (Just ((a1,a2) : rs'))
-      Nothing -> Nothing
+  r result rest = case result of
+    Nothing -> Nothing
+    (Just rs) -> case rest of
+      [] -> Just rs
+      (_:[]) -> Nothing
+      (a1:a2:as) -> case r (Just rs) as of
+        (Just rs') -> Just ((a1, a2) : rs')
+        Nothing -> Nothing
 
 -- | This is strict - here for historical interest
 zipL = r [] where
@@ -494,7 +496,6 @@ zipR = r [] where
   r _ (a:[]) = error "odd number of items"
   r rs [] = rs
   r rs (a1:a2:as) = (a1, a2) : r rs as
-
 
 -- | Generate a list of keys from a list of command-line arguments.
 makeKeys :: [String] -> Either R.Error [S.Key]
@@ -513,3 +514,11 @@ makeKeys ss = case zipPairs ss of
             in Right ((S.Key n d) : gs)
           (Left err) -> Left err
     in foldr folder (Right []) ps
+
+key = OptDesc "k" ["key"] a where
+  a = Variable f
+  f o as = do
+    ks <- makeKeys as
+    let sorter = C.sort (tagMap o) ks
+        c = C.filterToConvey sorter
+    return $ addConveyor o c
