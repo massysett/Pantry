@@ -1,13 +1,10 @@
 module Pantry.Reports.Nuts (nuts) where
 
-import Prelude((.), ($), maybe, return, Int, (==), map,
-               Maybe, id, replicate, sum, (+), otherwise,
-               foldr, null, Bool(True, False))
-import Data.Text (empty, pack, append, Text, concat)
+import Data.Text (empty, pack, append, Text)
+import qualified Data.Text as X
 import qualified Pantry.Food as F
 import Pantry.Reports.Types(GoalNameAmt(GoalNameAmt), ReportOpts,
                      goals, showAllNuts)
-import Data.Map (lookup, assocs)
 import qualified Data.Map as M
 import Pantry.Reports.Columns(fmtColumnRow, txtColWidth, numColWidth)
 import qualified Data.List as L (concat)
@@ -48,7 +45,7 @@ nutRptColWidths :: [Int]
 nutRptColWidths = [txtColWidth, numColWidth, numColWidth]
 
 nutRptHdr :: Text
-nutRptHdr = concat [first, second] where
+nutRptHdr = X.concat [first, second] where
   first = fmtColumnRow nutRptColWidths
           . map pack $ ["Name", "Amt", "%G", "%T"]
   second = (pack . L.concat . replicate n $ "-") `append` (pack "\n")
@@ -75,16 +72,16 @@ showAnyNut n = fmtColumnRow nutRptColWidths ts where
 
 getGoalNut :: M.Map F.NutName F.NutAmt -> F.Food -> GoalNameAmt -> GoalNut
 getGoalNut t f (GoalNameAmt n ng) = GoalNut n ng gna gta where
-  gna = lookup n . F.getNuts $ f
-  gta = lookup n t
+  gna = M.lookup n . F.getNuts $ f
+  gta = M.lookup n t
 
 -- | Returns all nutrients from a food, whether they have a goal or not.
 anyNuts :: M.Map F.NutName F.NutAmt -- ^ Totals
            -> F.Food
            -> [AnyNut]
-anyNuts ts f = map toAnyNut . assocs $ m where
+anyNuts ts f = map toAnyNut . M.assocs $ m where
   m = F.getNuts f
-  toAnyNut (n, a) = AnyNut n a (lookup n ts)
+  toAnyNut (n, a) = AnyNut n a (M.lookup n ts)
 
 appendAnyIfNotDupe ::
   [GoalNut]
@@ -113,6 +110,6 @@ nuts o ts f = nutRptHdr `append` txt `append` gap where
   ngns = anyNuts ts f
   gns = map (getGoalNut ts f) (goals o)
   nonDupes = removeDupeAnyNuts gns ngns
-  goalTxt = concat . map showGoalNut $ gns
-  nonGoalTxt = concat . map showAnyNut $ nonDupes
+  goalTxt = X.concat . map showGoalNut $ gns
+  nonGoalTxt = X.concat . map showAnyNut $ nonDupes
   gap = pack "\n"
