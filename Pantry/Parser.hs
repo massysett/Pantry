@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Pantry.Parser (getConveyor) where
 
 import qualified Pantry.Tray as T

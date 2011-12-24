@@ -6,10 +6,9 @@ module Pantry.Reports.Types (GoalNameAmt(GoalNameAmt),
                       defaultReportOpts) where
 
 import Data.Text(Text)
-import Pantry.Food(Food, NutName, NutAmt(NutAmt), TagName)
+import Pantry.Food(Food, NutName, NutAmt, TagName)
 import Pantry.Tray(Tray)
 import qualified Data.Map as M
-import qualified Pantry.Types as T
 
 data GoalNameAmt = GoalNameAmt NutName NutAmt
 
@@ -28,14 +27,3 @@ defaultReportOpts = ReportOpts { goals = []
                                , showTags = []
                                , showAllTags = False
                                , oneColumn = False }
-
-
--- | NutRatio is not within the Food datatype, but reports use it. For
--- now this seems to be the best module to put this in.
-newtype NutRatio = NutRatio { unNutRatio :: T.NonNeg } deriving Show
-
-nutRatio :: NutAmt -> NutAmt -> Maybe NutRatio
-nutRatio (NutAmt x) (NutAmt y) = do
-  q <- T.divide x y
-  return $ NutRatio q
-
