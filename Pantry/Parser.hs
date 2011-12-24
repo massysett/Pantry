@@ -579,10 +579,19 @@ ingrFromVolatile = OptDesc "" ["ingredients-from-volatile"] a where
       . addConveyor o
       $ c
 
---open = OptDesc "" ["open"] a where
-
--- | Takes a String and returns a computa
-toCanonPath :: String -> E.ErrorT R.Error IO P.CanonPath
-toCanonPath s = do
-  u <- P.userPath s
+-- | Canonicalizes a path handed in via a string.
+canonLoadPath :: String -> T.Tray -> E.ErrorT R.Error IO P.CanonPath
+canonLoadPath s t = do
+  u <- case P.userPath s of
+    (Left err) -> E.throwError err
+    (Right good) -> return good
+  let cd = T.clientCurrDir t
+  P.canonLoadPath cd u
   
+open = OptDesc "" ["open"] a where
+  a = Single f
+  f o a1 = let
+    c t = do
+      path <- canonLoadPath a1 t
+      C.open path t
+    in return . addConveyor o $ c

@@ -3,7 +3,7 @@ module Pantry.Tray where
 import Pantry.Food(Food, oneFoodId)
 import qualified Data.DList as DL
 import qualified Data.Text as X
-import Pantry.Paths ( CanonPath )
+import Pantry.Paths ( CanonPath, ClientDir )
 
 import qualified Pantry.Bag as Bag
 
@@ -19,10 +19,9 @@ data Tray = Tray { nextId :: Bag.NextId
                  , volatile :: Volatile
                  , done :: Done
                  , output :: Output
-                 , clientCurrDir :: CanonPath }
+                 , clientCurrDir :: ClientDir }
 
-blankTray :: CanonPath -- ^ Current directory of the client
-             -> Tray
+blankTray :: ClientDir -> Tray
 blankTray c = Tray { nextId = Bag.NextId $ oneFoodId
                    , filename = Nothing
                    , unsaved = Bag.Unsaved False
@@ -33,9 +32,7 @@ blankTray c = Tray { nextId = Bag.NextId $ oneFoodId
                    , output = Output DL.empty
                    , clientCurrDir = c }
 
-bagToTray :: Bag.Bag
-             -> CanonPath -- ^ Current directory of the client
-             -> Tray
+bagToTray :: Bag.Bag -> ClientDir -> Tray
 bagToTray b d = Tray { nextId = Bag.nextId b
                      , filename = Bag.filename b
                      , unsaved = Bag.unsaved b

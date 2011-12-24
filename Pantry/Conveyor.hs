@@ -37,7 +37,7 @@ import Pantry.Bag ( NextId(unNextId),
              Undos(Undos, unUndos))
 import Pantry.Tray ( Tray, nextId, filename, unsaved,
                      buffer, undos, volatile, done, output,
-                     unOutput, blankTray,
+                     unOutput, blankTray, clientCurrDir,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
                      Done(Done))
@@ -477,10 +477,11 @@ prependFile :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
 prependFile = appendOrPrepend (\(Buffer l) r -> Buffer $ r ++ l)
 
 close :: Tray -> Tray
-close t = blankTray { undos = addToUndos (buffer t) (undos t)
-                    , volatile = volatile t
-                    , done = done t
-                    , output = output t }
+close t = (blankTray (clientCurrDir t)) {
+  undos = addToUndos (buffer t) (undos t)
+  , volatile = volatile t
+  , done = done t
+  , output = output t }
 
 quit :: Tray -> Tray
 quit t = t { done = Done }
