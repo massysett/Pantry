@@ -3,6 +3,7 @@ module Pantry.Error where
 import qualified Control.Monad.Error as E
 import Pantry.Food (UnitName, FoodId, SetQtyByNutFailure,
                     Food)
+import qualified Pantry.Food as F
 import Control.Exception ( IOException )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
@@ -55,7 +56,65 @@ instance O.ParseErr Error where
   store = ParseError
 
 showError :: Error -> X.Text
-showError = undefined
+showError e = case e of
+  (NotExactlyOneMatchingUnit us) ->
+    message b ls e where
+      b = "not exactly one matching unit"
+      ls = [ "You entered a pattern to change the unit of a food,"
+           , "but there was more than one unit matching the"
+           , "pattern. Matching units:"
+           ] ++ map (X.unpack . F.unUnitName) us
+
+-- | Format a standard error message. The first line will say "pantry:
+-- error:" and give a one-line summary of the message. Following lines
+-- will include more details about the error. The last will state the
+-- pantry error number.
+message :: String -- ^ Brief description
+           -> [String] -- ^ More lines
+           -> Error -- ^ The error, to pull out the error code
+           -> X.Text
+message b ls e = X.unlines $ [f] ++ m ++ [l] where
+  f = X.pack $ "pantry: error: " ++ b
+  m = map X.pack ls
+  l = X.pack $ "(Pantry error number " ++ show (errorCode e) ++ ")"
 
 errorCode :: Error -> Word8
-errorCode = undefined
+errorCode e = case e of
+  (NotExactlyOneMatchingUnit {})                            -> 1
+  (AddNutToZeroQty {})                                      -> 2
+  (RegexComp {})                                            -> 3
+  (NoReportMatch {})                                        -> 4
+  (Other {})                                                -> 5
+  (MoveIdNotFound {})                                       -> 6
+  (MultipleMoveIdMatches {})                                -> 7
+  (MultipleEditIdMatches {})                                -> 8
+  (MoveStartNotFound {})                                    -> 9
+  (CanonicalizeError {})                                    -> 10
+  (FileSaveError {})                                        -> 11
+  (FileReadError {})                                        -> 12
+  (FileDecodeError {})                                      -> 13
+  (NotPantryFile {})                                        -> 14
+  (WrongFileVersion {})                                     -> 15
+  (NoSaveFilename {})                                       -> 16
+  (UndoTooBig {})                                           -> 17
+  (EmptyFilePath {})                                        -> 18
+  (FindLoadFileError {})                                    -> 19
+  (FindSaveDirError {})                                     -> 20
+  (IngrToVolatileLookup {})                                 -> 21
+  (IngrFromVolatileNotFound {})                             -> 22
+  (ParseError {})                                           -> 23
+  (IDsNotFound {})                                          -> 24
+  (IDStringNotValid {})                                     -> 25
+  (NonNegIntegerStringNotValid {})                          -> 26
+  (NoMoveIDsGiven {})                                       -> 27
+  (OneMoveIDGiven {})                                       -> 28
+  (NonNegMixedNotValid {})                                  -> 29
+  (PosMixedNotValid {})                                     -> 30
+  (BoundedPercentNotValid {})                               -> 31
+  (QByNutFail {})                                           -> 32
+  (IngrToVolatileBadIdStr {})                               -> 33
+  (IngrFromVolatileBadIdStr {})                             -> 34
+  (AddNutError {})                                          -> 35
+  (NoSortDirection {})                                      -> 36
+  (KeyOddArguments {})                                      -> 37
+  (NonOptionArguments {})                                   -> 38
