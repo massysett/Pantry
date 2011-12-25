@@ -94,12 +94,13 @@ showError e = case e of
            , s
            , "Matching report names:" ]
            ++ case ss of [] -> ["(none)"]
-                         ls -> ls
+                         rs -> rs
   
   (Other s) ->
     message b ls e Dirty where
       b = "an unknown error occurred"
-      ls = [ "This is a bug; please report it to"
+      ls = [ "Description of the error: " ++ s
+           ,  "This is a bug; please report it to"
            , "omari@smileystation.com"
            ]
   
