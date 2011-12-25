@@ -12,6 +12,12 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
+Executable pantryd
+    Build-Depends: pantry,
+                   base ==4.*
+    Main-Is: pantryd.hs
+    Hs-Source-Dirs: pantryd-binary
+
 Library
     Build-depends:
         base ==4.*,
@@ -40,6 +46,7 @@ Library
         Pantry.Exact,
         Pantry.Food,
         Pantry.Matchers,
+        Pantry.Paths,
         Pantry.Parser,
         Pantry.Radio,
         Pantry.Radio.Messages,
@@ -58,6 +65,7 @@ Library
         Pantry.Reports.Help,
         Pantry.Reports.Ingredients,
         Pantry.Reports.Name,
+        Pantry.Reports.Nuts,
         Pantry.Reports.Paste,
         Pantry.Reports.Properties,
         Pantry.Reports.Status,

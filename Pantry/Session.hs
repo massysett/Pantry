@@ -9,11 +9,64 @@ import qualified System.Posix.IO as IO
 import qualified System.Directory as D
 import qualified System.Posix.Files as PF
 import qualified System.Posix.Types as PT
-import Control.Monad ( void )
+import Control.Monad ( void, when )
+import qualified System.Console.OptParse.OptParse as O
+import System.Console.OptParse.SimpleParser ( SimpleErr ( SimpleErr ) )
+import System.Environment ( getArgs )
+import System.Exit ( exitFailure, exitSuccess )
 
+data Opts = Opts { daemon :: Bool
+                 , help :: Bool }
+
+defaultOpts :: Opts
+defaultOpts = Opts { daemon = True
+                   , help = False }
+
+optDescs :: [O.OptDesc Opts err]
+optDescs = [
+  let argDesc = O.Flag (\o -> return o { daemon = False })
+  in O.OptDesc "f" ["--foreground"] argDesc
+
+  , let argDesc = O.Flag f
+        f o = return o { help = True, daemon = False }
+    in O.OptDesc "h" ["--help"] argDesc
+  ]
+
+posArgParser :: [(Opts, String)] -> Either SimpleErr ()
+posArgParser ps = let
+  err = "pantryd does not accept non-option arguments."
+  in case ps of
+    [] -> Right ()
+    _ -> Left (SimpleErr err)
+
+errorExit :: String -> IO a
+errorExit s = do
+  putStrLn $ "pantryd: error: " ++ s
+  putStrLn $ "Run \"pantryd --help\" for help."
+  exitFailure
+
+displayHelp :: IO ()
+displayHelp = do
+  putStrLn $ "pantryd - start the Pantry server"
+  putStrLn $ "usage: pantryd [options]"
+  putStrLn $ "Options:"
+  putStrLn $ "  -f | --foreground - Do not become a daemon"
+  putStrLn $ "  -h | --help - show this help"
+  putStrLn $ "Not starting the server, exiting successfully."
+
+parseCommandLine :: IO Opts
+parseCommandLine = do
+  as <- getArgs
+  let ei = O.parseOptsArgs optDescs defaultOpts posArgParser as
+  case ei of
+    (Left (SimpleErr err)) -> errorExit err
+    (Right (opts, ())) -> return opts
 
 serverMain :: IO ()
-serverMain = startSessionDaemon
+serverMain = do
+  opts <- parseCommandLine
+  when (help opts) (displayHelp >> exitSuccess)
+  if daemon opts then startSessionDaemon else session
 
 session :: IO ()
 session = do
@@ -49,11 +102,6 @@ rwrr = PF.nullFileMode
        `PF.unionFileModes` PF.groupReadMode
        `PF.unionFileModes` PF.otherReadMode
 
-setSidForkAction :: IO ()
-setSidForkAction = do
-  _ <- P.createSession
-  void $ P.forkProcess daemonizeForkAction
-  
 daemonizeForkAction :: IO ()
 daemonizeForkAction = do
   D.setCurrentDirectory "/"
@@ -75,10 +123,14 @@ daemonizeForkAction = do
 -- wrong. See the documentation for System.Posix.Process.forkProcess;
 -- it might not work in the way you think it does.
 startSessionDaemon :: IO ()
-startSessionDaemon = setSidForkAction
+startSessionDaemon =
+  P.createSession
+  >> P.forkProcess daemonizeForkAction
+  >> return ()
 
-{- From http://www.faqs.org/faqs/unix-faq/programmer/faq/
+{-
 
+From http://www.faqs.org/faqs/unix-faq/programmer/faq/
 Section 1.7 describes how to daemonize:
 
   1. `fork()' so the parent can exit, this returns control to the command
