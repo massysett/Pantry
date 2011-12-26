@@ -4,6 +4,7 @@ module Pantry.Radio.Server (
   getListener
   , getRequest
   , processBag
+  , serverLogFileName
   , Listener
   ) where
 
@@ -16,14 +17,22 @@ import System.IO (Handle, hClose, hPutStrLn, stderr,
 import qualified Data.DList as DL
 import qualified Data.Text as X
 import qualified Pantry.Radio.Messages as M
-import Pantry.Radio ( toServerSocketName, toClientSocketName )
+import Pantry.Radio ( toServerSocketName, toClientSocketName,
+                      pantryDir, Listener(Listener))
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
+import System.FilePath ((</>))
 import qualified Control.Exception as Ex
 import qualified Network as N
 import qualified Pantry.Paths as P
 
-newtype Listener = Listener N.Socket
+-- | The name of the file where the server will put its log file. The
+-- log file will go here only if the server is daemonized; otherwise
+-- all error messages will to the stderr of the parent process.
+serverLogFileName :: IO FilePath
+serverLogFileName = do
+  (pd, _) <- pantryDir
+  return $ pd </> "server_log"
 
 -- | Returns a socket that listens for requests from clients.  Does
 -- not catch any exceptions; for now just let it crash if there are

@@ -1,7 +1,10 @@
 module Pantry.Session ( serverMain ) where
 
 import Pantry.Radio.Server (
-  getListener, getRequest, processBag, Listener)
+  getListener, getRequest, processBag, Listener,
+  serverLogFileName )
+import Pantry.Radio ( pantryDir,
+                      PantryDirInfo(IsDefaultDir, NotDefaultDir) )
 import Pantry.Radio.Messages ( clientCurrDir )
 import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
@@ -89,12 +92,14 @@ sessionLoop b l = do
         Nothing -> return ()
         (Just newBag) -> sessionLoop newBag l
 
--- | Makes the .pantry directory.
+-- | Makes the .pantry directory, but only if the directory is the
+-- default. Otherwise, let the user go and create it.
 makePantryDir :: IO ()
 makePantryDir = do
-  h <- D.getHomeDirectory
-  let d = h ++ "/.pantry"
-  D.createDirectoryIfMissing False d
+  (dir, def) <- pantryDir
+  case def of
+    IsDefaultDir -> D.createDirectoryIfMissing False dir
+    NotDefaultDir -> return ()
   
 rwrr :: PT.FileMode
 rwrr = PF.nullFileMode
@@ -112,9 +117,8 @@ daemonizeForkAction = do
   -- reopen standard input, output, error
   void $ IO.openFd "/dev/null" IO.ReadOnly Nothing IO.defaultFileFlags
   makePantryDir
-  d <- D.getHomeDirectory
-  let logfile = d ++ "/.pantry/server_log"
-      flags = IO.defaultFileFlags { IO.append = True }
+  logfile <- serverLogFileName
+  let flags = IO.defaultFileFlags { IO.append = True }
   -- Do it twice - once for stdout, once for stderr
   _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags
   _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags

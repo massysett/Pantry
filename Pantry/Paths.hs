@@ -3,7 +3,7 @@
 module Pantry.Paths ( UserPath, unUserPath, userPath, CanonPath,
                       unCanonPath, 
                       ClientDir, unClientDir, canonLoadPath,
-                      canonSavePath ) where
+                      canonSavePath, clientDir ) where
 
 import qualified System.Directory as D
 import qualified System.FilePath as F
@@ -33,6 +33,13 @@ newtype CanonPath = CanonPath { unCanonPath :: FilePath }
 -- absolute. This is always absolute.
 newtype ClientDir = ClientDir { unClientDir :: FilePath }
                   deriving Serialize
+
+-- | Gets the ClientDir. Only call this from the client. Do NOT call
+-- this from the server! It will be perfectly useless.
+clientDir :: IO ClientDir
+clientDir = do
+  d <- D.getCurrentDirectory
+  return $ ClientDir d
 
 -- | Canonicalizes a path to load a file from. All components,
 -- including the filename, must exist or an error will be thrown.

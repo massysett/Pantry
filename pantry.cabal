@@ -18,6 +18,12 @@ Executable pantryd
     Main-Is: pantryd.hs
     Hs-Source-Dirs: pantryd-binary
 
+Executable pantry
+    Build-Depends: pantry,
+                   base ==4.*
+    Main-Is: pantry.hs
+    Hs-Source-Dirs: pantry-binary
+
 Library
     Build-depends:
         base ==4.*,
