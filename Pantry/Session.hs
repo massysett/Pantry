@@ -1,6 +1,7 @@
 module Pantry.Session ( serverMain ) where
 
-import Pantry.Radio (getListener, getRequest, processBag, Listener)
+import Pantry.Radio.Server (
+  getListener, getRequest, processBag, Listener)
 import Pantry.Radio.Messages ( clientCurrDir )
 import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
