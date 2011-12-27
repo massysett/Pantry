@@ -30,6 +30,7 @@ import Text.Parsec
 import Data.List (foldl')
 import Data.Maybe ( catMaybes )
 import System.Environment ( getArgs )
+import Codec.Compression.Zlib.Raw ( decompress )
 
 type NutId = BS.ByteString
 type NutName = BS.ByteString
@@ -75,7 +76,7 @@ getByteStrings :: FilePath -- ^ Path to ZIP file
 getByteStrings f = do
   bs <- BS.readFile f
   let a = Z.toArchive bs
-      e = flip entry a
+      e = decompress . flip entry a
   return ( e "FOOD_DES.txt",
            e "FD_GROUP.txt",
            e "NUT_DATA.txt",
