@@ -18,14 +18,12 @@
 
 module Main where
 
-import qualified Data.Char as C
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Lazy.Char8 as BS8
 import qualified Data.Map as M
 import qualified Codec.Text.IConv as I
 import qualified Codec.Archive.Zip as Z
 import Data.Map ((!))
-import qualified Data.Set as S
 import Text.Parsec
 import Data.List (foldl')
 import Data.Maybe ( catMaybes )
@@ -143,7 +141,7 @@ printFood :: Food -> BS.ByteString
 printFood (ndb, groupName, foodName, nutList, unitList) = s where
   s = (BS8.unlines . map addSlash $ ls) `BS8.snoc` '\n'
   addSlash bs = BS.append bs (BS8.pack " \\")
-  space = BS8.singleton ' '
+  spc = BS8.singleton ' '
   ls = first ++ nuts ++ units ++ end
   first =
     [ BS8.pack "pantry --clear --create"
@@ -153,14 +151,14 @@ printFood (ndb, groupName, foodName, nutList, unitList) = s where
     , BS8.pack "--change-quantity 100"
     , BS8.pack "--set-unit grams 1" ]
   nuts = map toNut nutList
-  toNut (n, u, a) = BS8.intercalate space [opt, na, a] where
+  toNut (n, u, a) = BS8.intercalate spc [opt, na, a] where
     opt = BS8.pack "--add-nutrient"
-    na = n `BS8.append` (BS8.pack ", ") `BS8.append` a
+    na = n `BS8.append` (BS8.pack ", ") `BS8.append` u
   units = catMaybes . map toUnit $ unitList where
     toUnit (c, d, w)
       | c /= BS8.singleton '1' = Nothing
       | otherwise = let opt = BS8.pack "--add-available-unit"
-                    in Just . BS8.intercalate space $ [opt, d, w]
+                    in Just . BS8.intercalate spc $ [opt, d, w]
   end = [ BS8.pack "--append" ]
 
 makeFoods ::
