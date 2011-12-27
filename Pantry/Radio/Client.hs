@@ -13,6 +13,7 @@ import System.Exit ( exitSuccess, exitWith, ExitCode(ExitFailure) )
 import System.IO (hSetBinaryMode, hClose)
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
+import System.Directory ( removeFile )
 
 -- | Creates the client listening connection. Does not catch any
 -- exceptions.
@@ -56,13 +57,14 @@ receiveResponse (Listener s) = do
     (Left e) -> error $ "pantry: error: could not decode message "
                 ++ "from server. Error message given: " ++ e
 
--- | Prints the response received from the server. Exits when done.
-printResponse :: M.Response -> IO ()
+-- | Prints the response received from the server. Returns an IO
+-- action that can be used to exit when done.
+printResponse :: M.Response -> IO (IO ())
 printResponse r = do
   TIO.putStr . M.text $ r
   case M.exitCode r of
-    M.Success -> exitSuccess
-    (M.Fail c) -> exitWith (ExitFailure (fromIntegral c))
+    M.Success -> return exitSuccess
+    (M.Fail c) -> return $ exitWith (ExitFailure (fromIntegral c))
 
 clientMain :: IO ()
 clientMain = do
@@ -70,4 +72,7 @@ clientMain = do
   l <- getListener
   sendMessage req
   resp <- receiveResponse l
-  printResponse resp
+  closeAct <- printResponse resp
+  sockName <- toClientSocketName
+  removeFile sockName
+  closeAct

@@ -4,7 +4,8 @@ import Pantry.Radio.Server (
   getListener, getRequest, processBag, Listener,
   serverLogFileName )
 import Pantry.Radio ( pantryDir,
-                      PantryDirInfo(IsDefaultDir, NotDefaultDir) )
+                      PantryDirInfo(IsDefaultDir, NotDefaultDir),
+                      toServerSocketName )
 import Pantry.Radio.Messages ( clientCurrDir )
 import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
@@ -70,12 +71,14 @@ serverMain :: IO ()
 serverMain = do
   opts <- parseCommandLine
   when (help opts) (displayHelp >> exitSuccess)
-  if daemon opts then startSessionDaemon else session
+  if daemon opts then launchDaemon else session
 
 session :: IO ()
 session = do
   l <- getListener
   sessionLoop emptyBag l
+  sockName <- toServerSocketName
+  D.removeFile sockName
 
 sessionLoop :: Bag
                -> Listener
@@ -127,6 +130,9 @@ daemonizeForkAction = do
 -- | Starts a session by daemonizing. Simply dies if anything goes
 -- wrong. See the documentation for System.Posix.Process.forkProcess;
 -- it might not work in the way you think it does.
+launchDaemon :: IO ()
+launchDaemon = P.forkProcess startSessionDaemon >> return ()
+
 startSessionDaemon :: IO ()
 startSessionDaemon =
   P.createSession

@@ -95,7 +95,7 @@ printEitherRpt :: ReportOpts
                   -> Either [FoodRpt] [TotalRpt]
                   -> DL.DList X.Text
 printEitherRpt o ts tr ei =
-  let fs = B.unBuffer . T.buffer $ tr
+  let fs = T.unVolatile . T.volatile $ tr
   in case ei of
     (Left fr) -> printFoodRpts o ts fs fr
     (Right tot) -> printTotalRpts o ts tr fs tot
@@ -106,7 +106,10 @@ printReportGroups :: ReportOpts
                      -> DL.DList X.Text
 printReportGroups o (ReportGroups ls) t = r where
   r = DL.concat . map (printEitherRpt o ts t) $ ls
-  ts = foldr sumNuts M.empty . map getNuts . B.unBuffer . T.buffer $ t
+  ts = foldr sumNuts M.empty
+       . map getNuts
+       . T.unVolatile
+       . T.volatile $ t
 
 data ReportGroups = ReportGroups [Either [FoodRpt] [TotalRpt]]
 

@@ -811,6 +811,7 @@ helpOpt s g = OptDesc "" [s] a where
         . g
         . reportOpts
         $ o
+
 help :: OptDesc Opts Error
 help = helpOpt "help" C.help
 
