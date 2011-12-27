@@ -23,6 +23,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Lazy.Char8 as BS8
 import qualified Data.Map as M
 import qualified Codec.Text.IConv as I
+import qualified Codec.Archive.Zip as Z
 import Data.Map ((!))
 import qualified Data.Set as S
 import Text.Parsec
@@ -71,7 +72,22 @@ fieldDelim = '^'
 -- in the bytestrings.)
 getByteStrings :: FilePath -- ^ Path to ZIP file
                   -> IO (FoodDesBS, GroupBS, NutsBS, UnitsBS, NutDefBS)
-getByteStrings = undefined
+getByteStrings f = do
+  bs <- BS.readFile f
+  let a = Z.toArchive bs
+      e = flip entry a
+  return ( e "FOOD_DES.txt",
+           e "FD_GROUP.txt",
+           e "NUT_DATA.txt",
+           e "WEIGHT.txt",
+           e "NUTR_DEF.txt" )
+
+-- | Gets an entry from a Codec.Archive.Zip archive. Aborts program if
+-- entry not found.
+entry :: FilePath -> Z.Archive -> BS.ByteString
+entry p a = case Z.findEntryByPath p a of
+  Nothing -> error $ "entry " ++ p ++ " not found"
+  (Just e) -> Z.eCompressedData e
 
 -- | Takes all output and converts it to UTF-8. Isolated here to make
 -- it easy to switch conversion libraries. Returns value in the IO
