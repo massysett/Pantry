@@ -29,6 +29,8 @@ import Data.List (foldl')
 import Data.Maybe ( catMaybes )
 import System.Environment ( getArgs )
 import Codec.Compression.Zlib.Raw ( decompress )
+import Text.ShellEscape
+import qualified Data.ByteString as BSS
 
 type NutId = BS.ByteString
 type NutName = BS.ByteString
@@ -63,6 +65,14 @@ textDelim = '~'
 
 fieldDelim :: Char
 fieldDelim = '^'
+
+quote :: BS.ByteString -> BS.ByteString
+quote = BS.fromChunks
+        . return
+        . bytes
+        . (escape :: BSS.ByteString -> Sh)
+        . BSS.concat
+        . BS.toChunks
 
 -- | Takes a file path to an SR zip file and returns all the
 -- bytestrings of the various files inside the zip. Isolated within a
@@ -146,19 +156,19 @@ printFood (ndb, groupName, foodName, nutList, unitList) = s where
   first =
     [ BS8.pack "pantry --clear --create"
     , BS8.pack "--change-tag ndb " `BS.append` ndb
-    , BS8.pack "--change-tag group " `BS.append` groupName
-    , BS8.pack "--change-tag name " `BS.append` foodName
+    , BS8.pack "--change-tag group " `BS.append` (quote groupName)
+    , BS8.pack "--change-tag name " `BS.append` (quote foodName)
     , BS8.pack "--change-quantity 100"
     , BS8.pack "--set-unit grams 1" ]
   nuts = map toNut nutList
-  toNut (n, u, a) = BS8.intercalate spc [opt, na, a] where
+  toNut (n, u, a) = BS8.intercalate spc [opt, (quote na), a] where
     opt = BS8.pack "--add-nutrient"
     na = n `BS8.append` (BS8.pack ", ") `BS8.append` u
   units = catMaybes . map toUnit $ unitList where
     toUnit (c, d, w)
       | c /= BS8.singleton '1' = Nothing
       | otherwise = let opt = BS8.pack "--add-available-unit"
-                    in Just . BS8.intercalate spc $ [opt, d, w]
+                    in Just . BS8.intercalate spc $ [opt, (quote d), w]
   end = [ BS8.pack "--append" ]
 
 makeFoods ::
