@@ -172,10 +172,13 @@ makeFoods fs gs ns us ds = map toFood fs where
   toFood (ndb, groupId, foodName) = (ndb, groupName, foodName,
                                      nutList, unitList) where
     groupName = gs ! groupId
-    nutList = map f . M.assocs . (! ndb) $ ns where
+    nutList = map f
+              . M.assocs
+              . M.findWithDefault M.empty ndb
+              $ ns where
       f (nutId, nutAmt) = (nutName, nutUnits, nutAmt) where
         (nutName, nutUnits) = ds ! nutId
-    unitList = us ! ndb
+    unitList = M.findWithDefault [] ndb us
 
 parseFoodFile :: BS.ByteString -> [(Ndb, GroupId, FoodName)]
 parseFoodFile s = case parse (many foodRecord) "FOOD_DES.txt" s of
