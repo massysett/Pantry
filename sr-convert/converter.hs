@@ -30,6 +30,7 @@ import Data.Maybe ( catMaybes )
 import System.Environment ( getArgs )
 import Codec.Compression.Zlib.Raw ( decompress )
 import Text.ShellEscape
+import Control.Monad.Identity
 import qualified Data.ByteString as BSS
 
 type NutId = BS.ByteString
@@ -51,6 +52,19 @@ type UnitsBS = BS.ByteString
 type NutDefBS = BS.ByteString
 
 type Parser = Parsec BS.ByteString ()
+type ParserSt = ParsecT BS.ByteString (M.Map Ndb [BS.ByteString]) Identity
+
+mapToBs :: (Ord k) => M.Map k BS.ByteString -> BS.ByteString
+mapToBs = BS.concat . M.elems
+
+concatValues :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k BS.ByteString
+concatValues m = M.map f m where
+  f = foldr (flip BS.append) (BS8.pack "\n")
+
+appendSlashes :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k [BS.ByteString]
+appendSlashes m = M.map f m where
+  f = map g
+  g bs = bs `BS8.append` (BS8.pack " \\\n")
 
 main :: IO ()
 main = do
@@ -134,12 +148,12 @@ header = BS8.unlines . map BS8.pack $ [
   , ""
   ]
 
-text :: Parser BS.ByteString
+text :: (Monad m) => ParsecT BS.ByteString u m BS.ByteString
 text = do
   b <- between (char textDelim) (char textDelim) (many notControl)
   return . BS8.pack $ b
 
-notControl :: Parser Char
+notControl :: (Monad m) => ParsecT BS.ByteString u m Char
 notControl = noneOf $ fieldDelim : textDelim : "\r\n"
 
 type NutFileMap = M.Map Ndb (M.Map NutId NutAmt)
@@ -147,11 +161,13 @@ type GroupMap = M.Map GroupId GroupName
 type Food = (Ndb, GroupName, FoodName, [(NutName, NutUnits, NutAmt)],
              [(UnitCount, UnitDesc, UnitWeight)])
 
+spc :: BS.ByteString
+spc = BS8.singleton ' '
+
 printFood :: Food -> BS.ByteString
 printFood (ndb, groupName, foodName, nutList, unitList) = s where
   s = (BS8.unlines . map addSlash $ ls) `BS8.snoc` '\n'
   addSlash bs = BS.append bs (BS8.pack " \\")
-  spc = BS8.singleton ' '
   ls = first ++ nuts ++ units ++ end
   first =
     [ BS8.pack "pantry --clear --create"
@@ -218,6 +234,35 @@ parseNutrDefFile bs = case parse nutDefFile "nutrDef" bs of
   (Left err) -> error $ "could not parse nutrDef: " ++ show err
   (Right ls) -> nutDefMap ls
 
+foodRecordSt :: GroupMap -> ParserSt ()
+foodRecordSt gm = do
+  n <- text
+  _ <- char fieldDelim
+  g <- text
+  _ <- char fieldDelim
+  f <- text
+  skipMany (noneOf "\r\n")
+  _ <- string "\r\n"
+  let first = [ BS8.pack "pantry --clear --create"
+              , BS8.pack "--change-tag ndb " `BS.append` n
+              , BS8.pack "--change-tag group " `BS.append` (quote groupName)
+              , BS8.pack "--change-tag name " `BS.append` (quote f)
+              , BS8.pack "--change-quantity 100"
+              , BS8.pack "--set-unit grams 1" ]
+      groupName = gm ! groupName
+  modifyState (prependLines n first)
+
+prependLines :: Ndb
+                -> [BS.ByteString]
+                -> M.Map Ndb [BS.ByteString]
+                -> M.Map Ndb [BS.ByteString]
+prependLines n as = M.alter f n where
+  f maybeV = let
+    last = case maybeV of
+      Nothing -> [BS8.pack "--append"]
+      (Just ls) -> ls
+    in Just $ foldr (:) last as
+
 foodRecord :: Parser (Ndb, GroupId, FoodName)
 foodRecord = do
   n <- text
@@ -265,6 +310,23 @@ nutFileMapFold m (n, i, a) = alterOuter n i a m
 nutFile :: Parser [(Ndb, NutId, NutAmt)]
 nutFile = many nutRecord
 
+nutRecordSt :: M.Map NutId (NutName, NutUnits)
+               -> ParserSt ()
+nutRecordSt dm = do
+  ndb <- text               -- 1
+  _ <- char fieldDelim
+  i <- text               -- 2
+  _ <- char fieldDelim
+  a <- many notControl    -- 3
+  skipMany (noneOf "\r\n")
+  _ <- string "\r\n"
+  let nutStr = BS8.intercalate spc [opt, (quote na), (BS8.pack a)]
+      opt = BS8.pack "--add-nutrient"
+      na = n `BS8.append` (BS8.pack ", ") `BS8.append` u
+      (n, u) = dm ! ndb
+  modifyState (prependLines ndb [nutStr])
+  return ()
+
 nutRecord :: Parser (Ndb, NutId, NutAmt)
 nutRecord = do
   n <- text               -- 1
@@ -277,6 +339,28 @@ nutRecord = do
 
 unitFile :: Parser [(Ndb, UnitCount, UnitDesc, UnitWeight)]
 unitFile = many unitRecord
+
+unitRecordSt :: ParserSt ()
+unitRecordSt = do
+  n <- text                    -- 1
+  _ <- char fieldDelim
+  _ <- many notControl         -- 2
+  _ <- char fieldDelim
+  c <- many notControl         -- 3
+  _ <- char fieldDelim
+  d <- text                    -- 4
+  _ <- char fieldDelim
+  w <- many notControl         -- 5
+  _ <- char fieldDelim
+  _ <- many notControl         -- 6
+  _ <- char fieldDelim
+  _ <- many notControl         -- 7
+  _ <- string "\r\n"
+  let opt = BS8.pack "--add-available-unit"
+      txt = BS8.intercalate spc [opt, (quote d), BS8.pack w]
+  case c == "1" of
+    False -> return ()
+    True -> modifyState (prependLines n [txt]) >> return ()
 
 unitRecord :: Parser (Ndb, UnitCount, UnitDesc, UnitWeight)
 unitRecord = do
