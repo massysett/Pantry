@@ -16,7 +16,6 @@ module Pantry.Sorter( foodcmp
 import Pantry.Food ( TagName, TagVal, getTags, Food )
 
 import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Foldable as F
 
 -- | How to sort particular tag values in order. For instance, if the

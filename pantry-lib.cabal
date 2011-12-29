@@ -31,7 +31,8 @@ Library
         filepath ==1.2.*,
         directory ==1.1.*,
         optparse == 0.1.*,
-        unix >= 2.4 && < 2.6
+        unix >= 2.4 && < 2.6,
+        deepseq == 1.1.*
 
     Exposed-modules:
         Pantry.Bag,
