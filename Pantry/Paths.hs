@@ -14,6 +14,7 @@ import Data.Serialize (Serialize)
 import qualified Control.Exception as Ex
 import Control.Monad.Trans ( lift )
 import Pantry.Exact ( Exact )
+import Control.DeepSeq ( NFData )
 
 -- | A path the user entered on the command line. Maybe it is perfect,
 -- or maybe it is flawed; might be relative or absolute.
@@ -29,7 +30,7 @@ userPath s = Right . UserPath $ s
 -- exist. Either way, it means that the path begins with a leading
 -- slash.
 newtype CanonPath = CanonPath { unCanonPath :: FilePath }
-                    deriving (Serialize, Exact)
+                    deriving (Serialize, Exact, NFData)
 
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.
