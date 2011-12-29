@@ -35,7 +35,7 @@ newtype CanonPath = CanonPath { unCanonPath :: FilePath }
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.
 newtype ClientDir = ClientDir { unClientDir :: FilePath }
-                  deriving (Serialize, Exact)
+                  deriving (Serialize, Exact, NFData)
 
 -- | Gets the ClientDir. Only call this from the client. Do NOT call
 -- this from the server! It will be perfectly useless.

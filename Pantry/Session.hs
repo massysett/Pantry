@@ -94,7 +94,7 @@ sessionLoop b l = do
       maybeNewBag <- processBag b cd conveyor
       case maybeNewBag of
         Nothing -> return ()
-        (Just newBag) -> newBag `deepseq` sessionLoop newBag l
+        (Just newBag) -> sessionLoop newBag l
 
 -- | Makes the .pantry directory, but only if the directory is the
 -- default. Otherwise, let the user go and create it.

@@ -20,6 +20,7 @@ import Pantry.Reports ( buildReportGroups, printReportGroups )
 import qualified Pantry.Sorter as S
 import Data.List ( isPrefixOf )
 import qualified Pantry.Paths as P
+import Control.Monad.Trans ( liftIO )
 
 getConveyor :: Request
                -> T.Tray
@@ -99,6 +100,7 @@ optDescs = [
   , save
   , saveAs
   , quit
+  , compact
   , help
   , version
   , copyright
@@ -808,6 +810,18 @@ quit :: OptDesc Opts Error
 quit = OptDesc "" ["quit"] a where
   a = Flag f
   f o = return . addConveyor o . C.trayFilterToConvey $ C.quit
+
+------------------------------------------------------------
+-- COMPACTION
+------------------------------------------------------------
+compact :: OptDesc Opts error
+compact = OptDesc "" ["compact"] a where
+  a = Flag f
+  f o = let
+    c t = do
+      liftIO . C.compact $ t
+      return t
+    in return . addConveyor o $ c
 
 ------------------------------------------------------------
 -- HELP

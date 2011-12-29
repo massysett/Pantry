@@ -1,13 +1,17 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Pantry.Tray where
 
 import Pantry.Food(Food, oneFoodId)
 import qualified Data.DList as DL
 import qualified Data.Text as X
 import Pantry.Paths ( CanonPath, ClientDir )
+import Control.DeepSeq ( NFData(rnf), deepseq)
 
 import qualified Pantry.Bag as Bag
 
 newtype Volatile = Volatile { unVolatile :: [Food] }
+                   deriving NFData
+
 newtype Output = Output { unOutput :: DL.DList X.Text }
 data Done = Done | NotDone
 
@@ -20,6 +24,16 @@ data Tray = Tray { nextId :: Bag.NextId
                  , done :: Done
                  , output :: Output
                  , clientCurrDir :: ClientDir }
+
+compact :: Tray -> ()
+compact t =
+  nextId t `deepseq`
+  filename t `deepseq`
+  buffer t `deepseq`
+  undos t `deepseq`
+  volatile t `deepseq`
+  clientCurrDir t `deepseq`
+  ()
 
 blankTray :: ClientDir -> Tray
 blankTray c = Tray { nextId = Bag.NextId $ oneFoodId

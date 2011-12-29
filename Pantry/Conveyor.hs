@@ -18,7 +18,7 @@ import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
 import System.IO.Error (catch)
-import Control.Exception(IOException)
+import Control.Exception(IOException, evaluate)
 import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
 import qualified Data.Text as X
@@ -38,7 +38,8 @@ import Pantry.Tray ( Tray, nextId, filename, unsaved,
                      unOutput, blankTray, clientCurrDir,
                      Volatile(Volatile), unVolatile,
                      Output(Output),
-                     Done(Done))
+                     Done(Done),
+                     compact)
 import Pantry.Reports (ReportGroups, printReportGroups)
 import Pantry.Reports.Types ( ReportOpts )
 import qualified Pantry.Reports as R
@@ -483,6 +484,16 @@ close t = (blankTray (clientCurrDir t)) {
 
 quit :: Tray -> Tray
 quit t = t { done = Done }
+
+------------------------------------------------------------
+-- COMPACTION
+------------------------------------------------------------
+
+-- | Compacts the Tray so it (hopefully) uses less memory.
+-- Does not compact everything in the tray but it comes
+-- close.
+compact :: Tray -> IO ()
+compact = evaluate .Pantry.Tray.compact
 
 ------------------------------------------------------------
 -- HELP
