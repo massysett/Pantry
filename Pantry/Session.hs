@@ -19,6 +19,7 @@ import qualified System.Console.OptParse.OptParse as O
 import System.Console.OptParse.SimpleParser ( SimpleErr ( SimpleErr ) )
 import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
+import Control.DeepSeq ( deepseq )
 
 data Opts = Opts { daemon :: Bool
                  , help :: Bool }
@@ -93,7 +94,7 @@ sessionLoop b l = do
       maybeNewBag <- processBag b cd conveyor
       case maybeNewBag of
         Nothing -> return ()
-        (Just newBag) -> sessionLoop newBag l
+        (Just newBag) -> newBag `deepseq` sessionLoop newBag l
 
 -- | Makes the .pantry directory, but only if the directory is the
 -- default. Otherwise, let the user go and create it.
