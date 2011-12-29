@@ -25,7 +25,6 @@ import qualified Control.Monad.Error as E
 import qualified Data.DList as DL
 
 import qualified Pantry.Tray as T
-import qualified Pantry.Bag as B
 import Data.List(isPrefixOf)
 import qualified Data.Map as M
 import Control.Applicative((<*>), pure, Applicative)
