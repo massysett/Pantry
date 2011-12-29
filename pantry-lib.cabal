@@ -1,4 +1,4 @@
-Name: pantry
+Name: pantry-lib
 Version: 0.1.0.0
 Cabal-version: >=1.8
 Build-Type: Simple
@@ -11,18 +11,6 @@ homepage: http://www.smileystation.com/pantry
 bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
-
-Executable pantryd
-    Build-Depends: pantry,
-                   base ==4.*
-    Main-Is: pantryd.hs
-    Hs-Source-Dirs: pantryd-binary
-
-Executable pantry
-    Build-Depends: pantry,
-                   base ==4.*
-    Main-Is: pantry.hs
-    Hs-Source-Dirs: pantry-binary
 
 Library
     Build-depends:
@@ -83,4 +71,4 @@ Library
         Pantry.Reports.Units,
         Pantry.Reports.Version
 
-    ghc-options: -Wall
+--    ghc-options: -Wall
