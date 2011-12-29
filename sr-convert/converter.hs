@@ -16,7 +16,7 @@
 -- effort to rename nutrients, remove useless units, etc. This task is
 -- left for further processing within Pantry.
 
-module Main where
+module Main (main) where
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Lazy.Char8 as BS8
@@ -58,7 +58,7 @@ mapToBs :: (Ord k) => M.Map k BS.ByteString -> BS.ByteString
 mapToBs = BS.concat . M.elems
 
 concatValues :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k BS.ByteString
-concatValues m = M.map f m where
+concatValues = M.map f where
   f = foldr BS.append (BS8.pack "\n")
 
 appendSlashes :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k [BS.ByteString]
@@ -79,6 +79,7 @@ textDelim = '~'
 
 fieldDelim :: Char
 fieldDelim = '^'
+
 
 quote :: BS.ByteString -> BS.ByteString
 quote = BS.fromChunks
