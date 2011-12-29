@@ -5,9 +5,10 @@ import Pantry.Food(Food, FoodId, oneFoodId)
 import Data.Serialize(Serialize)
 import Pantry.Types(Next)
 import Pantry.Paths(CanonPath)
+import Pantry.Exact ( Exact )
 
 newtype NextId = NextId { unNextId :: FoodId }
-               deriving (Eq, Ord, Next, Serialize, Show)
+               deriving (Eq, Ord, Next, Serialize, Show, Exact)
 newtype Unsaved = Unsaved {unUnsaved :: Bool }
 
 newtype Undos = Undos { unUndos :: [Buffer] }

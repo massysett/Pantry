@@ -1,6 +1,7 @@
 module Pantry.Exact(Exact(exact)) where
 
-import Data.Text(Text, snoc, append, pack)
+import Data.Text(Text, snoc, append, pack, singleton)
+import qualified Data.Text as X
 import Data.Ratio(Ratio, numerator, denominator)
 import Data.Decimal(DecimalRaw)
 
@@ -24,3 +25,12 @@ instance Exact Text where
 
 instance Exact Integer where
   exact = pack . show
+
+instance Exact Int where
+  exact = pack . show
+
+instance Exact Char where
+  exact = singleton
+
+instance Exact c => Exact [c] where
+  exact = X.concat . map exact

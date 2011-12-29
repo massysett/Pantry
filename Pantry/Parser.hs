@@ -59,6 +59,7 @@ optDescs = [
   , undo
   , changeTag
   , deleteTag
+  , matchUnit
   , setCurrUnit
   , changeQty
   , changePctRefuse
@@ -304,8 +305,8 @@ deleteTag = OptDesc "" ["delete-tag"] a where
         c = C.xformToConvey (return . xformer)
     in return $ addConveyor o c
 
-setCurrUnit :: OptDesc Opts Error
-setCurrUnit = OptDesc "u" ["match-unit"] a where
+matchUnit :: OptDesc Opts Error
+matchUnit = OptDesc "u" ["match-unit"] a where
   a = Single f
   f o a1 = matcher o a1 >>= \m ->
     let changeWithErr fd = case F.changeCurrUnit m fd of
@@ -313,6 +314,18 @@ setCurrUnit = OptDesc "u" ["match-unit"] a where
           (Left err) -> Left (R.NotExactlyOneMatchingUnit err)
         c = C.xformToConvey changeWithErr
     in return $ addConveyor o c
+
+setCurrUnit :: OptDesc Opts Error
+setCurrUnit = OptDesc "" ["set-unit"] a where
+  a = Double f
+  f o a1 a2 = do
+    let n = F.UnitName . pack $ a1
+    v <- case fromStr a2 of
+      Nothing -> Left $ R.PosMixedNotValid a2
+      (Just p) -> Right p
+    let xform = F.setCurrUnit (F.CurrUnit n v)
+        c = C.xformToConvey (return . xform)
+    return $ addConveyor o c
 
 changeQty :: OptDesc Opts Error
 changeQty = OptDesc "q" ["change-quantity"] a where

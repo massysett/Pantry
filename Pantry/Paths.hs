@@ -13,10 +13,12 @@ import qualified Control.Monad.Error as Err
 import Data.Serialize (Serialize)
 import qualified Control.Exception as Ex
 import Control.Monad.Trans ( lift )
+import Pantry.Exact ( Exact )
 
 -- | A path the user entered on the command line. Maybe it is perfect,
 -- or maybe it is flawed; might be relative or absolute.
 newtype UserPath = UserPath { unUserPath :: FilePath }
+                   deriving (Exact)
 
 userPath :: String -> Either E.Error UserPath
 userPath [] = Left E.EmptyFilePath
@@ -27,12 +29,12 @@ userPath s = Right . UserPath $ s
 -- exist. Either way, it means that the path begins with a leading
 -- slash.
 newtype CanonPath = CanonPath { unCanonPath :: FilePath }
-                    deriving (Serialize, Show)
+                    deriving (Serialize, Exact)
 
 -- | The current directory of the client. Used to make UserPaths
 -- absolute. This is always absolute.
 newtype ClientDir = ClientDir { unClientDir :: FilePath }
-                  deriving Serialize
+                  deriving (Serialize, Exact)
 
 -- | Gets the ClientDir. Only call this from the client. Do NOT call
 -- this from the server! It will be perfectly useless.

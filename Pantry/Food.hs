@@ -299,7 +299,8 @@ instance Serialize UnitName where
 
 -- | The amount of a unit
 newtype UnitAmt = UnitAmt { unUnitAmt :: PosMixedGrams }
-                  deriving (Show, Serialize, T.HasPos, Exact, Eq)
+                  deriving (Show, Serialize, T.HasPos, Exact, Eq,
+                            T.FromStr)
 
 -- | A food's current unit.
 data CurrUnit = CurrUnit { currUnitName :: UnitName,

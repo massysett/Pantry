@@ -3,21 +3,22 @@ module Pantry.Reports.Status(status) where
 import qualified Pantry.Tray as T
 import qualified Pantry.Bag as B
 import qualified Data.Text as X
+import Pantry.Exact ( exact )
 
 status :: T.Tray -> X.Text
 status t = X.unlines ls where
   ls = [filename, unsaved, count, undos, nextId]
   filename = label "Filename" $ case T.filename t of
-    Nothing -> "(no filename)"
-    (Just f) -> show f
+    Nothing -> X.pack "(no filename)"
+    (Just f) -> exact f
   unsaved = label "Unsaved" $ case B.unUnsaved . T.unsaved $ t of
-    True -> "yes"
-    False -> "no"
+    True -> X.pack "yes"
+    False -> X.pack "no"
   count = label "Number of foods"
-          (show . length . B.unBuffer . T.buffer $ t)
+          (exact . length . B.unBuffer . T.buffer $ t)
   undos = label "Number of undo levels"
-          (show . length . B.unUndos . T.undos $ t)
-  nextId = label "Next ID" (show . T.nextId $ t)
+          (exact . length . B.unUndos . T.undos $ t)
+  nextId = label "Next ID" (exact . T.nextId $ t)
     
-label :: String -> String -> X.Text
-label l t = (X.pack l) `X.append` (X.pack ": ") `X.append` (X.pack t)
+label :: String -> X.Text -> X.Text
+label l t = (X.pack l) `X.append` (X.pack ": ") `X.append` t
