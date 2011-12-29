@@ -97,6 +97,7 @@ import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
 import Data.Maybe ( fromMaybe, catMaybes )
+import Control.DeepSeq ( NFData(rnf), deepseq )
 
 ------------------------------------------------------------
 -- FOODID
@@ -107,7 +108,7 @@ import Data.Maybe ( fromMaybe, catMaybes )
 -- use the Next typeclass.
 newtype FoodId = FoodId { unFoodId :: T.NonNegInteger }
                  deriving (Show, Eq, Ord, T.Next, Serialize,
-                           Exact)
+                           Exact, NFData)
 
 -- | FoodID of zero
 zeroFoodId :: FoodId
@@ -129,17 +130,18 @@ setFoodId i f = f { foodId = i }
 newtype Grams = Grams { unGrams :: T.NonNeg }
                 deriving (Eq, Ord, Show, T.Add,
                           T.HasZero, Exact, Rounded, Serialize,
-                          T.HasNonNeg, T.Divide)
+                          T.HasNonNeg, T.Divide, NFData)
 
 -- | Grams expressed as a mixed number.
 newtype MixedGrams = MixedGrams { unMixedGrams :: T.NonNegMixed }
-                     deriving (Show, Exact, Serialize, T.HasNonNeg)
+                     deriving (Show, Exact, Serialize, T.HasNonNeg,
+                               NFData)
 
 -- | Grams that must be positive (that is, greater than zero.)
 newtype PosMixedGrams =
   PosMixedGrams { unPosMixedGrams :: T.PosMixed }
   deriving (Show, Serialize, T.HasPos, T.HasNonNeg, Exact, Eq,
-            T.FromStr)
+            T.FromStr, NFData)
 
 ------------------------------------------------------------
 -- NUTRIENTS
@@ -147,7 +149,7 @@ newtype PosMixedGrams =
 
 -- | The name of a nutrient
 newtype NutName = NutName { unNutName :: Text }
-                  deriving (Eq, Ord, Show, Exact)
+                  deriving (Eq, Ord, Show, Exact, NFData)
 
 instance Serialize NutName where
   put (NutName n) = put . encodeUtf8 $ n
@@ -157,11 +159,11 @@ instance Serialize NutName where
 newtype NutAmt = NutAmt { unNutAmt :: T.NonNeg }
                  deriving (Eq, Ord, Show, Serialize,
                            T.Add, T.Divide, Rounded,
-                           T.FromStr)
+                           T.FromStr, NFData)
 
 -- | The amount of a nutrient per gram of food.
 newtype NutPerG = NutPerG T.NonNeg
-                  deriving (Eq, Ord, Show, Serialize)
+                  deriving (Eq, Ord, Show, Serialize, NFData)
 
 -- | Portions explicit nutrients for the portion size of the food.
 portionNutPerG :: Grams -- ^ Weight of food
@@ -292,7 +294,7 @@ setQtyByNut m (NutAmt a) f = let
 
 -- | The name of a unit
 newtype UnitName = UnitName { unUnitName :: Text }
-                   deriving (Show, Eq, Ord, Exact)
+                   deriving (Show, Eq, Ord, Exact, NFData)
 instance Serialize UnitName where
   put (UnitName n) = put . encodeUtf8 $ n
   get = get >>= return . UnitName . decodeUtf8
@@ -300,7 +302,7 @@ instance Serialize UnitName where
 -- | The amount of a unit
 newtype UnitAmt = UnitAmt { unUnitAmt :: PosMixedGrams }
                   deriving (Show, Serialize, T.HasPos, Exact, Eq,
-                            T.FromStr)
+                            T.FromStr, NFData)
 
 -- | A food's current unit.
 data CurrUnit = CurrUnit { currUnitName :: UnitName,
@@ -310,6 +312,9 @@ data CurrUnit = CurrUnit { currUnitName :: UnitName,
 instance Serialize CurrUnit where
   get = liftA2 CurrUnit get get
   put (CurrUnit n a) = put n *> put a
+
+instance NFData CurrUnit where
+  rnf (CurrUnit n a) = n `deepseq` a `deepseq` ()
 
 -- | Get the available units in a food.
 getUnits :: Food -> M.Map UnitName UnitAmt
@@ -335,14 +340,14 @@ setCurrUnit c f = f { currUnit = c }
 
 -- | The name of a tag
 newtype TagName = TagName { unTagName :: Text }
-                  deriving (Show, Eq, Ord, Exact)
+                  deriving (Show, Eq, Ord, Exact, NFData)
 instance Serialize TagName where
   get = get >>= return . TagName . decodeUtf8
   put (TagName t) = put . encodeUtf8 $ t
 
 -- | The value of a tag
 newtype TagVal = TagVal { unTagVal :: Text }
-               deriving (Eq, Ord, Show, Exact)
+               deriving (Eq, Ord, Show, Exact, NFData)
 instance Serialize TagVal where
   get = get >>= return . TagVal . decodeUtf8
   put (TagVal v) = put . encodeUtf8 $ v
@@ -361,7 +366,7 @@ setTags m f = f { tags = m }
 -- | A food's quantity. If this was human input, it will be a
 -- NonNegMixed. If it was computed, it will be a NonNeg.
 newtype Qty = Qty { unQty :: (Either T.NonNeg T.NonNegMixed) }
-            deriving (Show, Serialize)
+            deriving (Show, Serialize, NFData)
 
 instance Exact Qty where
   exact (Qty q) = either exact exact q
@@ -394,6 +399,10 @@ instance Serialize Yield where
         return $ ExplicitYield (PosMixedGrams m)
       _ -> fail "non-matching number"
 
+instance NFData Yield where
+  rnf AutoYield = ()
+  rnf (ExplicitYield pmg) = pmg `deepseq` ()
+
 -- | Sets the yield of a food.
 setYield :: Yield -> Food -> Food
 setYield y f = f { yield = y }
@@ -418,7 +427,7 @@ getYieldGrams f = case yield f of
 
 -- | Ingredients
 newtype Ingr = Ingr { unIngr :: [Food] }
-             deriving (Show, Serialize, Monoid)
+             deriving (Show, Serialize, Monoid, NFData)
 
 getIngr :: Food -> Ingr
 getIngr = ingr
@@ -434,13 +443,13 @@ ingrGrams (Ingr fds) = foldl' f (Grams T.zero) fds where
 -- | Unportioned nutrients of the ingredients. These must be portioned
 -- depending on the yield of the recipe.
 newtype UnportionedNutAmt = UnportionedNutAmt T.NonNeg
-                          deriving (Eq, Ord, Show, T.Add)
+                          deriving (Eq, Ord, Show, T.Add, NFData)
 
 -- | After a nutrient is scaled, it must be portioned--that is,
 -- adjusted depending on the weight of the food. Scaling is adjusting
 -- for the yield; portioning is adjusting for the portion size.
 newtype PortionedNutAmt = PortionedNutAmt { unPortionedNutAmt :: T.NonNeg }
-                       deriving (Eq, Ord, Show, T.Add)
+                       deriving (Eq, Ord, Show, T.Add, NFData)
 
 -- | Gets all the unportioned nutrients of a food. Simply converts the
 -- NutAmts to UnportionedNutAmts.
@@ -455,7 +464,7 @@ ingrUnportionedNuts (Ingr fs) = foldl' c M.empty fs where
 -- | The portion factor is a ratio of the food's weight in grams to
 -- the actual yield of the food.
 newtype PortionFactor = PortionFactor T.NonNeg
-                        deriving (Eq, Ord, Show, T.HasNonNeg)
+                        deriving (Eq, Ord, Show, T.HasNonNeg, NFData)
 
 -- | Gets the portion factor. If the food's actual yield is
 -- zero--either because the ingredients all have zero quantity or
@@ -495,7 +504,8 @@ foodPortionedNuts f = do
 ------------------------------------------------------------
 -- | The percentage of refuse in a food.
 newtype PctRefuse = PctRefuse {unPctRefuse :: T.BoundedPercent }
-                    deriving (Eq, Ord, Show, T.HasZero, Exact, Serialize)
+                    deriving (Eq, Ord, Show, T.HasZero, Exact, Serialize,
+                              NFData)
 
 getPctRefuse :: Food -> PctRefuse
 getPctRefuse = pctRefuse
@@ -546,6 +556,18 @@ instance Serialize Food where
         <*> get
         <*> get
         <*> get
+
+instance NFData Food where
+  rnf f = foodId f `deepseq`
+          nutsPerG f `deepseq`
+          units f `deepseq`
+          currUnit f `deepseq`
+          tags f `deepseq`
+          qty f `deepseq`
+          yield f `deepseq`
+          ingr f `deepseq`
+          pctRefuse f `deepseq`
+          ()
 
 emptyFood :: CurrUnit -> Food
 emptyFood c = Food { 
