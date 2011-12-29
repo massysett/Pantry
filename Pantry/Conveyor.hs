@@ -17,7 +17,7 @@ import Pantry.Types(Next(next), NonNegInteger(unNonNegInteger),
 import Data.Serialize(encode, decode)
 import qualified Data.ByteString as BS
 import System.IO(hSetBinaryMode, withFile, IOMode(WriteMode))
-import System.IO.Error(catchIOError)
+import System.IO.Error (catch)
 import Control.Exception(IOException)
 import Data.Maybe(catMaybes)
 import qualified Data.Set as Set
@@ -400,7 +400,7 @@ readBS f = catchIOException (BS.readFile . unCanonPath $ f)
 catchIOException :: IO a
                     -> (IOException -> R.Error)
                     -> E.ErrorT R.Error IO a
-catchIOException a f = E.ErrorT $ catchIOError
+catchIOException a f = E.ErrorT $ System.IO.Error.catch
                        (a >>= return . Right) (return . Left . f)
 
 -- | Decode a ByteString to a Db. Not in IO monad.
