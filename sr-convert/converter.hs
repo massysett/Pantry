@@ -59,7 +59,7 @@ mapToBs = BS.concat . M.elems
 
 concatValues :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k BS.ByteString
 concatValues m = M.map f m where
-  f = foldr (flip BS.append) (BS8.pack "\n")
+  f = foldr BS.append (BS8.pack "\n")
 
 appendSlashes :: (Ord k) => M.Map k [BS.ByteString] -> M.Map k [BS.ByteString]
 appendSlashes m = M.map f m where
@@ -327,7 +327,7 @@ foodRecordSt gm = do
               , BS8.pack "--change-tag name " `BS.append` (quote f)
               , BS8.pack "--change-quantity 100"
               , BS8.pack "--set-unit grams 1" ]
-      groupName = gm ! groupName
+      groupName = gm ! g
   modifyState (prependLines n first)
 
 prependLines :: Ndb
@@ -336,10 +336,10 @@ prependLines :: Ndb
                 -> M.Map Ndb [BS.ByteString]
 prependLines n as = M.alter f n where
   f maybeV = let
-    last = case maybeV of
+    lst = case maybeV of
       Nothing -> [BS8.pack "--append"]
       (Just ls) -> ls
-    in Just $ foldr (:) last as
+    in Just $ foldr (:) lst as
 
 foodRecord :: Parser (Ndb, GroupId, FoodName)
 foodRecord = do
@@ -401,7 +401,7 @@ nutRecordSt dm = do
   let nutStr = BS8.intercalate spc [opt, (quote na), (BS8.pack a)]
       opt = BS8.pack "--add-nutrient"
       na = n `BS8.append` (BS8.pack ", ") `BS8.append` u
-      (n, u) = dm ! ndb
+      (n, u) = dm ! i
   modifyState (prependLines ndb [nutStr])
   return ()
 
