@@ -66,8 +66,8 @@ appendSlashes m = M.map f m where
   f = map g
   g bs = bs `BS8.append` (BS8.pack " \\\n")
 
-main :: IO ()
-main = do
+old_main :: IO ()
+old_main = do
   as <-getArgs
   bs <- getByteStrings (head as)
   let unconv = getUnconvertedOutput bs
@@ -87,6 +87,84 @@ quote = BS.fromChunks
         . (escape :: BSS.ByteString -> Sh)
         . BSS.concat
         . BS.toChunks
+
+pkunzip :: Z.Archive -> String -> BS.ByteString
+pkunzip a s = decompress . entry s $ a
+
+main :: IO ()
+main = do
+  as <- getArgs
+  bs <- BS.readFile (head as)
+  BS.putStr (makeText bs)
+
+makeText :: BS.ByteString -- ^ Data from ZIP file
+            -> BS.ByteString -- ^ UTF-8 output
+makeText bs =
+  toUtf8
+  . addHeader
+  . unMap
+  . addFoods a
+  . addWeights a
+  . addNuts
+  $ a
+  where
+    a = Z.toArchive bs
+
+addNuts :: 
+  Z.Archive
+  -> M.Map Ndb [BS.ByteString]
+addNuts a = let
+  bsDef = pkunzip a "NUTR_DEF.txt"
+  bsData = pkunzip a "NUT_DATA.txt"
+  defs = parseNutrDefFile bsDef
+  p = do
+    _ <- many (nutRecordSt defs)
+    eof
+    getState
+  in case runParser p M.empty "" bsData of 
+    (Left err) -> error $ "could not add nuts: " ++ show err
+    (Right st) -> st
+
+addWeights :: 
+  Z.Archive
+  -> M.Map Ndb [BS.ByteString]
+  -> M.Map Ndb [BS.ByteString]
+addWeights a m = let
+  p = do
+    _ <- many unitRecordSt
+    eof
+    getState
+  bs = pkunzip a "WEIGHT.txt"
+  in case runParser p m "" bs of
+    (Left err) -> error $ "could not add weights: " ++ show err
+    (Right st) -> st
+
+addFoods ::
+  Z.Archive
+  -> M.Map Ndb [BS.ByteString]
+  -> M.Map Ndb [BS.ByteString]
+addFoods a m = let
+  bsFood = pkunzip a "FOOD_DES.txt"
+  groupMap = parseGroupFile (pkunzip a "FD_GROUP.txt")
+  p = do
+    _ <- many (foodRecordSt groupMap)
+    eof
+    getState
+  in case runParser p m "" bsFood of
+    (Left err) -> error $ "could not add foods: " ++ show err
+    (Right st) -> st
+
+unMap :: M.Map Ndb [BS.ByteString]
+         -> BS.ByteString
+unMap = mapToBs . concatValues . appendSlashes
+
+addHeader :: BS.ByteString -> BS.ByteString
+addHeader bs = header `BS.append` bs
+
+toUtf8 :: BS.ByteString -> BS.ByteString
+toUtf8 = I.convert iso utf where
+  iso = "ISO-8859-1"
+  utf = "UTF8"
 
 -- | Takes a file path to an SR zip file and returns all the
 -- bytestrings of the various files inside the zip. Isolated within a
