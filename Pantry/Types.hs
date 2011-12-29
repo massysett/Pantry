@@ -55,11 +55,13 @@ import Control.Monad(when, liftM3)
 import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
 import Data.Text(snoc, append, pack, Text)
+import Control.DeepSeq ( deepseq, NFData(rnf) )
+
 
 -- | Non negative, rational numbers. Their value can be zero or
 -- greater. This is the broadest numeric type.
 newtype NonNeg = NonNeg { nonNegToRational :: Rational }
-               deriving (Eq, Ord, Show, Exact, Rounded)
+               deriving (Eq, Ord, Show, Exact, Rounded, NFData)
 
 instance Serialize NonNeg where
   put (NonNeg r) = put r
@@ -77,7 +79,7 @@ partialNewNonNeg r = if r < 0 then e else NonNeg r where
 -- member of many Prelude typeclasses (such as Enum) because those
 -- typeclasses have partial functions.
 newtype NonNegInteger = NonNegInteger { unNonNegInteger :: Integer }
-                        deriving (Eq, Ord, Show, Exact)
+                        deriving (Eq, Ord, Show, Exact, NFData)
 
 instance Serialize NonNegInteger where
   put (NonNegInteger i) = put i
@@ -108,6 +110,9 @@ instance Serialize NonNegMixed where
 instance Exact NonNegMixed where
   exact n = mixedExact (mixedDec n) (mixedRatio n)
 
+instance NFData NonNegMixed where
+  rnf (NonNegMixed (Decimal p m) r) = p `seq` m `seq` r `deepseq` ()
+
 mixedExact :: Decimal -> Rational -> Text
 mixedExact nd nr = result where
     result = case (d, r) of
@@ -131,7 +136,7 @@ instance Ord NonNegMixed where
 
 -- | Positive rational numbers. Their value must be greater than zero.
 newtype Pos = Pos { unPos :: Rational }
-              deriving (Show, Serialize, Eq, Ord)
+              deriving (Show, Serialize, Eq, Ord, NFData)
 
 -- | Make a new positive number. This function is partial. It is
 -- bottom if its argument is not greater than zero.
@@ -150,7 +155,7 @@ nonNegToPos (NonNeg nn) = case nn == 0 of
 -- Prelude typeclasses such as Enum becuase these functions are
 -- partial.
 newtype PosInteger = PosInteger { unPosInteger :: Integer }
-                     deriving (Eq, Ord, Show, Serialize, Exact)
+                     deriving (Eq, Ord, Show, Serialize, Exact, NFData)
 
 -- | Create a new positive integer. Partial. Will crash if its
 -- argument is less than zero.
@@ -174,6 +179,9 @@ instance Serialize PosMixed where
   get = liftM3 f get get get where
     f p m r = PosMixed (Decimal p m) r
 
+instance NFData PosMixed where
+  rnf (PosMixed (Decimal p m) r) = p `seq` m `seq` r `deepseq` ()
+
 -- | Make a new PosMixed whose value is 1.
 posMixedOne :: PosMixed
 posMixedOne = PosMixed (Decimal 0 1) 0
@@ -181,7 +189,7 @@ posMixedOne = PosMixed (Decimal 0 1) 0
 -- | Bounded percent. Represents values between 0 and 100 percent,
 -- inclusive. Internally these are held as NonNegMixed values.
 newtype BoundedPercent = BoundedPercent { pctToMixed :: NonNegMixed }
-                       deriving (Eq, Ord, Show, Exact)
+                       deriving (Eq, Ord, Show, Exact, NFData)
 
 instance Serialize BoundedPercent where
   put (BoundedPercent nnm) = put nnm
