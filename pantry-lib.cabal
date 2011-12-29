@@ -71,4 +71,4 @@ Library
         Pantry.Reports.Units,
         Pantry.Reports.Version
 
---    ghc-options: -Wall
+    ghc-options: -Wall
