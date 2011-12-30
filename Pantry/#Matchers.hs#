@@ -21,7 +21,6 @@ instance Monad EitherW where
   (EitherW (Right a)) >>= f = f a
   fail s = EitherW (Left s)
 
-
 tdfa :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
 tdfa c regexStr = let
   ew = case RL.makeRegexOptsM comp exec regexStr of
@@ -34,19 +33,6 @@ tdfa c regexStr = let
       exec = RL.defaultExecOpt { TDFA.captureGroups = False }
    in ew
 
-{-
-tdfa :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
-tdfa c regexStr = case RL.makeRegexOptsM comp exec regexStr of
-  (Left s) -> E.throwError (R.RegexComp s)
-  (Right rx) -> return (\x -> RL.matchTest rx . X.unpack $ x)
-  where
-    comp = RL.defaultCompOpt { TDFA.caseSensitive = sensitive c
-                             , TDFA.newSyntax = True
-                             , TDFA.lastStarGreedy = True }
-    exec = RL.defaultExecOpt { TDFA.captureGroups = False }
-
--}
-
 pcre :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
 pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
     (EitherW (Left s)) -> E.throwError (R.RegexComp s)
@@ -57,19 +43,6 @@ pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
         False -> PCRE.compCaseless
         True -> 0
       exec = RL.defaultExecOpt
-
-{-
-pcre :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
-pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
-  (Left s) -> E.throwError (R.RegexComp s)
-  (Right rx) -> return (\x -> RL.matchTest rx . XE.encodeUtf8 $ x)
-  where
-    comp = RL.defaultCompOpt .|. PCRE.compUTF8 .|. caseless
-    caseless = case (sensitive c) of
-      False -> PCRE.compCaseless
-      True -> 0
-    exec = RL.defaultExecOpt
--}
 
 within :: CaseSensitive -> String -> X.Text -> Bool
 within = txtMatch X.isInfixOf

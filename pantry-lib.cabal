@@ -32,7 +32,8 @@ Library
         directory ==1.1.*,
         optparse == 0.1.*,
         unix >= 2.4 && < 2.6,
-        deepseq == 1.1.*
+        deepseq == 1.1.*,
+        transformers == 0.2.*
 
     Exposed-modules:
         Pantry.Bag,
