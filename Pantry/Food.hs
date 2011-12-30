@@ -200,8 +200,7 @@ toNutPerG (Grams g) = do
 getNuts :: Food -> M.Map NutName NutAmt
 getNuts f = M.union explNuts ingrNuts where
   foodGr = foodGrams f
-  explNuts = M.map toNutAmt
-             . M.map (portionNutPerG foodGr)
+  explNuts = M.map (toNutAmt . portionNutPerG foodGr)
              . nutsPerG
              $ f
   ingrNuts = M.map toNutAmt
@@ -214,7 +213,7 @@ getNuts f = M.union explNuts ingrNuts where
 setNuts :: M.Map NutName NutAmt -> Food -> Maybe Food
 setNuts m f = do
   c <- toNutPerG $ foodGrams f
-  let newNuts = M.map c . M.map toPortionedNutAmt $ m
+  let newNuts = M.map ( c . toPortionedNutAmt ) m
   return $ f { nutsPerG = newNuts }
 
 -- | Rename nutrients. This computation is provided (in addition to
@@ -225,14 +224,11 @@ renameNuts :: (Text -> Bool) -- ^ Nutrient name to match
               -> Food
 renameNuts m n f = f { nutsPerG = new } where
   old = nutsPerG f
-  changer a@((NutName na), v) = case m na of
-    True -> (n, v)
+  changer a@(NutName na) = case m na of
+    True -> n
     False -> a
-  new = M.fromList
-        . map changer
-        . M.assocs
-        $ old
-        
+  new = M.mapKeys changer old
+
 -- | Delete nutrients. This computation is provided (in addition to
 -- setNuts) because unlike setNuts this computation always succeeds.
 deleteNuts :: (Text -> Bool) -- ^ Delete nutrients matching this pattern
@@ -240,14 +236,8 @@ deleteNuts :: (Text -> Bool) -- ^ Delete nutrients matching this pattern
               -> Food
 deleteNuts m f = f { nutsPerG = new } where
   old = nutsPerG f
-  changer a@((NutName na), _) = case m na of
-    True -> Just a
-    False -> Nothing
-  new = M.fromList
-        . catMaybes
-        . map changer
-        . M.assocs
-        $ old
+  p (NutName na) _ = not . m $ na
+  new = M.filterWithKey p old
 
 -- | setQtyByNut can fail in a multitude of ways so this data type
 -- indicates the various failures.
