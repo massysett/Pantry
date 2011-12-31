@@ -49,8 +49,13 @@ module Pantry.Types (
 import Data.Ratio((%), numerator, denominator)
 import Pantry.Exact(Exact, exact)
 import Data.Decimal(Decimal, DecimalRaw(Decimal))
+{-
 import Text.ParserCombinators.Parsec(Parser, try, (<|>), char,
                                      eof, digit, many1, parse)
+-}
+import Data.Attoparsec.Text ( Parser, try, char, endOfInput, digit,
+                              many1, parseOnly)
+import Control.Applicative ((<|>))
 import Control.Monad(when, liftM3)
 import Pantry.Rounded(Rounded)
 import Data.Serialize(Serialize(put, get))
@@ -310,13 +315,13 @@ instance FromStr NonNeg where
               return . (toNonNeg :: NonNegMixed -> NonNeg)
 
 instance FromStr NonNegMixed where
-  fromStr s = case parse parseNonNegMixed "" s of
+  fromStr s = case parseOnly parseNonNegMixed s of
     (Left _) -> Nothing
     (Right nnm) -> Just nnm
 
 instance FromStr PosMixed where
   fromStr s = do
-    nnm <- either (const Nothing) Just (parse parseNonNegMixed "" s)
+    nnm <- either (const Nothing) Just (parseOnly parseNonNegMixed s)
     case (mixedDec nnm == 0, mixedRatio nnm == 0) of
       (True, True) -> Nothing
       _ -> Just $ PosMixed (mixedDec nnm) (mixedRatio nnm)
@@ -332,7 +337,7 @@ instance FromStr BoundedPercent where
 
 instance FromStr NonNegInteger where
   fromStr = either (const Nothing) (Just . NonNegInteger)
-              . parse integer ""
+              . parseOnly integer
 
 instance FromStr PosInteger where
   fromStr s = case fromStr s of
@@ -374,19 +379,19 @@ decimalFraction = do
   d <- try decimal <|> integerDec
   _ <- char ' '
   f <- fraction
-  eof
+  endOfInput
   return $ NonNegMixed d f
 
 fractionAlone :: Parser Rational
 fractionAlone = do
   f <- fraction
-  eof
+  endOfInput
   return f
 
 decimalAlone :: Parser Decimal
 decimalAlone = do
   d <- try decimal <|> integerDec
-  eof
+  endOfInput
   return d
   
 integerDec :: Parser Decimal
