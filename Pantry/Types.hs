@@ -301,9 +301,9 @@ instance Divide NonNeg where
 instance Divide Pos where
   divide (Pos l) (Pos r) = Just . Pos $ l / r
 
--- | Things that can be converted from a string.
+-- | Things that can be converted from a text.
 class FromStr a where
-  fromStr :: String -> Maybe a
+  fromStr :: Text -> Maybe a
 
 instance FromStr NonNeg where
   fromStr s = fromStr s >>=
@@ -320,7 +320,7 @@ instance FromStr PosMixed where
     case (mixedDec nnm == 0, mixedRatio nnm == 0) of
       (True, True) -> Nothing
       _ -> Just $ PosMixed (mixedDec nnm) (mixedRatio nnm)
-      
+
 
 instance FromStr BoundedPercent where
   fromStr s = do
