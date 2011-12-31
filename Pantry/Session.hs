@@ -19,7 +19,7 @@ import qualified System.Console.OptParse.OptParse as O
 import System.Console.OptParse.SimpleParser ( SimpleErr ( SimpleErr ) )
 import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
-import Control.DeepSeq ( deepseq )
+import Data.Text ( Text, pack, unpack )
 
 data Opts = Opts { daemon :: Bool
                  , help :: Bool }
@@ -31,16 +31,16 @@ defaultOpts = Opts { daemon = True
 optDescs :: [O.OptDesc Opts err]
 optDescs = [
   let argDesc = O.Flag (\o -> return o { daemon = False })
-  in O.OptDesc "f" ["--foreground"] argDesc
+  in O.OptDesc "f" [pack "--foreground"] argDesc
 
   , let argDesc = O.Flag f
         f o = return o { help = True, daemon = False }
-    in O.OptDesc "h" ["--help"] argDesc
+    in O.OptDesc "h" [pack "--help"] argDesc
   ]
 
-posArgParser :: [(Opts, String)] -> Either SimpleErr ()
+posArgParser :: [(Opts, Text)] -> Either SimpleErr ()
 posArgParser ps = let
-  err = "pantryd does not accept non-option arguments."
+  err = pack "pantryd does not accept non-option arguments."
   in case ps of
     [] -> Right ()
     _ -> Left (SimpleErr err)
@@ -62,10 +62,11 @@ displayHelp = do
 
 parseCommandLine :: IO Opts
 parseCommandLine = do
-  as <- getArgs
+  asStr <- getArgs
+  let as = map pack asStr
   let ei = O.parseOptsArgs optDescs defaultOpts posArgParser as
   case ei of
-    (Left (SimpleErr err)) -> errorExit err
+    (Left (SimpleErr err)) -> errorExit (unpack err)
     (Right (opts, ())) -> return opts
 
 serverMain :: IO ()

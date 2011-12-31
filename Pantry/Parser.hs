@@ -10,7 +10,6 @@ import System.Console.OptParse.OptParse (
   parseOptsArgs)
 import qualified Data.Map as M
 import qualified Pantry.Matchers as Matchers
-import Data.Text ( Text, pack )
 import qualified Pantry.Conveyor as C
 import qualified Pantry.Reports.Types as RT
 import qualified Pantry.Food as F
@@ -18,11 +17,9 @@ import Control.Monad ((>=>))
 import Pantry.Types ( fromStr, NonNegInteger, NonNegMixed )
 import Pantry.Reports ( buildReportGroups, printReportGroups )
 import qualified Pantry.Sorter as S
-import Data.List ( isPrefixOf )
 import qualified Pantry.Paths as P
 import Control.Monad.Trans ( liftIO )
-import Data.Text ( Text, pack )
-import qualified Data.Text as X
+import Data.Text ( Text, pack, singleton, isPrefixOf, unpack )
 
 getConveyor :: Request
                -> T.Tray
@@ -203,7 +200,7 @@ find = optMaker "f" ["find"] a where
         newO = addConveyor o c
     return newO
 
-strToId :: String -> Either R.Error F.FoodId
+strToId :: Text -> Either R.Error F.FoodId
 strToId s = case fromStr s of
   Nothing -> Left $ R.IDStringNotValid s
   (Just i) -> Right $ F.FoodId i
@@ -230,7 +227,7 @@ recopy = optMaker "" ["recopy"] a where
   f o = return $ addConveyor o c where
     c = C.trayFilterToConvey C.recopy
 
-strToNonNegInteger :: String -> Either R.Error NonNegInteger
+strToNonNegInteger :: Text -> Either R.Error NonNegInteger
 strToNonNegInteger s = case fromStr s of
   Nothing -> Left (R.NonNegIntegerStringNotValid s)
   (Just i) -> Right i
@@ -261,11 +258,10 @@ move = optMaker "" ["move"] a where
     [] -> Left R.NoMoveIDsGiven
     (_:[]) -> Left R.OneMoveIDGiven
     (as1:ass) -> do
-      first <- case as1 of
-        "f" -> return C.Beginning
-        "F" -> return C.Beginning
-        n -> do
-          i <- strToNonNegInteger n
+      first <- case as1 == singleton 'f' || as1 == singleton 'F' of
+        True -> return C.Beginning
+        False -> do
+          i <- strToNonNegInteger as1
           return (C.After (F.FoodId i))
       rest <- do
         is <- mapM strToNonNegInteger ass
@@ -290,8 +286,8 @@ changeTag :: OptDesc Opts Error
 changeTag = optMaker "c" ["change-tag"] a where
   a = Double f
   f o a1 a2 = return newO where
-    n = F.TagName . pack $ a1
-    v = F.TagVal . pack $ a2
+    n = F.TagName a1
+    v = F.TagVal  a2
     ct fd = F.setTags newTags fd where
       oldTags = F.getTags fd
       newTags = M.insert n v oldTags
@@ -326,7 +322,7 @@ setCurrUnit :: OptDesc Opts Error
 setCurrUnit = optMaker "" ["set-unit"] a where
   a = Double f
   f o a1 a2 = do
-    let n = F.UnitName . pack $ a1
+    let n = F.UnitName a1
     v <- case fromStr a2 of
       Nothing -> Left $ R.PosMixedNotValid a2
       (Just p) -> Right p
@@ -400,7 +396,7 @@ addNut = optMaker "" ["add-nutrient"] a where
   f o a1 a2 = case fromStr a2 of
     Nothing -> Left (R.NonNegMixedNotValid a2)
     (Just nn) -> let
-      n = F.NutName . pack $ a1
+      n = F.NutName a1
       v = F.NutAmt nn
       adder fd = let
         old = F.getNuts fd
@@ -443,7 +439,7 @@ renameNut = optMaker "" ["rename-nutrient"] a where
   a = Double f
   f o a1 a2 = do
     m <- matcher o a1
-    let n = F.NutName . pack $ a2
+    let n = F.NutName a2
     return
       . addConveyor o
       . C.xformToConvey
@@ -463,7 +459,7 @@ addAvailUnit :: OptDesc Opts Error
 addAvailUnit = optMaker "" ["add-available-unit"] a where
   a = Double f
   f o a1 a2 = do
-    let n = F.UnitName . pack $ a1
+    let n = F.UnitName a1
     v <- case fromStr a2 of
       Nothing -> Left (R.PosMixedNotValid a2)
       (Just pm) -> Right . F.UnitAmt $ pm
@@ -500,7 +496,7 @@ renameAvailUnit = optMaker "" ["rename-avail-unit"] a where
   a = Double f
   f o a1 a2 = do
     m <- matcher o a1
-    let v = F.UnitName . pack $ a2
+    let v = F.UnitName a2
         mapfn u@(F.UnitName n) = case m n of
           True -> v
           False -> u
@@ -549,8 +545,8 @@ removeIngr = optMaker "" ["remove-ingredients"] a where
 
 -- | Takes a list of strings and parses it into a list of FoodId.
 -- Returns the error given if something goes wrong.
-parseFoodIds :: (String -> R.Error) -- ^ For bad input
-                -> [String]
+parseFoodIds :: (Text -> R.Error) -- ^ For bad input
+                -> [Text]
                 -> Either R.Error [F.FoodId]
 parseFoodIds err ss = let
   folder str res = case res of
@@ -589,7 +585,7 @@ goal :: OptDesc Opts Error
 goal = optMaker "g" ["goal"] a where
   a = Double f
   f o a1 a2 = do
-    let n = F.NutName . pack $ a1
+    let n = F.NutName a1
     v <- case fromStr a2 of
       Nothing -> Left $ R.NonNegMixedNotValid a2
       (Just nn) -> Right $ F.NutAmt nn
@@ -610,7 +606,7 @@ showTag :: OptDesc Opts Error
 showTag = optMaker "t" ["show-tag"] a where
   a = Single f
   f o a1 = let
-    t = F.TagName . pack $ a1
+    t = F.TagName a1
     newO = o { reportOpts = newRo } where
       newRo = (reportOpts o) { RT.showTags = oldTags ++ [t] } where
         oldTags = RT.showTags . reportOpts $ o
@@ -661,19 +657,19 @@ _zipR = r [] where
   r rs (a1:a2:as) = (a1, a2) : r rs as
 
 -- | Generate a list of keys from a list of command-line arguments.
-makeKeys :: [String] -> Either R.Error [S.Key]
+makeKeys :: [Text] -> Either R.Error [S.Key]
 makeKeys ss = case zipPairs ss of
   Nothing -> Left R.KeyOddArguments
   (Just ps) -> let
     folder (f, s) ks = case ks of
       (Left err) -> Left err
       (Right gs) -> let
-        dir | f `isPrefixOf` "ascending" = Right S.Ascending
-            | f `isPrefixOf` "descending" = Right S.Descending
+        dir | f `isPrefixOf` (pack "ascending") = Right S.Ascending
+            | f `isPrefixOf` (pack "descending") = Right S.Descending
             | otherwise = Left $ R.NoSortDirection f
         in case dir of
           (Right d) -> let
-            n = F.TagName . pack $ s
+            n = F.TagName s
             in Right ((S.Key n d) : gs)
           (Left err) -> Left err
     in foldr folder (Right []) ps
@@ -691,8 +687,8 @@ order :: OptDesc Opts Error
 order = optMaker "O" ["key-order"] a where
   a = Double f
   f o a1 a2 = let
-    n = F.TagName . pack $ a1
-    v = F.TagVal . pack $ a2
+    n = F.TagName a1
+    v = F.TagVal a2
     newTagMap = S.addTag n v oldTagMap
     oldTagMap = tagMap o
     in return $ o { tagMap = newTagMap }
@@ -761,7 +757,7 @@ open = optMaker "" ["open"] a where
   a = Single f
   f o a1 = let
     c t = do
-      path <- canonLoadPath a1 t
+      path <- canonLoadPath (unpack a1) t
       C.open path t
     in return . addConveyor o $ c
 
@@ -779,7 +775,7 @@ appendFileOpt = optMaker "" ["append-file"] a where
   a = Single f
   f o a1 = let
     c t = do
-      path <- canonLoadPath a1 t
+      path <- canonLoadPath (unpack a1) t
       C.appendFile path t
     in return . addConveyor o $ c
 
@@ -788,7 +784,7 @@ prependFile = optMaker "" ["prepend-file"] a where
   a = Single f
   f o a1 = let
     c t = do
-      path <- canonLoadPath a1 t
+      path <- canonLoadPath (unpack a1) t
       C.prependFile path t
     in return . addConveyor o $ c
 
@@ -807,7 +803,7 @@ saveAs = optMaker "" ["save-as"] a where
   a = Single f
   f o a1 = let
     c t = do
-      path <- canonSavePath a1 t
+      path <- canonSavePath (unpack a1) t
       C.saveAs path t
     in return . addConveyor o $ c
 
