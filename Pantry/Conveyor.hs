@@ -414,7 +414,7 @@ decodeBSWithHeader bs = do
   let noHeader = BS.drop (BS.length fileVersion) noMagic
   case decode noHeader of
     (Right (i, fs)) -> return (i, fs)
-    (Left s) -> E.throwError $ R.FileDecodeError s
+    (Left s) -> E.throwError $ R.FileDecodeError (X.pack s)
 
 -- | Reads a database. Any IO errors are caught and returned in an
 -- appropriate Error. Non-IO exceptions are not caught (there should
