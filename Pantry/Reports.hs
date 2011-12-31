@@ -23,6 +23,7 @@ import qualified Data.Text as X
 import qualified Data.Foldable as F
 import qualified Control.Monad.Error as E
 import qualified Data.DList as DL
+import Data.List ( transpose )
 
 import qualified Pantry.Tray as T
 import Data.Text ( Text, isPrefixOf, pack )
@@ -75,8 +76,13 @@ printFoodRpts :: ReportOpts
                  -> [Food]
                  -> [FoodRpt]
                  -> DL.DList X.Text
-printFoodRpts o ts fs rs = DL.fromList xs where
-  xs = rs <*> pure o <*> pure ts <*> fs
+printFoodRpts o ts fs rs = let
+  f report done = map report fs : done
+  in DL.fromList
+     . concat
+     . transpose
+     . foldr f []
+     $ rs <*> pure o <*> pure ts
 
 printTotalRpts :: ReportOpts
                   -> M.Map NutName NutAmt
