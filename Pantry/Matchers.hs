@@ -1,6 +1,7 @@
 module Pantry.Matchers where
 
 import qualified Data.Text as X
+import Data.Text ( Text, unpack, pack)
 import qualified Data.Text.Encoding as XE
 import qualified Text.Regex.TDFA as TDFA
 import qualified Text.Regex.PCRE as PCRE
@@ -21,10 +22,10 @@ instance Monad EitherW where
   (EitherW (Right a)) >>= f = f a
   fail s = EitherW (Left s)
 
-tdfa :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
+tdfa :: CaseSensitive -> Text -> Either R.Error (X.Text -> Bool)
 tdfa c regexStr = let
-  ew = case RL.makeRegexOptsM comp exec regexStr of
-    (EitherW (Left s)) -> E.throwError (R.RegexComp s)
+  ew = case RL.makeRegexOptsM comp exec (unpack regexStr) of
+    (EitherW (Left s)) -> E.throwError (R.RegexComp . pack $ s)
     (EitherW (Right rx)) -> return (\x -> RL.matchTest rx . X.unpack $ x)
     where
       comp = RL.defaultCompOpt { TDFA.caseSensitive = sensitive c
@@ -33,9 +34,9 @@ tdfa c regexStr = let
       exec = RL.defaultExecOpt { TDFA.captureGroups = False }
    in ew
 
-pcre :: CaseSensitive -> String -> Either R.Error (X.Text -> Bool)
-pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
-    (EitherW (Left s)) -> E.throwError (R.RegexComp s)
+pcre :: CaseSensitive -> Text -> Either R.Error (X.Text -> Bool)
+pcre c regexStr = case RL.makeRegexOptsM comp exec (unpack regexStr) of
+    (EitherW (Left s)) -> E.throwError (R.RegexComp . pack $ s)
     (EitherW (Right rx)) -> return (\x -> RL.matchTest rx . XE.encodeUtf8 $ x)
     where
       comp = RL.defaultCompOpt .|. PCRE.compUTF8 .|. caseless
@@ -44,19 +45,19 @@ pcre c regexStr = case RL.makeRegexOptsM comp exec regexStr of
         True -> 0
       exec = RL.defaultExecOpt
 
-within :: CaseSensitive -> String -> X.Text -> Bool
+within :: CaseSensitive -> Text -> X.Text -> Bool
 within = txtMatch X.isInfixOf
 
-exact :: CaseSensitive -> String -> X.Text -> Bool
+exact :: CaseSensitive -> Text -> X.Text -> Bool
 exact = txtMatch (==)
 
 txtMatch :: (X.Text -> X.Text -> Bool)
             -> CaseSensitive
-            -> String
+            -> Text
             -> X.Text -> Bool
 txtMatch f c s t = pat `f` txt where
   txt = flipCase t
-  pat = flipCase . X.pack $ s
+  pat = flipCase s
   flipCase = case (sensitive c) of
     True -> id
     False -> X.toCaseFold
