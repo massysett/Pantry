@@ -7,8 +7,6 @@ import qualified Text.Regex.TDFA as TDFA
 import qualified Text.Regex.PCRE as PCRE
 import qualified Text.Regex.Base.RegexLike as RL
 import qualified Control.Monad.Error as E
-import qualified Control.Monad.Trans.Error as T
-import qualified Data.Functor.Identity as I
 import qualified Pantry.Error as R
 import Data.Bits((.|.))
 
