@@ -25,7 +25,7 @@ import qualified Control.Monad.Error as E
 import qualified Data.DList as DL
 
 import qualified Pantry.Tray as T
-import Data.List(isPrefixOf)
+import Data.Text ( Text, isPrefixOf, pack )
 import qualified Data.Map as M
 import Control.Applicative((<*>), pure, Applicative)
 
@@ -35,7 +35,7 @@ import Control.Applicative((<*>), pure, Applicative)
 -- input string, use that. Otherwise, return a Left with the matches
 -- (might be zero, might be two or more.)
 
-bestMatch :: Ord a => [a] -> M.Map [a] b -> Either [[a]] b
+bestMatch :: Text -> M.Map Text b -> Either [Text] b
 bestMatch k m = case M.lookup k m of
   (Just v) -> Right v
   Nothing -> case ms of
@@ -48,8 +48,8 @@ bestMatch k m = case M.lookup k m of
          . M.assocs
          $ m
 
-foodRpts :: [(String, FoodRpt)]
-foodRpts = [
+foodRpts :: [(Text, FoodRpt)]
+foodRpts = map (\(s, r) -> (pack s, r)) [
   ("blank", (\_ _ _ -> blank))
   , ("ingredients", (\_ _ -> ingredients))
   , ("name", (\_ _ -> name))
@@ -60,8 +60,8 @@ foodRpts = [
   , ("units", (\_ _ -> units))
   ]
 
-totalRpts :: [(String, TotalRpt)]
-totalRpts = [
+totalRpts :: [(Text, TotalRpt)]
+totalRpts = map (\(s, r) -> (pack s, r)) [
   ("copyright", (\_ _ _ _ -> Pantry.Reports.Copyright.copyright))
   , ("count-tags", (\o _ _ fs -> countTags o fs))
   , ("help", (\_ _ _ _ -> Pantry.Reports.Help.help))
@@ -123,10 +123,10 @@ copyright :: ReportGroups
 copyright = ReportGroups [Right l] where
   l = [\_ _ _ _ -> Pantry.Reports.Copyright.copyright]
 
-buildReportGroups :: [String] -> Either R.Error ReportGroups
+buildReportGroups :: [Text] -> Either R.Error ReportGroups
 buildReportGroups = F.foldrM addReport (ReportGroups [])
 
-addReport :: String -> ReportGroups -> Either R.Error ReportGroups
+addReport :: Text -> ReportGroups -> Either R.Error ReportGroups
 addReport s (ReportGroups gs) = do
   ei <- bestReport s
   return $ ReportGroups $ case gs of
@@ -140,7 +140,7 @@ addReport s (ReportGroups gs) = do
       (Left f) -> Left [f]:l
       (Right t) -> (Right (t:ls)):rs
 
-bestReport :: String -> Either R.Error (Either FoodRpt TotalRpt)
+bestReport :: Text -> Either R.Error (Either FoodRpt TotalRpt)
 bestReport s = case bestMatch s (M.fromList foodRpts) of
   (Right r) -> Right . Left $ r
   (Left fms) -> case bestMatch s (M.fromList totalRpts) of
