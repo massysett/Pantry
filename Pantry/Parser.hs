@@ -21,6 +21,8 @@ import qualified Pantry.Sorter as S
 import Data.List ( isPrefixOf )
 import qualified Pantry.Paths as P
 import Control.Monad.Trans ( liftIO )
+import Data.Text ( Text, pack )
+import qualified Data.Text as X
 
 getConveyor :: Request
                -> T.Tray
@@ -31,7 +33,7 @@ getConveyor r t = do
     (Left e) -> E.throwError e
     (Right opts) -> (conveyor opts) t
 
-parse :: [String] -> Either Error Opts
+parse :: [Text] -> Either Error Opts
 parse ss = do
   let noPosArgs ps = case null ps of
         True -> Right []

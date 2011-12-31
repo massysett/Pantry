@@ -1,27 +1,26 @@
 module Pantry.Radio.Messages where
 
-import Data.Serialize(Serialize(get, put), Get, Put)
+import Data.Serialize(Serialize(get, put), Get )
 import qualified Pantry.Paths as P
 import Data.Text ( Text )
 import qualified Data.Text as X
 import Data.Word ( Word8 )
-import Control.Applicative ( (<*>), (<$>), (*>), many )
+import Control.Applicative ( (<*>), (<$>), (*>) )
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 
 data Request = Request { clientCurrDir :: P.ClientDir
                        , progName :: Text
                        , args :: [Text] }
 instance Serialize Request where
-  get = Request <$> get <*> getText <*> many getText
-  put (Request d p a) = put d *> putText p *> put a
-
-putText :: Text -> Put ()
-putText t = put (encodeUtf8 t)
-
-getText :: Get Text
-getText = do
-  bs <- get
-  return . decodeUtf8 $ bs
+  get = do
+    cd <- get
+    pn <- get
+    as <- get
+    return $ Request cd (decodeUtf8 pn) (map decodeUtf8 as)
+  put (Request d p as) = do
+    put d
+    put $ encodeUtf8 p
+    put (map encodeUtf8 as)
 
 data ExitCode = Success | Fail Word8
 instance Serialize ExitCode where

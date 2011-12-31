@@ -14,6 +14,7 @@ import System.IO (hSetBinaryMode, hClose)
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
 import System.Directory ( removeFile )
+import Data.Text ( pack )
 
 -- | Creates the client listening connection. Does not catch any
 -- exceptions.
@@ -31,8 +32,8 @@ createMessage = do
   p <- getProgName
   a <- getArgs
   return M.Request { M.clientCurrDir = d
-                   , M.progName = p
-                   , M.args = a }
+                   , M.progName = pack p
+                   , M.args = map pack a }
 
 -- | Sends message to the server.
 sendMessage :: M.Request -> IO ()

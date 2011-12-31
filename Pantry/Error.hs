@@ -9,6 +9,7 @@ import Pantry.Food (UnitName, FoodId,
 import qualified Pantry.Food as F
 import Control.Exception ( IOException )
 import qualified Data.Text as X
+import Data.Text ( Text, pack, unpack )
 import Data.Word ( Word8 )
 import Pantry.Types (NonNegInteger)
 import qualified Pantry.Types as T
@@ -18,9 +19,9 @@ import qualified Data.Map as M
 
 data Error = NotExactlyOneMatchingUnit [UnitName]
            | AddNutToZeroQty
-           | RegexComp String
-           | NoReportMatch String [String]
-           | Other String
+           | RegexComp Text
+           | NoReportMatch Text [Text]
+           | Other Text
            | MoveIdNotFound FoodId
            | MultipleMoveIdMatches FoodId
            | MultipleEditIdMatches FoodId
@@ -28,7 +29,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | CanonicalizeError IOException
            | FileSaveError IOException
            | FileReadError IOException
-           | FileDecodeError String
+           | FileDecodeError Text
            | NotPantryFile
            | WrongFileVersion
            | NoSaveFilename
@@ -38,25 +39,25 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | FindSaveDirError IOException
            | IngrToVolatileLookup [FoodId]
            | IngrFromVolatileNotFound [FoodId]
-           | ParseError String
+           | ParseError Text
            | IDsNotFound [FoodId]
-           | IDStringNotValid String
-           | NonNegIntegerStringNotValid String
+           | IDStringNotValid Text
+           | NonNegIntegerStringNotValid Text
            | NoMoveIDsGiven
            | OneMoveIDGiven
-           | NonNegMixedNotValid String
-           | PosMixedNotValid String
-           | BoundedPercentNotValid String
+           | NonNegMixedNotValid Text
+           | PosMixedNotValid Text
+           | BoundedPercentNotValid Text
            | QByNutFail SetQtyByNutFailure
-           | IngrToVolatileBadIdStr String
-           | IngrFromVolatileBadIdStr String
+           | IngrToVolatileBadIdStr Text
+           | IngrFromVolatileBadIdStr Text
            | AddNutError Food
-           | NoSortDirection String
+           | NoSortDirection Text
            | KeyOddArguments
-           | NonOptionArguments [String]
+           | NonOptionArguments [Text]
 
 instance E.Error Error where
-  strMsg = Other
+  strMsg = Other . pack
 
 instance O.ParseErr Error where
   store = ParseError
@@ -83,7 +84,7 @@ showError e = case e of
       b = "could not compute regular expression"
       ls = [ "The pattern you gave for a regular expression resulted"
            , "in a compilation error. The error message was:"
-           , s
+           , unpack s
            ]
   
   (NoReportMatch s ss) ->
@@ -91,15 +92,15 @@ showError e = case e of
       b = "not exactly one matching report"
       ls = [ "The string you gave for a report name does not match"
            , "exactly one report name. String you gave:"
-           , s
+           , unpack s
            , "Matching report names:" ]
            ++ case ss of [] -> ["(none)"]
-                         rs -> rs
+                         rs -> map unpack rs
   
   (Other s) ->
     message b ls e Dirty where
       b = "an unknown error occurred"
-      ls = [ "Description of the error: " ++ s
+      ls = [ "Description of the error: " ++ unpack s
            ,  "This is a bug; please report it to"
            , "omari@smileystation.com"
            ]
@@ -168,7 +169,7 @@ showError e = case e of
       ls = [ "All data was loaded from disk, but Pantry encountered"
            , "an error when decoding the contents of the file."
            , "Further description of the error:"
-           , s
+           , unpack s
            ]
   
   (NotPantryFile) ->
@@ -242,7 +243,7 @@ showError e = case e of
     message b ls e Clean where
       b = "Error while parsing the command line"
       ls = [ "The error given by the command line parser:"
-           , s
+           , unpack s
            ]
   
   (IDsNotFound is) ->
@@ -256,13 +257,13 @@ showError e = case e of
     message b ls e Clean where
       b = "String given for ID invalid"
       ls = [ "A string you gave for a food ID is not valid."
-           , "String you gave: " ++ s
+           , "String you gave: " ++ unpack s
            ]
   
   (NonNegIntegerStringNotValid s) ->
     message b ls e Clean where
       b = "String given for a non-negative integer invalid"
-      ls = [ "String you gave: " ++ s
+      ls = [ "String you gave: " ++ unpack s
            ]
   
   (NoMoveIDsGiven) ->
@@ -278,17 +279,17 @@ showError e = case e of
   (NonNegMixedNotValid s) ->
     message b ls e Clean where
       b = "Invalid text for a non-negative mixed number"
-      ls = [ "Invalid text given: " ++ s ]
+      ls = [ "Invalid text given: " ++ unpack s ]
   
   (PosMixedNotValid s) ->
     message b ls e Clean where
       b = "Invalid text for a positive mixed number"
-      ls = [ "Invalid text given: " ++ s ]
+      ls = [ "Invalid text given: " ++ unpack s ]
   
   (BoundedPercentNotValid s) ->
     message b ls e Clean where
       b = "Invalid text for percent"
-      ls = [ "Invalid text given: " ++ s ]
+      ls = [ "Invalid text given: " ++ unpack s ]
   
   (QByNutFail q) ->
     message b ls e Clean where
@@ -308,14 +309,14 @@ showError e = case e of
     message b ls e Clean where
       b = "Invalid string given for ingredients-to-volatile"
       ls = [ "String given for ingredients-to-volatile is not valid."
-           , "String given: " ++ s
+           , "String given: " ++ unpack s
            ]
   
   (IngrFromVolatileBadIdStr s) ->
     message b ls e Clean where
       b = "Invalid string given for ingredients-from-volatile"
       ls = [ "String given for ingredients-from-volatile is not valid."
-           , "String given: " ++ s
+           , "String given: " ++ unpack s
            ]
 
   (AddNutError f) ->
@@ -338,7 +339,7 @@ showError e = case e of
       b = "No direction for sorting given"
       ls = [ "The --key option requires either \"ascending\""
              , "or \"descending\" to be specified."
-             , "Text you gave: " ++ s
+             , "Text you gave: " ++ unpack s
              ]
 
   (KeyOddArguments) ->
@@ -352,7 +353,7 @@ showError e = case e of
       ls = [ "All arguments on the Pantry command line must be"
            , "options or arguments to options, but you gave"
            , "non-option arguments. Non-option arguments you gave:"
-           ] ++ ss
+           ] ++ map unpack ss
 
 -- | Dirty indicates that after this error, files on disk may have
 -- been changed. Clean indicates that no data on disk was changed.
