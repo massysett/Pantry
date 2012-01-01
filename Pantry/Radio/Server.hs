@@ -100,6 +100,7 @@ processBag b d f = do
       use r = case r of
         Nothing -> return $ Just b
         (Just h) -> do
+          hSetBinaryMode h True
           e <- E.runErrorT (f t)
           let (newBag, bs) = encodeConveyed t e
           Ex.catch (BS.hPut h bs)
