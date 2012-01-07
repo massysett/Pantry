@@ -4,8 +4,7 @@ import Pantry.Radio.Server (
   getListener, getRequest, processBag, Listener,
   serverLogFileName )
 import Pantry.Radio ( pantryDir,
-                      PantryDirInfo(IsDefaultDir, NotDefaultDir),
-                      toServerSocketName )
+                      PantryDirInfo(IsDefaultDir, NotDefaultDir) )
 import Pantry.Radio.Messages ( clientCurrDir )
 import Pantry.Bag(Bag, emptyBag)
 import Pantry.Parser ( getConveyor )
@@ -20,6 +19,7 @@ import System.Console.OptParse.SimpleParser ( SimpleErr ( SimpleErr ) )
 import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
 import Data.Text ( Text, pack, unpack )
+import Control.Exception ( bracket )
 
 data Opts = Opts { daemon :: Bool
                  , help :: Bool }
@@ -77,10 +77,10 @@ serverMain = do
 
 session :: IO ()
 session = do
-  l <- getListener
-  sessionLoop emptyBag l
-  sockName <- toServerSocketName
-  D.removeFile sockName
+  bracket
+    getListener
+    (\(f, _) -> D.removeFile f)
+    (\(_, l) -> sessionLoop emptyBag l)
 
 sessionLoop :: Bag
                -> Listener

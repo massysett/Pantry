@@ -36,13 +36,14 @@ serverLogFileName = do
 
 -- | Returns a socket that listens for requests from clients.  Does
 -- not catch any exceptions; for now just let it crash if there are
--- any problems.
-getListener :: IO Listener
+-- any problems. Returns a pair, with the String being the filename to
+-- the listener, and the Listener itself.
+getListener :: IO (String, Listener)
 getListener = do
   f <- toServerSocketName
   let port = N.UnixSocket f
   l <- N.listenOn port
-  return $ Listener l
+  return $ (f, Listener l)
 
 -- | Given a Listener, block until a Request comes in. Returns a Just
 -- Request if a request comes in. If there is some sort of problem (IO
