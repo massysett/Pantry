@@ -41,13 +41,16 @@ module Pantry.Radio (
   , toClientSocketName
   , PantryDirInfo(IsDefaultDir, NotDefaultDir)
   , Listener(Listener)
+  , installHandlers
   ) where
 
 import System.FilePath ((</>))
 import qualified Data.List as L
 import System.Environment ( getEnvironment )
-import System.Directory ( getHomeDirectory )
+import System.Directory ( getHomeDirectory, removeFile )
 import qualified Network as N
+import Control.Monad ( void )
+import qualified System.Posix.Signals as S
 
 data PantryDirInfo = IsDefaultDir | NotDefaultDir
 newtype Listener = Listener N.Socket
@@ -77,3 +80,19 @@ toClientSocketName = do
   (d, _) <- pantryDir
   return $ d </> "toClient"
 
+-- | Installs signal handlers to remove a particular file. Note that
+-- not all signals that Unix sends will be delivered to the program
+-- that is running inside the Haskell runtime, as the GHC runtime will
+-- catch some signals. It is known to catch and suppress SIGPIPE and
+-- SIGINT. However as of GHC version 7.0.4 the runtime will not catch
+-- SIGTERM; instead it delivers those, and they can be caught.
+installHandlers :: String -> IO ()
+installHandlers s = mapM_ (sigRemoveFile s)
+                    [S.sigHUP, S.sigTERM]
+
+-- | Installs a signal handler to remove the file given when the
+-- signal is caught, and then re-raise the signal. 
+sigRemoveFile :: String -> S.Signal -> IO ()
+sigRemoveFile f s = void $ S.installHandler s act mask where
+  act = S.CatchOnce (removeFile f >> S.raiseSignal s)
+  mask = Just S.fullSignalSet

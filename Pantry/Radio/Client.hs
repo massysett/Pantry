@@ -40,7 +40,8 @@
 module Pantry.Radio.Client (clientMain) where
 
 import Pantry.Radio ( toServerSocketName, toClientSocketName,
-                      Listener(Listener) )
+                      Listener(Listener),
+                      installHandlers )
 import qualified Pantry.Radio.Messages as M
 import qualified Network as N
 import Pantry.Paths as P
@@ -66,6 +67,7 @@ getListener :: IO (String, Listener)
 getListener = do
   f <- toClientSocketName
   let port = N.UnixSocket f
+  installHandlers f
   l <- N.listenOn port
   return $ (f, Listener l)
 

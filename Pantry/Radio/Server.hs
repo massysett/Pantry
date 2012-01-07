@@ -18,7 +18,8 @@ import qualified Data.DList as DL
 import qualified Data.Text as X
 import qualified Pantry.Radio.Messages as M
 import Pantry.Radio ( toServerSocketName, toClientSocketName,
-                      pantryDir, Listener(Listener))
+                      pantryDir, Listener(Listener),
+                      installHandlers)
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
 import System.FilePath ((</>))
@@ -42,8 +43,10 @@ getListener :: IO (String, Listener)
 getListener = do
   f <- toServerSocketName
   let port = N.UnixSocket f
+  installHandlers f
   l <- N.listenOn port
   return $ (f, Listener l)
+
 
 -- | Given a Listener, block until a Request comes in. Returns a Just
 -- Request if a request comes in. If there is some sort of problem (IO
