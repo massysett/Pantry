@@ -148,6 +148,9 @@ printResponse r = do
 -- This message and the patch it points to suggest that SIGTERM and SIGHUP might not be throwing exceptions:
 --
 -- <http://www.haskell.org/pipermail/cvs-ghc/2010-January/052371.html>
+--
+-- In addition, on GHC 7.0.4, it seems that sending the server a
+-- SIGTERM does not throw an exception.
 
 clientMain :: IO ()
 clientMain = do
