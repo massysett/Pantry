@@ -144,6 +144,11 @@ printResponse r = do
 -- thrown, so it should be dealt with here. I don't know what a
 -- SIGTERM, SIGHUP, etc. do. Hopefully they cause exceptions to be
 -- thrown.
+--
+-- This message and the patch it points to suggest that SIGTERM and SIGHUP might not be throwing exceptions:
+--
+-- http://www.haskell.org/pipermail/cvs-ghc/2010-January/052371.html
+
 clientMain :: IO ()
 clientMain = do
   req <- createMessage
