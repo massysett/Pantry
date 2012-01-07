@@ -35,7 +35,7 @@
 --
 -- The GHC bug is here:
 --
--- http://hackage.haskell.org/trac/ghc/ticket/3309
+-- <http://hackage.haskell.org/trac/ghc/ticket/3309>
 
 module Pantry.Radio.Client (clientMain) where
 
@@ -125,7 +125,7 @@ printResponse r = do
 -- It may be that the RTS simply blocks all SIGPIPE signals and that
 -- there is nothing you can do about it:
 --
--- http://hackage.haskell.org/trac/ghc/ticket/4274
+-- <http://hackage.haskell.org/trac/ghc/ticket/4274>
 --
 -- Apparently what does happen with a SIGPIPE, though, is that writing
 -- to the broken pipe will cause a ResourceVanished exception to be
@@ -134,7 +134,7 @@ printResponse r = do
 -- terminates, but it is likely that the RTS is suppressing the
 -- printing of broken pipe errors:
 --
--- http://hackage.haskell.org/trac/ghc/ticket/4889
+-- <http://hackage.haskell.org/trac/ghc/ticket/4889>
 --
 -- However, even if the error does not get printed on abnormal
 -- termination, it seems the exception is still thrown. Therefore, the
@@ -147,7 +147,7 @@ printResponse r = do
 --
 -- This message and the patch it points to suggest that SIGTERM and SIGHUP might not be throwing exceptions:
 --
--- http://www.haskell.org/pipermail/cvs-ghc/2010-January/052371.html
+-- <http://www.haskell.org/pipermail/cvs-ghc/2010-January/052371.html>
 
 clientMain :: IO ()
 clientMain = do
