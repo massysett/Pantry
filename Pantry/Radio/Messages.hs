@@ -7,16 +7,15 @@ import qualified Data.Text as X
 import Data.Word ( Word8 )
 import Control.Applicative ( (<*>), (<$>), (*>) )
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
+import Control.Monad ( liftM, liftM3 )
 
 data Request = Request { clientCurrDir :: P.ClientDir
                        , progName :: Text
                        , args :: [Text] }
 instance Serialize Request where
-  get = do
-    cd <- get
-    pn <- get
-    as <- get
-    return $ Request cd (decodeUtf8 pn) (map decodeUtf8 as)
+  get = liftM3 Request get (liftM decodeUtf8 get)
+        (liftM (map decodeUtf8) get)
+
   put (Request d p as) = do
     put d
     put $ encodeUtf8 p
