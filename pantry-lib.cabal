@@ -12,10 +12,12 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
+Flag newbase
+    Description: Builds package with base >= 4.4.0.0.
+
 Library
     Build-depends:
         attoparsec == 0.10.*,
-        base ==4.*,
         cereal ==0.3.*,
         Decimal-Omari ==0.3.*,
         text ==0.11.*,
@@ -35,6 +37,15 @@ Library
         unix >= 2.4 && < 2.6,
         deepseq == 1.1.*,
         transformers == 0.2.*
+
+    -- See documentation in Pantry.Radio.Client for details
+    if flag(newbase)
+        Build-depends:
+            base >= 4.4 && < 5
+    else
+        Build-depends:
+            base < 4.4,
+            utf8-string == 0.3.7
 
     Exposed-modules:
         Pantry.Bag,
