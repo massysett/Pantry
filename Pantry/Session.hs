@@ -69,18 +69,18 @@ parseCommandLine = do
     (Left (SimpleErr err)) -> errorExit (unpack err)
     (Right (opts, ())) -> return opts
 
+-- | Runs the server. Acquires the listening socket first; the main
+-- session loop then sets up a bracket that catches any exceptions.
 serverMain :: IO ()
 serverMain = do
   opts <- parseCommandLine
   when (help opts) (displayHelp >> exitSuccess)
-  if daemon opts then launchDaemon else session
-
-session :: IO ()
-session = do
-  bracket
-    getListener
-    (\(f, _) -> D.removeFile f)
-    (\(_, l) -> sessionLoop emptyBag l)
+  if daemon opts
+    then launchDaemon
+    else bracket
+         getListener
+         (\(f, _) -> D.removeFile f)
+         (\(_, l) -> sessionLoop emptyBag l)
 
 sessionLoop :: Bag
                -> Listener
@@ -113,32 +113,39 @@ rwrr = PF.nullFileMode
        `PF.unionFileModes` PF.groupReadMode
        `PF.unionFileModes` PF.otherReadMode
 
-daemonizeForkAction :: IO ()
-daemonizeForkAction = do
-  D.setCurrentDirectory "/"
-  IO.closeFd IO.stdInput
-  IO.closeFd IO.stdOutput
-  IO.closeFd IO.stdError
-  -- reopen standard input, output, error
-  void $ IO.openFd "/dev/null" IO.ReadOnly Nothing IO.defaultFileFlags
-  makePantryDir
-  logfile <- serverLogFileName
-  let flags = IO.defaultFileFlags { IO.append = True }
-  -- Do it twice - once for stdout, once for stderr
-  _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags
-  _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags
-  session
+daemonizeForkAction :: (String, Listener) -> IO ()
+daemonizeForkAction p = bracket acq rel use where
+  acq = return p
+  rel (f, _) = D.removeFile f
+  use (_, l) = do
+    D.setCurrentDirectory "/"
+    IO.closeFd IO.stdInput
+    IO.closeFd IO.stdOutput
+    IO.closeFd IO.stdError
+    -- reopen standard input, output, error
+    void $ IO.openFd "/dev/null" IO.ReadOnly Nothing IO.defaultFileFlags
+    makePantryDir
+    logfile <- serverLogFileName
+    let flags = IO.defaultFileFlags { IO.append = True }
+    -- Do it twice - once for stdout, once for stderr
+    _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags
+    _ <- IO.openFd logfile IO.WriteOnly (Just rwrr) flags
+    sessionLoop emptyBag l
   
 -- | Starts a session by daemonizing. Simply dies if anything goes
 -- wrong. See the documentation for System.Posix.Process.forkProcess;
--- it might not work in the way you think it does.
+-- it might not work in the way you think it does. Acquires the
+-- listening socket first, before forking, to aid in reporting common
+-- errors such as the socket filename already existing.
 launchDaemon :: IO ()
-launchDaemon = P.forkProcess startSessionDaemon >> return ()
+launchDaemon = do
+  l <- getListener
+  P.forkProcess (startSessionDaemon l) >> return ()
 
-startSessionDaemon :: IO ()
-startSessionDaemon =
+startSessionDaemon :: (String, Listener) -> IO ()
+startSessionDaemon l = 
   P.createSession
-  >> P.forkProcess daemonizeForkAction
+  >> P.forkProcess (daemonizeForkAction l)
   >> return ()
 
 {-
