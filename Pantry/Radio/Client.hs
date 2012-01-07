@@ -65,7 +65,6 @@ getListener :: IO Listener
 getListener = do
   f <- toClientSocketName
   let port = N.UnixSocket f
-  handleSignals
   l <- N.listenOn port
   return $ Listener l
 
@@ -92,6 +91,8 @@ receiveResponse (Listener s) = do
   hSetBinaryMode h True
   c <- BS.hGetContents h
   hClose h
+  sockName <- toClientSocketName
+  removeFile sockName
   case decode c of
     (Right g) -> return g
     (Left e) -> error $ "pantry: error: could not decode message "
@@ -106,29 +107,6 @@ printResponse r = do
     M.Success -> return exitSuccess
     (M.Fail c) -> return $ exitWith (ExitFailure (fromIntegral c))
 
--- | Makes an IO action that installs a signal handler for the given
--- signal that removes the toClient socket. The handler will re-raise
--- the signal after it removes the file.
-makeHandler :: S.Signal -> IO ()
-makeHandler s = void $ S.installHandler s h set where
-  h = S.Catch f
-  f = do
-    sockName <- toClientSocketName
-    removeFile sockName
-    S.raiseSignal s
-  set = Just S.fullSignalSet
-
--- | Makes an IO action that installs signal handlers for ABRT, HUP,
--- INT, TERM, PIPE.
-handleSignals :: IO ()
-handleSignals =
-  makeHandler S.internalAbort
-  >> makeHandler S.lostConnection
-  >> makeHandler S.keyboardSignal
-  >> makeHandler S.softwareTermination
-  >> makeHandler S.openEndedPipe
-
-
 clientMain :: IO ()
 clientMain = do
   req <- createMessage
@@ -136,6 +114,4 @@ clientMain = do
   sendMessage req
   resp <- receiveResponse l
   closeAct <- printResponse resp
-  sockName <- toClientSocketName
-  removeFile sockName
   closeAct
