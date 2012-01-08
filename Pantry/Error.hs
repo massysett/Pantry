@@ -16,6 +16,8 @@ import qualified Pantry.Types as T
 import qualified System.Console.OptParse.OptParse as O
 import Pantry.Exact ( exact )
 import qualified Data.Map as M
+import System.Console.MultiArg.Option ( ShortOpt, LongOpt )
+import qualified System.Console.MultiArg.Error as MAE 
 
 data Error = NotExactlyOneMatchingUnit [UnitName]
            | AddNutToZeroQty
@@ -55,6 +57,18 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | NoSortDirection Text
            | KeyOddArguments
            | NonOptionArguments [Text]
+           | ShortOptDoesNotTakeArgument ShortOpt
+           | LongOptDoesNotTakeArgument LongOpt
+           | MultiArgError MAE.Expecting MAE.Saw
+           | ExpectingError MAE.Expecting
+           | ShortOptMissingArgument ShortOpt
+           | LongOptMissingArgument LongOpt
+
+instance MAE.Error Error where
+  unexpected = MultiArgError
+  changeExpecting ex (MultiArgError _ saw) =
+    MultiArgError ex saw
+  changeExpecting ex _ = ExpectingError ex
 
 instance E.Error Error where
   strMsg = Other . pack
