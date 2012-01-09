@@ -493,7 +493,7 @@ quit t = t { done = Done }
 -- Does not compact everything in the tray but it comes
 -- close.
 compact :: Tray -> IO ()
-compact = evaluate .Pantry.Tray.compact
+compact = evaluate . Pantry.Tray.compact
 
 ------------------------------------------------------------
 -- HELP
