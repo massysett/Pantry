@@ -152,8 +152,23 @@ within = (o, f) where
     s <- getSt
     let newSt = s { matcher = newMatcher }
         newMatcher = flipCase (invert s)
-                     raiseMatcher (Matchers.within (sensitive s))
+                     (raiseMatcher (Matchers.within (sensitive s)))
     putSt newSt
+
+posix :: PP
+posix = (o, f) where
+  o = "posix"
+  f set = do
+    noArg Nothing o set
+    s <- getSt
+    let newSt = s { matcher = newMatcher }
+        newMatcher = flipCase (invert s)
+                     (Matchers.tdfa (sensitive s))
+    putSt newSt
+
+pcre :: PP
+pcre = (o, f) where
+  
 
 raiseMatcher ::
   (Text -> Text -> Bool)
