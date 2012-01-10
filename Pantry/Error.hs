@@ -66,9 +66,6 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
 
 instance MAE.Error Error where
   unexpected = MultiArgError
-  changeExpecting ex (MultiArgError _ saw) =
-    MultiArgError ex saw
-  changeExpecting ex _ = ExpectingError ex
 
 instance E.Error Error where
   strMsg = Other . pack
