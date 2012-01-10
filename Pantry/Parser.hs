@@ -1,13 +1,10 @@
-module Pantry.Parser where
+module Pantry.Parser ( getConveyor) where
 
 import qualified Pantry.Tray as T
 import qualified Control.Monad.Error as E
 import Pantry.Error(Error)
 import qualified Pantry.Error as R
 import Pantry.Radio.Messages ( Request, args )
-import System.Console.OptParse.OptParse (
-  OptDesc(OptDesc), ArgDesc(Flag, Single, Double, Variable),
-  parseOptsArgs)
 import qualified Data.Map as M
 import qualified Pantry.Matchers as Matchers
 import qualified Pantry.Conveyor as C
@@ -21,12 +18,86 @@ import qualified Pantry.Paths as P
 import Control.Monad.Trans ( liftIO )
 import Data.Text ( Text, pack, singleton, isPrefixOf, unpack )
 import System.Console.MultiArg.Prim
+  ( ParserSE, manyTill, (<|>), end, runParserSE,
+    zero, nextArg, many, nonOptionPosArg, modifySt,
+    getSt, putSt )
 import System.Console.MultiArg.Combinator
+  ( matchApproxLongOpt, shortNoArg, shortOneArg, shortTwoArg,
+    shortVariableArg )
 import System.Console.MultiArg.Option
+  ( LongOpt, makeLongOpt, makeShortOpt )
 import Data.Set ( Set )
-import Data.Maybe ( catMaybes )
+import qualified Data.Set as Set
+import Control.Applicative ((<*>), (<$>), pure)
 import Control.Monad.Exception.Synchronous
   ( Exceptional (Success, Exception))
+
+optDescs :: [PP]
+optDescs = [
+  ignoreCase
+  , caseSensitive
+  , invertOpt
+  , noInvert
+  , within
+  , posix
+  , pcre
+  , exact
+  , find
+  , findIds
+  , clear
+  , recopy
+  , headOpt
+  , tailOpt
+  , create
+  , move
+  , undo
+  , changeTag
+  , deleteTag
+  , matchUnit
+  , setCurrUnit
+  , changeQty
+  , changePctRefuse
+  , changeYield
+  , removeYield
+  , byNutrient
+  , refuse
+  , addNut
+  , changeNut
+  , renameNut
+  , deleteNut
+  , addAvailUnit
+  , changeAvailUnit
+  , renameAvailUnit
+  , deleteAvailUnit
+  , replaceWithIngr
+  , removeIngr
+  , ingrToVolatile
+  , printOpt
+  , goal
+  , showAllNuts
+  , showTag
+  , showAllTags
+  , oneColumn
+  , key
+  , order
+  , append
+  , prepend
+  , replace
+  , edit
+  , delete
+  , ingrFromVolatile
+  , open
+  , appendFileOpt
+  , prependFile
+  , close
+  , save
+  , saveAs
+  , quit
+  , compact
+  , help
+  , version
+  , copyright
+  ]
 
 data Opts = Opts {
   sensitive :: Matchers.CaseSensitive,
@@ -49,6 +120,29 @@ defaultOpts = let
 
 type PP = (String, Set LongOpt -> ParserSE Opts Error ())
 
+optParser :: ParserSE Opts Error ()
+optParser = foldl1 (<|>) os where
+  set = Set.fromList . map makeLongOpt . map pack . map fst $ optDescs
+  os = snd <$> optDescs <*> pure set
+
+
+getConveyor :: Request
+               -> T.Tray
+               -> E.ErrorT Error IO T.Tray
+getConveyor r t = do
+  let as = args r
+  case parse as of
+    (Left e) -> E.throwError e
+    (Right opts) -> (conveyor opts) t
+
+parse :: [Text] -> Either Error Opts
+parse ts = let
+  p = manyTill end optParser
+  in case runParserSE defaultOpts ts p of
+    (Success (_, o)) -> Right o
+    (Exception e) -> Left e
+  
+
 noArg :: Maybe Char
          -> String
          -> Set LongOpt
@@ -59,7 +153,7 @@ noArg mc s los = let
     (_, _, mt) <- matchApproxLongOpt lo los
     case mt of
       Nothing -> return ()
-      (Just l) -> zero $ R.LongOptDoesNotTakeArgument lo
+      (Just _) -> zero $ R.LongOptDoesNotTakeArgument lo
   in case mc of
     Nothing -> optL
     (Just c) -> optL <|> (shortNoArg (makeShortOpt c) >> return ())
@@ -224,8 +318,8 @@ find = (o, f) where
   o = "find"
   f set = do
     (a1, a2) <- twoArg (Just 'f') o set
-    o <- getSt
-    m <- case (matcher o) a2 of
+    s <- getSt
+    m <- case (matcher s) a2 of
       (Left e) -> zero e
       (Right g) -> return g
     let p = F.foodMatch (F.TagName a1) m
@@ -915,12 +1009,12 @@ helpOpt s g = (o, f) where
   o = s
   f set = do
     noArg Nothing o set
-    s <- getSt
+    st <- getSt
     addConveyor
       . C.trayFilterToConvey
       . g
       . reportOpts
-      $ s
+      $ st
 
 help :: PP
 help = helpOpt "help" C.help
