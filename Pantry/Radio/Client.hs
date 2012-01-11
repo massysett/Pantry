@@ -15,7 +15,7 @@ import System.IO (hSetBinaryMode, hClose)
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
 import System.Directory ( removeFile )
-import Data.Text ( pack )
+import Data.Text ( Text, pack )
 import Control.Monad ( liftM, liftM3 )
 import Control.Exception ( bracket )
 
@@ -31,9 +31,10 @@ getListener = do
   return $ (f, Listener l)
 
 -- | Creates the message to send to the server.
-createMessage :: IO M.Request
-createMessage = liftM3 M.Request P.clientDir (fmap pack getProgName)
-                (liftM (map pack) getArgs)
+createMessage :: Text -> [Text] -> IO M.Request
+createMessage prog as = do
+  d <- P.clientDir
+  return $ M.Request d prog as
 
 -- | Sends message to the server.
 sendMessage :: M.Request -> IO ()
@@ -113,9 +114,11 @@ printResponse r = do
 -- In addition, on GHC 7.0.4, it seems that sending the server a
 -- SIGTERM does not throw an exception.
 
-clientMain :: IO ()
-clientMain = do
-  req <- createMessage
+clientMain :: Text -- ^ Program name
+              -> [Text] -- ^ All command line arguments
+              -> IO ()
+clientMain prog as = do
+  req <- createMessage prog as
   resp <- bracket
           getListener
           (\(f, _) -> removeFile f )

@@ -1,4 +1,6 @@
-module Pantry.Session ( serverMain ) where
+module Pantry.Session (
+  serverMain, Opts(Opts), daemon, help, defaultOpts
+  ) where
 
 import Pantry.Radio.Server (
   getListener, getRequest, processBag, Listener,
@@ -71,9 +73,8 @@ parseCommandLine = do
 
 -- | Runs the server. Acquires the listening socket first; the main
 -- session loop then sets up a bracket that catches any exceptions.
-serverMain :: IO ()
-serverMain = do
-  opts <- parseCommandLine
+serverMain :: Opts -> IO ()
+serverMain opts = do
   when (help opts) (displayHelp >> exitSuccess)
   if daemon opts
     then launchDaemon

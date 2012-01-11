@@ -12,9 +12,6 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
-Flag newbase
-    Description: Builds package with base >= 4.4.0.0.
-
 Library
     Build-depends:
         base >= 4 && < 5,
@@ -47,6 +44,7 @@ Library
         Pantry.Error,
         Pantry.Exact,
         Pantry.Food,
+        Pantry.Main,
         Pantry.Matchers,
         Pantry.Paths,
         Pantry.Parser,
