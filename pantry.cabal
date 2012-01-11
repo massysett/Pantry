@@ -1,4 +1,4 @@
-Name: pantry-lib
+Name: pantry
 Version: 0.1.0.0
 Cabal-version: >=1.8
 Build-Type: Simple
@@ -12,7 +12,8 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
-Library
+Executable pantry
+    Main-is: pantry.hs
     Build-depends:
         base >= 4 && < 5,
         attoparsec == 0.10.*,
@@ -37,7 +38,7 @@ Library
         multiarg == 0.1.*,
         explicit-exception ==0.1.*
 
-    Exposed-modules:
+    Other-modules:
         Pantry.Bag,
         Pantry.Conveyor,
         Pantry.Error,
