@@ -23,7 +23,7 @@ cmdLine = server <|> client
 
 server :: ParserSE () SimpleError CmdLine
 server = do
-  n <- nextArg
+  n <- nonOptionPosArg
   let e = unexpected (ExpTextError (pack "the word \"server\""))
           (SawTextError (pack "the word " `append` n))
   when (n /= pack "server") $ zero e
@@ -31,15 +31,17 @@ server = do
 
 opts :: ParserSE () SimpleError CmdLine
 opts = let
-  foregroundLong = makeLongOpt . pack $ "foreground"
-  foregroundShort = makeShortOpt 'f'
-  helpLong = makeLongOpt . pack $ "help"
-  helpShort = makeShortOpt 'h'
   fg = do
-    _ <- mixedNoArg foregroundLong [] [foregroundShort]
+    _ <- mixedNoArg
+         (makeLongOpt . pack $ "foreground")
+         []
+         [makeShortOpt 'f']
     return (\o -> o { daemon = False })
   he = do
-    _ <- mixedNoArg helpLong [] [helpShort]
+    _ <- mixedNoArg
+         (makeLongOpt . pack $ "help")
+         []
+         [makeShortOpt 'h']
     return (\o -> o { help = True })
   in do
     os <- manyTill (fg <|> he) end
