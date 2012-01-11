@@ -13,7 +13,6 @@ import Data.Text ( Text, pack, unpack )
 import Data.Word ( Word8 )
 import Pantry.Types (NonNegInteger)
 import qualified Pantry.Types as T
-import qualified System.Console.OptParse.OptParse as O
 import Pantry.Exact ( exact )
 import qualified Data.Map as M
 import System.Console.MultiArg.Option ( ShortOpt, LongOpt )
@@ -41,7 +40,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | FindSaveDirError IOException
            | IngrToVolatileLookup [FoodId]
            | IngrFromVolatileNotFound [FoodId]
-           | ParseError Text
+           | ParseError MAE.Expecting MAE.Saw
            | IDsNotFound [FoodId]
            | IDStringNotValid Text
            | NonNegIntegerStringNotValid Text
@@ -59,19 +58,14 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | NonOptionArguments [Text]
            | ShortOptDoesNotTakeArgument ShortOpt
            | LongOptDoesNotTakeArgument LongOpt
-           | MultiArgError MAE.Expecting MAE.Saw
-           | ExpectingError MAE.Expecting
            | ShortOptMissingArgument ShortOpt
            | LongOptMissingArgument LongOpt
-
-instance MAE.Error Error where
-  unexpected = MultiArgError
 
 instance E.Error Error where
   strMsg = Other . pack
 
-instance O.ParseErr Error where
-  store = ParseError
+instance MAE.Error Error where
+  unexpected = ParseError
 
 showError :: Error -> X.Text
 showError e = case e of
@@ -250,11 +244,11 @@ showError e = case e of
            , "in the buffer. IDs that were not found:"
            ] ++ (map X.unpack . map exact $ is)
   
-  (ParseError s) ->
+  (ParseError ex s) ->
     message b ls e Clean where
       b = "Error while parsing the command line"
-      ls = [ "The error given by the command line parser:"
-           , unpack s
+      ls = [ "expected to see: " ++ unpack (MAE.printExpecting ex)
+           , "actually saw: " ++ unpack (MAE.printSaw s)
            ]
   
   (IDsNotFound is) ->

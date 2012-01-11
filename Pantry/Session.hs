@@ -16,9 +16,6 @@ import qualified System.Directory as D
 import qualified System.Posix.Files as PF
 import qualified System.Posix.Types as PT
 import Control.Monad ( void, when )
-import qualified System.Console.OptParse.OptParse as O
-import System.Console.OptParse.SimpleParser ( SimpleErr ( SimpleErr ) )
-import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
 import Data.Text ( Text, pack, unpack )
 import Control.Exception ( bracket )
@@ -30,23 +27,6 @@ defaultOpts :: Opts
 defaultOpts = Opts { daemon = True
                    , help = False }
 
-optDescs :: [O.OptDesc Opts err]
-optDescs = [
-  let argDesc = O.Flag (\o -> return o { daemon = False })
-  in O.OptDesc "f" [pack "--foreground"] argDesc
-
-  , let argDesc = O.Flag f
-        f o = return o { help = True, daemon = False }
-    in O.OptDesc "h" [pack "--help"] argDesc
-  ]
-
-posArgParser :: [(Opts, Text)] -> Either SimpleErr ()
-posArgParser ps = let
-  err = pack "pantryd does not accept non-option arguments."
-  in case ps of
-    [] -> Right ()
-    _ -> Left (SimpleErr err)
-
 errorExit :: String -> IO a
 errorExit s = do
   putStrLn $ "pantryd: error: " ++ s
@@ -55,21 +35,12 @@ errorExit s = do
 
 displayHelp :: IO ()
 displayHelp = do
-  putStrLn $ "pantryd - start the Pantry server"
-  putStrLn $ "usage: pantryd [options]"
+  putStrLn $ "pantry server - start the Pantry server"
+  putStrLn $ "usage: pantry server [options]"
   putStrLn $ "Options:"
   putStrLn $ "  -f | --foreground - Do not become a daemon"
   putStrLn $ "  -h | --help - show this help"
   putStrLn $ "Not starting the server, exiting successfully."
-
-parseCommandLine :: IO Opts
-parseCommandLine = do
-  asStr <- getArgs
-  let as = map pack asStr
-  let ei = O.parseOptsArgs optDescs defaultOpts posArgParser as
-  case ei of
-    (Left (SimpleErr err)) -> errorExit (unpack err)
-    (Right (opts, ())) -> return opts
 
 -- | Runs the server. Acquires the listening socket first; the main
 -- session loop then sets up a bracket that catches any exceptions.

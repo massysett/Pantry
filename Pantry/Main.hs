@@ -59,7 +59,9 @@ main = do
       ex = runParserSE () argsText cmdLine
   case ex of
     (Exception e) -> do
-      TIO.hPutStrLn stderr (printError e)
+      let err = pack "pantry: error: could not parse command line.\n"
+                `append` printError e
+      TIO.hPutStrLn stderr err
       exitFailure
     (Success (g, _)) -> case g of
       (Server os) -> serverMain os
