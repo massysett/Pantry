@@ -17,6 +17,7 @@ Flag newbase
 
 Library
     Build-depends:
+        base >= 4 && < 5,
         attoparsec == 0.10.*,
         cereal ==0.3.*,
         Decimal-Omari ==0.3.*,
@@ -39,15 +40,6 @@ Library
         transformers == 0.2.*,
         multiarg == 0.1.*,
         explicit-exception ==0.1.*
-
-    -- See documentation in Pantry.Radio.Client for details
-    if flag(newbase)
-        Build-depends:
-            base >= 4.4 && < 5
-    else
-        Build-depends:
-            base < 4.4,
-            utf8-string == 0.3.7
 
     Exposed-modules:
         Pantry.Bag,
