@@ -253,6 +253,7 @@ data SetQtyByNutFailure
     -- ^ One nutrient matched but the value of that nutrient is
     -- zero. (Not returned if the requested food amount is zero; that
     -- computation will succeed and set the food's quantity to zero.)
+  deriving Show
 
 -- | Given a matcher and a quantity, set the food's quantity so that
 -- the amount of the given nutrient is what was given. See

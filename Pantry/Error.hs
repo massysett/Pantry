@@ -60,6 +60,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | LongOptDoesNotTakeArgument LongOpt
            | ShortOptMissingArgument ShortOpt
            | LongOptMissingArgument LongOpt
+           deriving Show
 
 instance E.Error Error where
   strMsg = Other . pack

@@ -137,7 +137,7 @@ getConveyor r t = do
 
 parse :: [Text] -> Either Error Opts
 parse ts = let
-  p = manyTill end optParser
+  p = manyTill optParser end
   in case runParserSE defaultOpts ts p of
     (Success (_, o)) -> Right o
     (Exception e) -> Left e
