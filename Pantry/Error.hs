@@ -15,7 +15,7 @@ import Pantry.Types (NonNegInteger)
 import qualified Pantry.Types as T
 import Pantry.Exact ( exact )
 import qualified Data.Map as M
-import System.Console.MultiArg.Option ( ShortOpt, LongOpt )
+import System.Console.MultiArg.Option ( LongOpt, unLongOpt )
 import qualified System.Console.MultiArg.Error as MAE 
 
 data Error = NotExactlyOneMatchingUnit [UnitName]
@@ -56,10 +56,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | NoSortDirection Text
            | KeyOddArguments
            | NonOptionArguments [Text]
-           | ShortOptDoesNotTakeArgument ShortOpt
            | LongOptDoesNotTakeArgument LongOpt
-           | ShortOptMissingArgument ShortOpt
-           | LongOptMissingArgument LongOpt
            deriving Show
 
 instance E.Error Error where
@@ -361,6 +358,13 @@ showError e = case e of
            , "non-option arguments. Non-option arguments you gave:"
            ] ++ map unpack ss
 
+  (LongOptDoesNotTakeArgument lo) ->
+    message b ls e Clean where
+      b = "Option given for long argument that does not take option"
+      ls = [ "You gave an argument for an option that does not take"
+           , "any arguments. Long option you gave:"
+           , unpack . unLongOpt $ lo ]
+
 -- | Dirty indicates that after this error, files on disk may have
 -- been changed. Clean indicates that no data on disk was changed.
 data DiskState = Clean | Dirty
@@ -423,3 +427,4 @@ errorCode e = case e of
   (NoSortDirection {})                                      -> 36
   (KeyOddArguments {})                                      -> 37
   (NonOptionArguments {})                                   -> 38
+  (LongOptDoesNotTakeArgument {})                           -> 39
