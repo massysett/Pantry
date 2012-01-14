@@ -8,15 +8,13 @@ import Pantry.Radio ( toServerSocketName, toClientSocketName,
 import qualified Pantry.Radio.Messages as M
 import qualified Network as N
 import Pantry.Paths as P
-import System.Console.MultiArg.GetArgs ( getArgs, getProgName )
 import qualified Data.Text.IO as TIO
 import System.Exit ( exitSuccess, exitWith, ExitCode(ExitFailure) )
 import System.IO (hSetBinaryMode, hClose)
 import qualified Data.ByteString as BS
 import Data.Serialize ( encode, decode )
 import System.Directory ( removeFile )
-import Data.Text ( Text, pack )
-import Control.Monad ( liftM, liftM3 )
+import Data.Text ( Text )
 import Control.Exception ( bracket )
 
 -- | Creates the client listening connection. Does not catch any

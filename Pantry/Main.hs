@@ -1,9 +1,9 @@
 module Pantry.Main ( main ) where
 
 import System.Console.MultiArg.GetArgs ( getArgs, getProgName )
-import Pantry.Session ( Opts (Opts), daemon, help, defaultOpts,
+import Pantry.Session ( Opts, daemon, help, defaultOpts,
                         serverMain )
-import Data.Text ( Text, pack, append )
+import Data.Text ( pack, append )
 import qualified Data.Text.IO as TIO
 import System.Console.MultiArg.Prim
 import System.Console.MultiArg.Combinator
@@ -47,8 +47,8 @@ opts = let
     return (\o -> o { help = True })
   in do
     os <- manyTill (fg <|> he) end
-    let opts = foldl (\o g -> g o) defaultOpts os
-    return $ Server opts
+    let options = foldl (\o g -> g o) defaultOpts os
+    return $ Server options
 
 client :: ParserSE () SimpleError CmdLine
 client = return Client

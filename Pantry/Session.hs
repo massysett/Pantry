@@ -17,7 +17,6 @@ import qualified System.Posix.Files as PF
 import qualified System.Posix.Types as PT
 import Control.Monad ( void, when )
 import System.Exit ( exitFailure, exitSuccess )
-import Data.Text ( Text, pack, unpack )
 import Control.Exception ( bracket )
 
 data Opts = Opts { daemon :: Bool
@@ -27,8 +26,8 @@ defaultOpts :: Opts
 defaultOpts = Opts { daemon = True
                    , help = False }
 
-errorExit :: String -> IO a
-errorExit s = do
+_errorExit :: String -> IO a
+_errorExit s = do
   putStrLn $ "pantryd: error: " ++ s
   putStrLn $ "Run \"pantryd --help\" for help."
   exitFailure
