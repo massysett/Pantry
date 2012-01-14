@@ -1,4 +1,4 @@
-Name: pantry-lib
+Name: pantry
 Version: 0.1.0.0
 Cabal-version: >=1.8
 Build-Type: Simple
@@ -12,11 +12,10 @@ bug-reports: omari@smileystation.com
 synopsis: Nutrient analysis
 description: Nutrient analysis
 
-Flag newbase
-    Description: Builds package with base >= 4.4.0.0.
-
-Library
+Executable pantry
+    Main-is: pantry.hs
     Build-depends:
+        base >= 4 && < 5,
         attoparsec == 0.10.*,
         cereal ==0.3.*,
         Decimal-Omari ==0.3.*,
@@ -33,26 +32,19 @@ Library
         split ==0.1.*,
         filepath ==1.2.*,
         directory ==1.1.*,
-        optparse == 0.2.*,
         unix >= 2.4 && < 2.6,
         deepseq == 1.1.*,
-        transformers == 0.2.*
+        transformers == 0.2.*,
+        multiarg == 0.1.*,
+        explicit-exception ==0.1.*
 
-    -- See documentation in Pantry.Radio.Client for details
-    if flag(newbase)
-        Build-depends:
-            base >= 4.4 && < 5
-    else
-        Build-depends:
-            base < 4.4,
-            utf8-string == 0.3.7
-
-    Exposed-modules:
+    Other-modules:
         Pantry.Bag,
         Pantry.Conveyor,
         Pantry.Error,
         Pantry.Exact,
         Pantry.Food,
+        Pantry.Main,
         Pantry.Matchers,
         Pantry.Paths,
         Pantry.Parser,

@@ -5,7 +5,7 @@ import Pantry.Food(Food, oneFoodId)
 import qualified Data.DList as DL
 import qualified Data.Text as X
 import Pantry.Paths ( CanonPath, ClientDir )
-import Control.DeepSeq ( NFData(rnf), deepseq)
+import Control.DeepSeq ( NFData, deepseq)
 
 import qualified Pantry.Bag as Bag
 

@@ -13,9 +13,10 @@ import Data.Text ( Text, pack, unpack )
 import Data.Word ( Word8 )
 import Pantry.Types (NonNegInteger)
 import qualified Pantry.Types as T
-import qualified System.Console.OptParse.OptParse as O
 import Pantry.Exact ( exact )
 import qualified Data.Map as M
+import System.Console.MultiArg.Option ( LongOpt, unLongOpt )
+import qualified System.Console.MultiArg.Error as MAE 
 
 data Error = NotExactlyOneMatchingUnit [UnitName]
            | AddNutToZeroQty
@@ -39,7 +40,7 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | FindSaveDirError IOException
            | IngrToVolatileLookup [FoodId]
            | IngrFromVolatileNotFound [FoodId]
-           | ParseError Text
+           | ParseError MAE.Expecting MAE.Saw
            | IDsNotFound [FoodId]
            | IDStringNotValid Text
            | NonNegIntegerStringNotValid Text
@@ -55,12 +56,14 @@ data Error = NotExactlyOneMatchingUnit [UnitName]
            | NoSortDirection Text
            | KeyOddArguments
            | NonOptionArguments [Text]
+           | LongOptDoesNotTakeArgument LongOpt
+           deriving Show
 
 instance E.Error Error where
   strMsg = Other . pack
 
-instance O.ParseErr Error where
-  store = ParseError
+instance MAE.Error Error where
+  parseErr = ParseError
 
 showError :: Error -> X.Text
 showError e = case e of
@@ -239,11 +242,11 @@ showError e = case e of
            , "in the buffer. IDs that were not found:"
            ] ++ (map X.unpack . map exact $ is)
   
-  (ParseError s) ->
+  (ParseError ex s) ->
     message b ls e Clean where
       b = "Error while parsing the command line"
-      ls = [ "The error given by the command line parser:"
-           , unpack s
+      ls = [ "expected to see: " ++ unpack (MAE.printExpecting ex)
+           , "actually saw: " ++ unpack (MAE.printSaw s)
            ]
   
   (IDsNotFound is) ->
@@ -355,6 +358,13 @@ showError e = case e of
            , "non-option arguments. Non-option arguments you gave:"
            ] ++ map unpack ss
 
+  (LongOptDoesNotTakeArgument lo) ->
+    message b ls e Clean where
+      b = "Option given for long argument that does not take option"
+      ls = [ "You gave an argument for an option that does not take"
+           , "any arguments. Long option you gave:"
+           , unpack . unLongOpt $ lo ]
+
 -- | Dirty indicates that after this error, files on disk may have
 -- been changed. Clean indicates that no data on disk was changed.
 data DiskState = Clean | Dirty
@@ -417,3 +427,4 @@ errorCode e = case e of
   (NoSortDirection {})                                      -> 36
   (KeyOddArguments {})                                      -> 37
   (NonOptionArguments {})                                   -> 38
+  (LongOptDoesNotTakeArgument {})                           -> 39

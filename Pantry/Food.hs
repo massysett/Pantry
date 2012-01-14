@@ -96,7 +96,7 @@ import Data.Serialize (Serialize(put, get), putWord8)
 import Data.Monoid ( Monoid )
 import Data.Word ( Word8 )
 import Control.Applicative((<*>), (*>), pure, liftA2)
-import Data.Maybe ( fromMaybe, catMaybes )
+import Data.Maybe ( fromMaybe )
 import Control.DeepSeq ( NFData(rnf), deepseq )
 
 ------------------------------------------------------------
@@ -253,6 +253,7 @@ data SetQtyByNutFailure
     -- ^ One nutrient matched but the value of that nutrient is
     -- zero. (Not returned if the requested food amount is zero; that
     -- computation will succeed and set the food's quantity to zero.)
+  deriving Show
 
 -- | Given a matcher and a quantity, set the food's quantity so that
 -- the amount of the given nutrient is what was given. See

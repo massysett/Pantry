@@ -1,13 +1,10 @@
-module Pantry.Parser (getConveyor) where
+module Pantry.Parser ( getConveyor) where
 
 import qualified Pantry.Tray as T
 import qualified Control.Monad.Error as E
 import Pantry.Error(Error)
 import qualified Pantry.Error as R
 import Pantry.Radio.Messages ( Request, args )
-import System.Console.OptParse.OptParse (
-  OptDesc(OptDesc), ArgDesc(Flag, Single, Double, Variable),
-  parseOptsArgs)
 import qualified Data.Map as M
 import qualified Pantry.Matchers as Matchers
 import qualified Pantry.Conveyor as C
@@ -20,25 +17,23 @@ import qualified Pantry.Sorter as S
 import qualified Pantry.Paths as P
 import Control.Monad.Trans ( liftIO )
 import Data.Text ( Text, pack, singleton, isPrefixOf, unpack )
+import System.Console.MultiArg.Prim
+  ( ParserSE, manyTill, end, parseSE,
+    throw, nextArg, nonOptionPosArg, modify,
+    get, put )
+import System.Console.MultiArg.Combinator
+  ( matchApproxLongOpt, shortNoArg, shortOneArg, shortTwoArg,
+    shortVariableArg )
+import System.Console.MultiArg.Option
+  ( LongOpt, makeLongOpt, makeShortOpt )
+import qualified System.Console.MultiArg.Error as MAE
+import Data.Set ( Set )
+import qualified Data.Set as Set
+import Control.Applicative ((<*>), (<$>), pure, (<|>), many)
+import Control.Monad.Exception.Synchronous
+  ( Exceptional (Success, Exception))
 
-getConveyor :: Request
-               -> T.Tray
-               -> E.ErrorT Error IO T.Tray
-getConveyor r t = do
-  let as = args r
-  case parse as of
-    (Left e) -> E.throwError e
-    (Right opts) -> (conveyor opts) t
-
-parse :: [Text] -> Either Error Opts
-parse ss = do
-  let noPosArgs ps = case null ps of
-        True -> Right []
-        False -> Left (R.NonOptionArguments (map snd ps))
-  r <- parseOptsArgs optDescs defaultOpts noPosArgs ss
-  return . fst $ r
-
-optDescs :: [OptDesc Opts Error]
+optDescs :: [PP]
 optDescs = [
   ignoreCase
   , caseSensitive
@@ -124,24 +119,136 @@ defaultOpts = let
           , reportOpts = RT.defaultReportOpts
           , tagMap = M.empty }
 
-optMaker :: [Char] -> [String] -> ArgDesc opts err -> OptDesc opts err
-optMaker cs ss a = OptDesc cs (map pack ss) a
+type PP = (String, Set LongOpt -> ParserSE Opts Error ())
 
-ignoreCase :: OptDesc Opts Error
-ignoreCase = optMaker "i" ["ignore-case"] a where
-  a = Flag (\o -> return $ o { sensitive = Matchers.CaseSensitive False })
+optParser :: ParserSE Opts Error ()
+optParser = foldl1 (<|>) os where
+  set = Set.fromList . map makeLongOpt . map pack . map fst $ optDescs
+  os = snd <$> optDescs <*> pure set
 
-caseSensitive :: OptDesc Opts Error
-caseSensitive = optMaker "" ["case-sensitive"] a where
-  a = Flag (\o -> return $ o { sensitive = Matchers.CaseSensitive True })
 
-invertOpt :: OptDesc Opts Error
-invertOpt = optMaker "v" ["invert"] a where
-  a = Flag (\o -> return $ o { invert = True })
+getConveyor :: Request
+               -> T.Tray
+               -> E.ErrorT Error IO T.Tray
+getConveyor r t = do
+  let as = args r
+  case parse as of
+    (Left e) -> E.throwError e
+    (Right opts) -> (conveyor opts) t
 
-noInvert :: OptDesc Opts Error
-noInvert = optMaker "" ["no-invert"] a where
-  a = Flag (\o -> return $ o { invert = False })
+parse :: [Text] -> Either Error Opts
+parse ts = let
+  p = manyTill optParser end
+  in case parseSE defaultOpts ts p of
+    ((Success _), o) -> Right o
+    ((Exception e), _) -> Left e
+  
+
+noArg :: Maybe Char
+         -> String
+         -> Set LongOpt
+         -> ParserSE Opts Error ()
+noArg mc s los = let
+  optL = do
+    let lo = makeLongOpt . pack $ s
+    (_, _, mt) <- matchApproxLongOpt lo los
+    case mt of
+      Nothing -> return ()
+      (Just _) -> throw $ R.LongOptDoesNotTakeArgument lo
+  in case mc of
+    Nothing -> optL
+    (Just c) -> optL <|> (shortNoArg (makeShortOpt c) >> return ())
+
+oneArg :: Maybe Char
+          -> String
+          -> Set LongOpt
+          -> ParserSE Opts Error Text
+oneArg mc s los = let
+  optL = do
+    let lo = makeLongOpt . pack $ s
+    (_, _, mt) <- matchApproxLongOpt lo los
+    case mt of
+      (Just t) -> return t
+      Nothing -> nextArg
+  in case mc of
+    Nothing -> optL
+    (Just c) -> optL <|> do
+      let so = makeShortOpt c
+      (_, t) <- shortOneArg so
+      return t
+
+twoArg :: Maybe Char
+          -> String
+          -> Set LongOpt
+          -> ParserSE Opts Error (Text, Text)
+twoArg mc s los = let
+  optL = do
+    let lo = makeLongOpt . pack $ s
+    (_, _, mt) <- matchApproxLongOpt lo los
+    case mt of
+      (Just a1) -> do
+        a2 <- nextArg
+        return (a1, a2)
+      Nothing -> do
+        a1 <- nextArg
+        a2 <- nextArg
+        return (a1, a2)
+  in case mc of
+    Nothing -> optL
+    (Just c) -> optL <|> do
+      let so = makeShortOpt c
+      (_, a1, a2) <- shortTwoArg so
+      return (a1, a2)
+
+variableArg :: Maybe Char
+          -> String
+          -> Set LongOpt
+          -> ParserSE Opts Error ([Text])
+variableArg mc s los = let
+  optL = do
+    let lo = makeLongOpt . pack $ s
+    (_, _, mt) <- matchApproxLongOpt lo los
+    case mt of
+      (Just a1) -> do
+        a2 <- many nonOptionPosArg
+        return (a1 : a2)
+      Nothing -> do
+        a1 <- many nonOptionPosArg
+        return a1
+  in case mc of
+    Nothing -> optL
+    (Just c) -> optL <|> do
+      let so = makeShortOpt c
+      (_, as) <- shortVariableArg so
+      return as
+
+ignoreCase :: PP
+ignoreCase = (o, f) where
+  o = "ignore-case"
+  f set = do
+    noArg (Just 'i') o set
+    modify (\s -> s { sensitive = Matchers.CaseSensitive False })
+
+caseSensitive :: PP
+caseSensitive = (o, f) where
+  o = "case-sensitive"
+  f set = do
+    noArg Nothing o set
+    modify (\s -> s { sensitive = Matchers.CaseSensitive True })
+
+invertOpt :: PP
+invertOpt = (o, f) where
+  o = "invert"
+  f set = do
+    noArg (Just 'v') o set
+    modify (\s -> s { invert = True })
+
+noInvert :: PP
+noInvert = (o, f) where
+  o = "no-invert"
+  f set = do
+    noArg Nothing o set
+    modify (\s -> s { invert = False })
 
 flipCase :: 
   Bool  -- ^ Invert matching behavior?
@@ -153,151 +260,188 @@ flipCase b f s = case b of
     return (\t -> not (m t))
   False -> f s
 
-within :: OptDesc Opts Error
-within = optMaker "" ["within"] a where
-  a = Flag f
-  f o = return $ o { matcher = newMatcher } where
-    newMatcher = flipCase (invert o)
-                 (raiseMatcher (Matchers.within (sensitive o)))
+within :: PP
+within = (o, f) where
+  o = "within"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newSt = s { matcher = newMatcher }
+        newMatcher = flipCase (invert s)
+                     (raiseMatcher (Matchers.within (sensitive s)))
+    put newSt
 
-posix :: OptDesc Opts Error
-posix = optMaker "" ["posix"] a where
-  a = Flag f
-  f o = return $ o { matcher = new } where
-    new = flipCase (invert o) (Matchers.tdfa (sensitive o))
+posix :: PP
+posix = (o, f) where
+  o = "posix"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newSt = s { matcher = newMatcher }
+        newMatcher = flipCase (invert s)
+                     (Matchers.tdfa (sensitive s))
+    put newSt
 
-pcre :: OptDesc Opts Error
-pcre = optMaker "" ["pcre"] a where
-  a = Flag f
-  f o = return $ o { matcher = new } where
-    new = flipCase (invert o) (Matchers.pcre (sensitive o))
+pcre :: PP
+pcre = (o, f) where
+  o = "pcre"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newSt = s { matcher = newMatcher }
+        newMatcher = flipCase (invert s)
+                     (Matchers.pcre (sensitive s))
+    put newSt
 
-exact :: OptDesc Opts Error
-exact = optMaker "" ["exact"] a where
-  a = Flag f
-  f o = return $ o { matcher = new } where
-    new = flipCase (invert o)
-          (raiseMatcher (Matchers.exact (sensitive o)))
+exact :: PP
+exact = (o, f) where
+  o = "exact"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newSt = s { matcher = newMatcher }
+        newMatcher = flipCase (invert s)
+                     (raiseMatcher (Matchers.exact (sensitive s)))
+    put newSt
 
 raiseMatcher ::
   (Text -> Text -> Bool)
   -> Text -> Either Error (Text -> Bool)
 raiseMatcher f s = Right $ f s
+addConveyor :: (T.Tray -> E.ErrorT Error IO T.Tray)
+               -> ParserSE Opts Error ()
+addConveyor f = do
+  old <- get
+  put old { conveyor = conveyor old >=> f }
 
-addConveyor :: Opts -> (T.Tray -> E.ErrorT Error IO T.Tray) -> Opts
-addConveyor o c = o { conveyor = conveyor o >=> c }
-
--- Filtering
-find :: OptDesc Opts Error
-find = optMaker "f" ["find"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- (matcher o) a2    
+find :: PP
+find = (o, f) where
+  o = "find"
+  f set = do
+    (a1, a2) <- twoArg (Just 'f') o set
+    s <- get
+    m <- case (matcher s) a2 of
+      (Left e) -> throw e
+      (Right g) -> return g
     let p = F.foodMatch (F.TagName a1) m
         c = C.trayFilterToConvey .
             C.filterToTrayFilter .
             C.predToFilter $ p
-        newO = addConveyor o c
-    return newO
+    addConveyor c
 
-strToId :: Text -> Either R.Error F.FoodId
+strToId :: Text -> ParserSE Opts Error F.FoodId
 strToId s = case fromStr s of
-  Nothing -> Left $ R.IDStringNotValid s
-  (Just i) -> Right $ F.FoodId i
+  Nothing -> throw $ R.IDStringNotValid s
+  (Just i) -> return $ F.FoodId i
 
-findIds :: OptDesc Opts Error
-findIds = optMaker "" ["id"] a where
-  a = Variable f
-  f o as = do
+
+findIds :: PP
+findIds = (o, f) where
+  o = "id"
+  f set = do
+    as <- variableArg Nothing o set
     is <- mapM strToId as
-    let newO = addConveyor o c
-        c = C.trayMToConvey . C.filterMToTrayM $ volatileFilter
+    let c = C.trayMToConvey . C.filterMToTrayM $ volatileFilter
         volatileFilter = C.findIds is
-    return newO
+    addConveyor c
 
-clear :: OptDesc Opts Error
-clear = optMaker "" ["clear"] a where
-  a = Flag f
-  f o = return $ addConveyor o c where
-    c = C.newVolatileToConvey C.clear
+clear :: PP
+clear = (o, f) where
+  o = "clear"
+  f set = do
+    noArg Nothing o set
+    addConveyor (C.newVolatileToConvey C.clear)
 
-recopy :: OptDesc Opts Error
-recopy = optMaker "" ["recopy"] a where
-  a = Flag f
-  f o = return $ addConveyor o c where
-    c = C.trayFilterToConvey C.recopy
+recopy :: PP
+recopy = (o, f) where
+  o = "recopy"
+  f set = do
+    noArg Nothing o set
+    addConveyor $ C.trayFilterToConvey C.recopy
 
-strToNonNegInteger :: Text -> Either R.Error NonNegInteger
+strToNonNegInteger :: Text -> ParserSE Opts Error NonNegInteger
 strToNonNegInteger s = case fromStr s of
-  Nothing -> Left (R.NonNegIntegerStringNotValid s)
-  (Just i) -> Right i
+  Nothing -> throw (R.NonNegIntegerStringNotValid s)
+  (Just i) -> return i
 
-headOpt :: OptDesc Opts Error
-headOpt = optMaker "" ["head"] a where
-  a = Single f
-  f o a1 = do
-    i <- strToNonNegInteger a1
-    return . addConveyor o . C.filterToConvey $ C.head i
+headOpt :: PP
+headOpt = (o, f) where
+  o = "head"
+  f set =
+    oneArg Nothing o set >>=
+    strToNonNegInteger >>= 
+    addConveyor . C.filterToConvey . C.head
 
-tailOpt :: OptDesc Opts Error
-tailOpt = optMaker "" ["tail"] a where
-  a = Single f
-  f o a1 = do
-    i <- strToNonNegInteger a1
-    return . addConveyor o . C.filterToConvey $ C.tail i
+tailOpt :: PP
+tailOpt = (o, f) where
+  o = "tail"
+  f set =
+    oneArg Nothing o set >>=
+    strToNonNegInteger >>= 
+    addConveyor . C.filterToConvey . C.tail
 
-create :: OptDesc Opts Error
-create = optMaker "" ["create"] a where
-  a = Flag f
-  f o = return . addConveyor o . C.filterToConvey $ C.create
+create :: PP
+create = (o, f) where
+  o = "create"
+  f set =
+    noArg Nothing o set
+    >> (addConveyor . C.filterToConvey $ C.create)
 
-move :: OptDesc Opts Error
-move = optMaker "" ["move"] a where
-  a = Variable f
-  f o as = case as of
-    [] -> Left R.NoMoveIDsGiven
-    (_:[]) -> Left R.OneMoveIDGiven
-    (as1:ass) -> do
-      first <- case as1 == singleton 'f' || as1 == singleton 'F' of
-        True -> return C.Beginning
-        False -> do
-          i <- strToNonNegInteger as1
-          return (C.After (F.FoodId i))
-      rest <- do
-        is <- mapM strToNonNegInteger ass
-        return $ map F.FoodId is
-      let volatileChanger = C.move first rest
-          c = C.trayMToConvey . C.filterMToTrayM $ volatileChanger
-      return $ addConveyor o c
+move :: PP
+move = (o, f) where
+  o = "move"
+  f set = do
+    as <- variableArg Nothing o set
+    case as of
+      [] -> throw R.NoMoveIDsGiven
+      (_:[]) -> throw R.OneMoveIDGiven
+      (as1:ass) -> do
+        first <- case as1 == singleton 'f' || as1 == singleton 'F' of
+          True -> return C.Beginning
+          False ->
+            strToNonNegInteger as1
+            >>= (return . C.After . F.FoodId)       
+        rest <-
+          mapM strToNonNegInteger ass
+          >>= (return . map F.FoodId)
+        let volatileChanger = C.move first rest
+            c = C.trayMToConvey . C.filterMToTrayM $ volatileChanger
+        addConveyor c
 
-undo :: OptDesc Opts Error
-undo = optMaker "" ["undo"] a where
-  a = Single f
-  f o a1 = do
-    i <- strToNonNegInteger a1
-    let u = C.undo i
-        c = C.trayMToConvey u
-    return $ addConveyor o c
+undo :: PP
+undo = (o, f) where
+  o = "undo"
+  f set =
+    oneArg Nothing o set
+    >>= strToNonNegInteger
+    >>= (addConveyor . C.trayMToConvey . C.undo)
 
-------------------------------------------------------------
--- CHANGE TAGS AND PROPERTIES
-------------------------------------------------------------
-changeTag :: OptDesc Opts Error
-changeTag = optMaker "c" ["change-tag"] a where
-  a = Double f
-  f o a1 a2 = return newO where
-    n = F.TagName a1
-    v = F.TagVal  a2
-    ct fd = F.setTags newTags fd where
-      oldTags = F.getTags fd
-      newTags = M.insert n v oldTags
-    c = C.xformToConvey (return . ct)
-    newO = addConveyor o c
+changeTag :: PP
+changeTag = (o, f) where
+  o = "change-tag"
+  f set = do
+    (a1, a2) <- twoArg (Just 'c') o set
+    let n = F.TagName a1
+        v = F.TagVal a2
+        ct fd = F.setTags newTags fd where
+          oldTags = F.getTags fd
+          newTags = M.insert n v oldTags
+        c = C.xformToConvey (return . ct)
+    addConveyor c
 
-deleteTag :: OptDesc Opts Error
-deleteTag = optMaker "" ["delete-tag"] a where
-  a = Single f
-  f o a1 = matcher o a1 >>= \m ->
+parseEither :: MAE.Error e => Either e a -> ParserSE s e a
+parseEither e = case e of
+  (Left err) -> throw err
+  (Right g) -> return g
+
+
+deleteTag :: PP
+deleteTag = (o, f) where
+  o = "delete-tag"
+  f set = do
+    s <- get
+    a <- oneArg Nothing o set
+    m <- parseEither . matcher s $ a
     let xformer fd = F.setTags new fd where
           old = F.getTags fd
           p ((F.TagName n), _) = not . m $ n
@@ -306,117 +450,134 @@ deleteTag = optMaker "" ["delete-tag"] a where
                 . M.assocs
                 $ old
         c = C.xformToConvey (return . xformer)
-    in return $ addConveyor o c
+    addConveyor c
 
-matchUnit :: OptDesc Opts Error
-matchUnit = optMaker "u" ["match-unit"] a where
-  a = Single f
-  f o a1 = matcher o a1 >>= \m ->
+matchUnit :: PP
+matchUnit = (o, f) where
+  o = "match-unit"
+  f set = do
+    s <- get
+    a <- oneArg (Just 'u') o set
+    m <- parseEither (matcher s a)
     let changeWithErr fd = case F.changeCurrUnit m fd of
           (Right good) -> Right good
           (Left err) -> Left (R.NotExactlyOneMatchingUnit err)
         c = C.xformToConvey changeWithErr
-    in return $ addConveyor o c
+    addConveyor c
 
-setCurrUnit :: OptDesc Opts Error
-setCurrUnit = optMaker "" ["set-unit"] a where
-  a = Double f
-  f o a1 a2 = do
+setCurrUnit :: PP
+setCurrUnit = (o, f) where
+  o = "set-unit"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
     let n = F.UnitName a1
     v <- case fromStr a2 of
-      Nothing -> Left $ R.PosMixedNotValid a2
-      (Just p) -> Right p
+      Nothing -> throw $ R.PosMixedNotValid a2
+      (Just p) -> return p
     let xform = F.setCurrUnit (F.CurrUnit n v)
         c = C.xformToConvey (return . xform)
-    return $ addConveyor o c
+    addConveyor c
 
-changeQty :: OptDesc Opts Error
-changeQty = optMaker "q" ["change-quantity"] a where
-  a = Single f
-  f o a1 = case fromStr a1 of
-    Nothing -> Left (R.NonNegMixedNotValid a1)
-    (Just n) ->
-      let q = F.Qty (Right (n :: NonNegMixed))
-          xform fd = F.setQty q fd
-          c = C.xformToConvey (return . xform)
-      in return $ addConveyor o c
+changeQty :: PP
+changeQty = (o, f) where
+  o = "change-quantity"
+  f set = do
+    a <- oneArg Nothing o set
+    nnm <- case fromStr a of
+      Nothing -> throw $ R.NonNegMixedNotValid a
+      (Just n) -> return n
+    let q = F.Qty (Right (nnm :: NonNegMixed))
+        xform fd = F.setQty q fd
+        c = C.xformToConvey (return . xform)
+    addConveyor c
 
-changePctRefuse :: OptDesc Opts Error
-changePctRefuse = optMaker "" ["change-percent-refuse"] a where
-  a = Single f
-  f o a1 = case fromStr a1 of
-    Nothing -> Left (R.BoundedPercentNotValid a1)
-    (Just n) ->
-      let xform = F.setPctRefuse (F.PctRefuse n)
-          c = C.xformToConvey (return . xform)
-      in return $ addConveyor o c
+changePctRefuse :: PP
+changePctRefuse = (o, f) where
+  o = "change-pct-refuse"
+  f set = do
+    a <- oneArg Nothing o set
+    pc <- case fromStr a of
+      Nothing -> throw $ R.BoundedPercentNotValid a
+      (Just n) -> return n
+    let xform = F.setPctRefuse (F.PctRefuse pc)
+        c = C.xformToConvey (return . xform)
+    addConveyor c
 
-changeYield :: OptDesc Opts Error
-changeYield = optMaker "" ["change-yield"] a where
-  a = Single f
-  f o a1 = case fromStr a1 of
-    Nothing -> Left (R.NonNegMixedNotValid a1)
-    (Just n) -> return $ addConveyor o c where
-      c = C.xformToConvey (return . setYield)
-      setYield fd = F.setYield y fd where
-        y = F.ExplicitYield . F.PosMixedGrams $ n
+changeYield :: PP
+changeYield = (o, f) where
+  o = "change-yield"
+  f set = do
+    a <- oneArg Nothing o set
+    yl <- case fromStr a of
+      Nothing -> throw $ R.NonNegMixedNotValid a
+      (Just n) -> return n
+    let c = C.xformToConvey (return . setYield)
+        setYield fd = F.setYield y fd where
+          y = F.ExplicitYield . F.PosMixedGrams $ yl
+    addConveyor c
 
-removeYield :: OptDesc Opts Error
-removeYield = optMaker "" ["remove-yield"] a where
-  a = Flag f
-  f o = return $ addConveyor o c where
-    c = C.xformToConvey (return . setYield)
-    setYield fd = F.setYield F.AutoYield fd
+removeYield :: PP
+removeYield = (o, f) where
+  o = "remove-yield"
+  f set = do
+    noArg Nothing o set
+    let c = C.xformToConvey (return . setYield)
+        setYield fd = F.setYield F.AutoYield fd
+    addConveyor c
 
-byNutrient :: OptDesc Opts Error
-byNutrient = optMaker "" ["by-nutrient"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- matcher o a1
+byNutrient :: PP
+byNutrient = (o, f) where
+  o = "by-nutrient"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    s <- get
+    m <- parseEither (matcher s a1)
     q <- case fromStr a2 of
-      Nothing -> Left (R.NonNegMixedNotValid a2)
-      (Just g) -> Right g
+      Nothing -> throw (R.NonNegMixedNotValid a2)
+      (Just g) -> return g
     let setQ fn = case F.setQtyByNut m q fn of
           (Left err) -> Left (R.QByNutFail err)
           (Right good) -> Right good
         c = C.xformToConvey setQ
-    return $ addConveyor o c
+    addConveyor c
 
-refuse :: OptDesc Opts Error
-refuse = optMaker "r" ["refuse"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.xformToConvey
-        $ (return . F.minusPctRefuse)
+refuse :: PP
+refuse = (o, f) where
+  o = "refuse"
+  f set = do
+    noArg (Just 'r') o set
+    let c = C.xformToConvey (return . F.minusPctRefuse)
+    addConveyor c
 
-addNut :: OptDesc Opts Error
-addNut = optMaker "" ["add-nutrient"] a where
-  a = Double f
-  f o a1 a2 = case fromStr a2 of
-    Nothing -> Left (R.NonNegMixedNotValid a2)
-    (Just nn) -> let
-      n = F.NutName a1
-      v = F.NutAmt nn
-      adder fd = let
-        old = F.getNuts fd
-        new = M.insert n v old
-        in case F.setNuts new fd of
-          Nothing -> Left $ R.AddNutError fd
-          (Just fd') -> Right fd'
-      in Right
-         . addConveyor o
-         . C.xformToConvey
-         $ adder
+addNut :: PP
+addNut = (o, f) where
+  o = "add-nutrient"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    nn <- case fromStr a2 of
+      Nothing -> throw (R.NonNegMixedNotValid a2)
+      (Just val) -> return val
+    let n = F.NutName a1
+        v = F.NutAmt nn
+        adder fd = let
+          old = F.getNuts fd
+          new = M.insert n v old
+          in case F.setNuts new fd of
+            Nothing -> Left $ R.AddNutError fd
+            (Just fd') -> Right fd'
+        c = C.xformToConvey adder
+    addConveyor c
 
-changeNut :: OptDesc Opts Error
-changeNut = optMaker "" ["change-nutrient"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- matcher o a1
+changeNut :: PP
+changeNut = (o, f) where
+  o = "change-nutrient"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    s <- get
+    m <- parseEither (matcher s a1)
     q <- case fromStr a2 of
-      Nothing -> Left (R.NonNegMixedNotValid a2)
-      (Just nn) -> Right (F.NutAmt nn)
+      Nothing -> throw (R.NonNegMixedNotValid a2)
+      (Just nn) -> return (F.NutAmt nn)
     let changer fd = let
           old = F.getNuts fd
           nutChanger e@(nn@(F.NutName n), _) = case m n of
@@ -429,73 +590,67 @@ changeNut = optMaker "" ["change-nutrient"] a where
           in case F.setNuts new fd of
             (Nothing) -> Left $ R.AddNutError fd
             (Just fd') -> Right fd'
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ changer
+    addConveyor (C.xformToConvey changer)
 
-renameNut :: OptDesc Opts Error
-renameNut = optMaker "" ["rename-nutrient"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- matcher o a1
+renameNut :: PP
+renameNut = (o, f) where
+  o = "rename-nutrient"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    s <- get
+    m <- parseEither $ matcher s a1
     let n = F.NutName a2
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . F.renameNuts m n)
+    addConveyor . C.xformToConvey $ (return . F.renameNuts m n)
 
-deleteNut :: OptDesc Opts Error
-deleteNut = optMaker "" ["delete-nutrients"] a where
-  a = Single f
-  f o a1 = do
-    m <- matcher o a1
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . F.deleteNuts m )
+deleteNut :: PP
+deleteNut = (o, f) where
+  o = "delete-nutrients"
+  f set = do
+    a <- oneArg Nothing o set
+    s <- get
+    m <- parseEither $ matcher s a
+    addConveyor . C.xformToConvey $ (return . F.deleteNuts m)
 
-addAvailUnit :: OptDesc Opts Error
-addAvailUnit = optMaker "" ["add-available-unit"] a where
-  a = Double f
-  f o a1 a2 = do
+addAvailUnit :: PP
+addAvailUnit = (o, f) where
+  o = "add-available-unit"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
     let n = F.UnitName a1
     v <- case fromStr a2 of
-      Nothing -> Left (R.PosMixedNotValid a2)
-      (Just pm) -> Right . F.UnitAmt $ pm
+      Nothing -> throw (R.PosMixedNotValid a2)
+      (Just pm) -> return . F.UnitAmt $ pm
     let adder fd = F.setUnits new fd where
           old = F.getUnits fd
           new = M.insert n v old
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . adder)
+    addConveyor . C.xformToConvey $ (return . adder)
 
-changeAvailUnit :: OptDesc Opts Error
-changeAvailUnit = optMaker "" ["change-avail-unit"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- matcher o a1
+changeAvailUnit :: PP
+changeAvailUnit = (o, f) where
+  o = "change-avail-unit"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    s <- get
+    m <- parseEither $ matcher s a1
     v <- case fromStr a2 of
-      Nothing -> Left (R.PosMixedNotValid a2)
-      (Just pm) -> Right . F.UnitAmt $ pm
+      Nothing -> throw (R.PosMixedNotValid a2)
+      (Just pm) -> return . F.UnitAmt $ pm
     let mapfn (F.UnitName n) amt = case m n of
           True -> v
           False -> amt
         changer fd = F.setUnits new fd where
           old = F.getUnits fd
           new = M.mapWithKey mapfn old
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . changer)
+    addConveyor . C.xformToConvey $ (return . changer)
 
 -- TODO on all renames, fail if more than one thing is renamed
-renameAvailUnit :: OptDesc Opts Error
-renameAvailUnit = optMaker "" ["rename-avail-unit"] a where
-  a = Double f
-  f o a1 a2 = do
-    m <- matcher o a1
+renameAvailUnit :: PP
+renameAvailUnit = (o, f) where
+  o = "rename-avail-unit"
+  f set = do
+    (a1, a2) <- twoArg Nothing o set
+    s <- get
+    m <- parseEither $ matcher s a1
     let v = F.UnitName a2
         mapfn u@(F.UnitName n) = case m n of
           True -> v
@@ -503,45 +658,43 @@ renameAvailUnit = optMaker "" ["rename-avail-unit"] a where
         changer fd = F.setUnits new fd where
           old = F.getUnits fd
           new = M.mapKeys mapfn old
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . changer)
+    addConveyor . C.xformToConvey $ (return . changer)
 
-deleteAvailUnit :: OptDesc Opts Error
-deleteAvailUnit = optMaker "" ["delete-avail-unit"] a where
-  a = Single f
-  f o a1 = do
-    m <- matcher o a1
+deleteAvailUnit :: PP
+deleteAvailUnit = (o, f) where
+  o = "delete-avail-unit"
+  f set = do
+    a <- oneArg Nothing o set
+    s <- get
+    m <- parseEither $ matcher s a
     let fltr (F.UnitName n) _ = not . m $ n
         changer fd = F.setUnits new fd where
           old = F.getUnits fd
           new = M.filterWithKey fltr old
-    return
-      . addConveyor o
-      . C.xformToConvey
-      $ (return . changer)
+    addConveyor . C.xformToConvey $ (return . changer)
 
 ------------------------------------------------------------
 -- INGREDIENTS
 ------------------------------------------------------------
-replaceWithIngr :: OptDesc Opts Error
-replaceWithIngr = optMaker "" ["replace-with-ingredients"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        . C.filterToTrayFilter
-        $ C.replaceWithIngr
+replaceWithIngr :: PP
+replaceWithIngr = (o, f) where
+  o = "replace-with-ingredients"
+  f set = do
+    noArg Nothing o set
+    addConveyor
+      . C.trayFilterToConvey
+      . C.filterToTrayFilter
+      $ C.replaceWithIngr
 
-removeIngr :: OptDesc Opts Error
-removeIngr = optMaker "" ["remove-ingredients"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        . C.filterToTrayFilter
-        $ C.removeIngr
+removeIngr :: PP
+removeIngr = (o, f) where 
+  o = "remove-ingredients"
+  f set = do
+    noArg Nothing o set
+    addConveyor
+      . C.trayFilterToConvey
+      . C.filterToTrayFilter
+      $ C.removeIngr
 
 -- | Takes a list of strings and parses it into a list of FoodId.
 -- Returns the error given if something goes wrong.
@@ -556,13 +709,13 @@ parseFoodIds err ss = let
       (Just i) -> Right ((F.FoodId i):is)
    in foldr folder (Right []) ss
 
-ingrToVolatile :: OptDesc Opts Error
-ingrToVolatile = optMaker "" ["ingredients-to-volatile"] a where
-  a = Variable f
-  f o as = do
-    is <- parseFoodIds R.IngrToVolatileBadIdStr as
-    return
-      . addConveyor o
+ingrToVolatile :: PP
+ingrToVolatile = (o, f) where
+  o = "ingredients-to-volatile"
+  f set = do
+    as <- variableArg Nothing o set
+    is <- parseEither $ parseFoodIds R.IngrToVolatileBadIdStr as
+    addConveyor
       . C.trayMToConvey
       . C.ingrToVolatile
       $ is
@@ -570,61 +723,73 @@ ingrToVolatile = optMaker "" ["ingredients-to-volatile"] a where
 ------------------------------------------------------------
 -- REPORTING
 ------------------------------------------------------------
-printOpt :: OptDesc Opts Error
-printOpt = optMaker "p" ["print"] a where
-  a = Variable f
-  f o as = do
-    gs <- buildReportGroups as
-    let x = printReportGroups (reportOpts o) gs
-    return
-      . addConveyor o
-      . C.trayFilterToConvey
-      $ C.printerToTrayFilter x
+printOpt :: PP
+printOpt = (o, f) where
+  o = "print"
+  f set = do
+    a <- variableArg (Just 'p') o set
+    gs <- parseEither $ buildReportGroups a
+    s <- get
+    let x = printReportGroups (reportOpts s) gs
+    addConveyor . C.trayFilterToConvey $ C.printerToTrayFilter x
 
-goal :: OptDesc Opts Error
-goal = optMaker "g" ["goal"] a where
-  a = Double f
-  f o a1 a2 = do
+goal :: PP
+goal = (o, f) where
+  o = "goal"
+  f set = do
+    (a1, a2) <- twoArg (Just 'g') o set
     let n = F.NutName a1
     v <- case fromStr a2 of
-      Nothing -> Left $ R.NonNegMixedNotValid a2
-      (Just nn) -> Right $ F.NutAmt nn
+      Nothing -> throw $ R.NonNegMixedNotValid a2
+      (Just nn) -> return $ F.NutAmt nn
+    s <- get
     let gna = RT.GoalNameAmt n v
-        newO = o { reportOpts = newRo } where
-          newRo = (reportOpts o) { RT.goals = oldGoals ++ [gna] } where
-            oldGoals = RT.goals . reportOpts $ o
-    return newO
+        newS = s { reportOpts = newRo } where
+          newRo = (reportOpts s) { RT.goals = oldGoals ++ [gna] } where
+            oldGoals = RT.goals . reportOpts $ s
+    put newS
 
-showAllNuts :: OptDesc Opts Error
-showAllNuts = optMaker "" ["show-all-nutrients"] a where
-  a = Flag f
-  f o = return newO where
-    newO = o { reportOpts = newRo } where
-      newRo = (reportOpts o) { RT.showAllNuts = True }
+showAllNuts :: PP
+showAllNuts = (o, f) where
+  o = "show-all-nutrients"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newS = s { reportOpts = newRo }
+        newRo = (reportOpts s) { RT.showAllNuts = True }
+    put newS
 
-showTag :: OptDesc Opts Error
-showTag = optMaker "t" ["show-tag"] a where
-  a = Single f
-  f o a1 = let
-    t = F.TagName a1
-    newO = o { reportOpts = newRo } where
-      newRo = (reportOpts o) { RT.showTags = oldTags ++ [t] } where
-        oldTags = RT.showTags . reportOpts $ o
-    in return newO
+showTag :: PP
+showTag = (o, f) where
+  o = "show-tag"
+  f set = do
+    a <- oneArg (Just 't') o set
+    s <- get
+    let t = F.TagName a
+        newO = s { reportOpts = newRo }
+        newRo = (reportOpts s) { RT.showTags = oldTags ++ [t] }
+        oldTags = RT.showTags . reportOpts $ s
+    put newO
 
-showAllTags :: OptDesc Opts Error
-showAllTags = optMaker "" ["show-all-tags"] a where
-  a = Flag f
-  f o = return newO where
-    newO = o { reportOpts = newRo } where
-      newRo = (reportOpts o) { RT.showAllTags = True }
+showAllTags :: PP
+showAllTags = (o, f) where
+  o = "show-all-tags"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newO = s { reportOpts = newRo }
+        newRo = (reportOpts s) { RT.showAllTags = True }
+    put newO
 
-oneColumn :: OptDesc Opts Error
-oneColumn = optMaker "" ["one-column"] a where
-  a = Flag f
-  f o = return newO where
-    newO = o { reportOpts = newRo } where
-      newRo = (reportOpts o) { RT.oneColumn = True }
+oneColumn :: PP
+oneColumn = (o, f) where
+  o = "one-column"
+  f set = do
+    noArg Nothing o set
+    s <- get
+    let newO = s { reportOpts = newRo }
+        newRo = (reportOpts s) { RT.oneColumn = True }
+    put newO
 
 ------------------------------------------------------------
 -- SORTING
@@ -674,74 +839,72 @@ makeKeys ss = case zipPairs ss of
           (Left err) -> Left err
     in foldr folder (Right []) ps
 
-key :: OptDesc Opts Error
-key = optMaker "k" ["key"] a where
-  a = Variable f
-  f o as = do
-    ks <- makeKeys as
-    let sorter = C.sort (tagMap o) ks
+key :: PP
+key = (o, f) where
+  o = "key"
+  f set = do
+    a <- variableArg (Just 'k') o set
+    ks <- parseEither $ makeKeys a
+    s <- get
+    let sorter = C.sort (tagMap s) ks
         c = C.filterToConvey sorter
-    return $ addConveyor o c
+    addConveyor c
 
-order :: OptDesc Opts Error
-order = optMaker "O" ["key-order"] a where
-  a = Double f
-  f o a1 a2 = let
-    n = F.TagName a1
-    v = F.TagVal a2
-    newTagMap = S.addTag n v oldTagMap
-    oldTagMap = tagMap o
-    in return $ o { tagMap = newTagMap }
+order :: PP
+order = (o, f) where
+  o = "key-order"
+  f set = do
+    (a1, a2) <- twoArg (Just 'k') o set
+    s <- get
+    let n = F.TagName a1
+        v = F.TagVal a2
+        newTagMap = S.addTag n v oldTagMap
+        oldTagMap = tagMap s
+    put s { tagMap = newTagMap }
 
-append :: OptDesc Opts Error
-append = optMaker "a" ["append"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        $ C.append
+append :: PP
+append = (o, f) where
+  o = "append"
+  f set = do
+    noArg (Just 'a') o set
+    addConveyor . C.trayFilterToConvey $ C.append
 
-prepend :: OptDesc Opts Error
-prepend = optMaker "" ["prepend"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        $ C.prepend
+prepend :: PP
+prepend = (o, f) where
+  o = "prepend"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayFilterToConvey $ C.prepend
 
-replace :: OptDesc Opts Error
-replace = optMaker "" ["replace"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        $ C.replace
+replace :: PP
+replace = (o, f) where
+  o = "replace"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayFilterToConvey $ C.replace
 
-edit :: OptDesc Opts Error
-edit = optMaker "" ["edit"] a where
-  a = Flag f
-  f o = return 
-        . addConveyor o
-        . C.trayMToConvey
-        $ C.edit
+edit :: PP
+edit = (o, f) where
+  o = "edit"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayMToConvey $ C.edit
 
-delete :: OptDesc Opts Error
-delete = optMaker "" ["delete"] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        $ C.delete
+delete :: PP
+delete = (o, f) where
+  o = "delete"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayFilterToConvey $ C.delete
 
-ingrFromVolatile :: OptDesc Opts Error
-ingrFromVolatile = optMaker "" ["ingredients-from-volatile"] a where
-  a = Variable f
-  f o as = do
-    is <- parseFoodIds R.IngrFromVolatileBadIdStr as
+ingrFromVolatile :: PP
+ingrFromVolatile = (o, f) where 
+  o = "ingredients-from-volatile"
+  f set = do
+    as <- variableArg Nothing o set
+    is <- parseEither $ parseFoodIds R.IngrFromVolatileBadIdStr as
     let c = C.trayMToConvey (C.ingrFromVolatile is)
-    return
-      . addConveyor o
-      $ c
+    addConveyor c
 
 -- | Canonicalizes a path handed in via a string.
 canonLoadPath :: String -> T.Tray -> E.ErrorT R.Error IO P.CanonPath
@@ -752,14 +915,15 @@ canonLoadPath s t = do
   let cd = T.clientCurrDir t
   P.canonLoadPath cd u
   
-open :: OptDesc Opts Error
-open = optMaker "" ["open"] a where
-  a = Single f
-  f o a1 = let
-    c t = do
-      path <- canonLoadPath (unpack a1) t
-      C.open path t
-    in return . addConveyor o $ c
+open :: PP
+open = (o, f) where
+  o = "open"
+  f set = do
+    a <- oneArg Nothing o set
+    let c t = do
+          path <- canonLoadPath (unpack a) t
+          C.open path t
+    addConveyor c
 
 -- | Get a canonical save path.
 canonSavePath :: String -> T.Tray -> E.ErrorT R.Error IO P.CanonPath
@@ -770,59 +934,69 @@ canonSavePath s t = do
   let cd = T.clientCurrDir t
   P.canonSavePath cd u
 
-appendFileOpt :: OptDesc Opts Error
-appendFileOpt = optMaker "" ["append-file"] a where
-  a = Single f
-  f o a1 = let
-    c t = do
-      path <- canonLoadPath (unpack a1) t
-      C.appendFile path t
-    in return . addConveyor o $ c
+appendFileOpt :: PP
+appendFileOpt = (o, f) where
+  o = "append-file"
+  f set = do
+    a <- oneArg Nothing o set
+    let c t = do
+          path <- canonLoadPath (unpack a) t
+          C.appendFile path t
+    addConveyor c
 
-prependFile :: OptDesc Opts Error
-prependFile = optMaker "" ["prepend-file"] a where
-  a = Single f
-  f o a1 = let
-    c t = do
-      path <- canonLoadPath (unpack a1) t
-      C.prependFile path t
-    in return . addConveyor o $ c
+prependFile :: PP
+prependFile = (o, f) where
+  o = "prepend-file"
+  f set = do
+    a <- oneArg Nothing o set
+    let c t = do
+          path <- canonLoadPath (unpack a) t
+          C.prependFile path t
+    addConveyor c
 
-close :: OptDesc Opts Error
-close = optMaker "" ["close"] a where
-  a = Flag f
-  f o = return . addConveyor o . C.trayFilterToConvey $ C.close
+close :: PP
+close = (o, f) where
+  o = "close"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayFilterToConvey $ C.close
 
-save :: OptDesc Opts Error
-save = optMaker "" ["save"] a where
-  a = Flag f
-  f o = return . addConveyor o $ C.save
+save :: PP
+save = (o, f) where
+  o = "save"
+  f set = do
+    noArg Nothing o set
+    addConveyor C.save
 
-saveAs :: OptDesc Opts Error
-saveAs = optMaker "" ["save-as"] a where
-  a = Single f
-  f o a1 = let
-    c t = do
-      path <- canonSavePath (unpack a1) t
-      C.saveAs path t
-    in return . addConveyor o $ c
+saveAs :: PP
+saveAs = (o, f) where
+  o = "save-as"
+  f set = do
+    a <- oneArg Nothing o set
+    let c t = do
+          path <- canonSavePath (unpack a) t
+          C.saveAs path t
+    addConveyor c
 
-quit :: OptDesc Opts Error
-quit = optMaker "" ["quit"] a where
-  a = Flag f
-  f o = return . addConveyor o . C.trayFilterToConvey $ C.quit
+quit :: PP
+quit = (o, f) where
+  o = "quit"
+  f set = do
+    noArg Nothing o set
+    addConveyor . C.trayFilterToConvey $ C.quit
 
 ------------------------------------------------------------
 -- COMPACTION
 ------------------------------------------------------------
-compact :: OptDesc Opts error
-compact = optMaker "" ["compact"] a where
-  a = Flag f
-  f o = let
-    c t = do
-      liftIO . C.compact $ t
-      return t
-    in return . addConveyor o $ c
+compact :: PP
+compact = (o, f) where
+  o = "compact"
+  f set = do
+    noArg Nothing o set
+    let c t = do
+          liftIO . C.compact $ t
+          return t
+    addConveyor c
 
 ------------------------------------------------------------
 -- HELP
@@ -830,22 +1004,24 @@ compact = optMaker "" ["compact"] a where
 -- | Generic help option maker.
 helpOpt :: String  -- ^ Long option string
            -> (RT.ReportOpts -> T.Tray -> T.Tray) -- ^ Tray filter
-           -> OptDesc Opts err
-helpOpt s g = optMaker "" [s] a where
-  a = Flag f
-  f o = return
-        . addConveyor o
-        . C.trayFilterToConvey
-        . g
-        . reportOpts
-        $ o
+           -> PP
+helpOpt s g = (o, f) where
+  o = s
+  f set = do
+    noArg Nothing o set
+    st <- get
+    addConveyor
+      . C.trayFilterToConvey
+      . g
+      . reportOpts
+      $ st
 
-help :: OptDesc Opts Error
+help :: PP
 help = helpOpt "help" C.help
 
-version :: OptDesc Opts Error
+version :: PP
 version = helpOpt "version" C.version
 
-copyright :: OptDesc Opts Error
+copyright :: PP
 copyright = helpOpt "copyright" C.copyright
 
