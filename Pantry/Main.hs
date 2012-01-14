@@ -11,9 +11,11 @@ import System.Console.MultiArg.Option
 import System.Console.MultiArg.Error
 import Control.Monad ( when )
 import Control.Monad.Exception.Synchronous
+  ( Exceptional ( Exception, Success ) )
 import System.Exit
 import Pantry.Radio.Client
 import System.IO ( stderr )
+import Control.Applicative ((<|>))
 
 data CmdLine = Server Opts
              | Client
@@ -24,9 +26,9 @@ cmdLine = server <|> client
 server :: ParserSE () SimpleError CmdLine
 server = do
   n <- nonOptionPosArg
-  let e = unexpected (ExpTextError (pack "the word \"server\""))
+  let e = parseErr (ExpTextError (pack "the word \"server\""))
           (SawTextError (pack "the word " `append` n))
-  when (n /= pack "server") $ zero e
+  when (n /= pack "server") $ throw e
   opts
 
 opts :: ParserSE () SimpleError CmdLine
@@ -56,13 +58,13 @@ main = do
   pn <- fmap pack getProgName
   as <- getArgs
   let argsText = map pack as
-      ex = runParserSE () argsText cmdLine
+      ex = parseSE () argsText cmdLine
   case ex of
-    (Exception e) -> do
+    ((Exception e), _) -> do
       let err = pack "pantry: error: could not parse command line.\n"
                 `append` printError e
       TIO.hPutStrLn stderr err
       exitFailure
-    (Success (g, _)) -> case g of
+    ((Success g), _) -> case g of
       (Server os) -> serverMain os
       Client -> clientMain pn argsText

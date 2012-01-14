@@ -63,7 +63,7 @@ instance E.Error Error where
   strMsg = Other . pack
 
 instance MAE.Error Error where
-  unexpected = ParseError
+  parseErr = ParseError
 
 showError :: Error -> X.Text
 showError e = case e of

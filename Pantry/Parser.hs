@@ -18,17 +18,18 @@ import qualified Pantry.Paths as P
 import Control.Monad.Trans ( liftIO )
 import Data.Text ( Text, pack, singleton, isPrefixOf, unpack )
 import System.Console.MultiArg.Prim
-  ( ParserSE, manyTill, (<|>), end, runParserSE,
-    zero, nextArg, many, nonOptionPosArg, modifySt,
-    getSt, putSt )
+  ( ParserSE, manyTill, end, parseSE,
+    throw, nextArg, nonOptionPosArg, modify,
+    get, put )
 import System.Console.MultiArg.Combinator
   ( matchApproxLongOpt, shortNoArg, shortOneArg, shortTwoArg,
     shortVariableArg )
 import System.Console.MultiArg.Option
   ( LongOpt, makeLongOpt, makeShortOpt )
+import qualified System.Console.MultiArg.Error as MAE
 import Data.Set ( Set )
 import qualified Data.Set as Set
-import Control.Applicative ((<*>), (<$>), pure)
+import Control.Applicative ((<*>), (<$>), pure, (<|>), many)
 import Control.Monad.Exception.Synchronous
   ( Exceptional (Success, Exception))
 
@@ -138,9 +139,9 @@ getConveyor r t = do
 parse :: [Text] -> Either Error Opts
 parse ts = let
   p = manyTill optParser end
-  in case runParserSE defaultOpts ts p of
-    (Success (_, o)) -> Right o
-    (Exception e) -> Left e
+  in case parseSE defaultOpts ts p of
+    ((Success _), o) -> Right o
+    ((Exception e), _) -> Left e
   
 
 noArg :: Maybe Char
@@ -153,7 +154,7 @@ noArg mc s los = let
     (_, _, mt) <- matchApproxLongOpt lo los
     case mt of
       Nothing -> return ()
-      (Just _) -> zero $ R.LongOptDoesNotTakeArgument lo
+      (Just _) -> throw $ R.LongOptDoesNotTakeArgument lo
   in case mc of
     Nothing -> optL
     (Just c) -> optL <|> (shortNoArg (makeShortOpt c) >> return ())
@@ -226,28 +227,28 @@ ignoreCase = (o, f) where
   o = "ignore-case"
   f set = do
     noArg (Just 'i') o set
-    modifySt (\s -> s { sensitive = Matchers.CaseSensitive False })
+    modify (\s -> s { sensitive = Matchers.CaseSensitive False })
 
 caseSensitive :: PP
 caseSensitive = (o, f) where
   o = "case-sensitive"
   f set = do
     noArg Nothing o set
-    modifySt (\s -> s { sensitive = Matchers.CaseSensitive True })
+    modify (\s -> s { sensitive = Matchers.CaseSensitive True })
 
 invertOpt :: PP
 invertOpt = (o, f) where
   o = "invert"
   f set = do
     noArg (Just 'v') o set
-    modifySt (\s -> s { invert = True })
+    modify (\s -> s { invert = True })
 
 noInvert :: PP
 noInvert = (o, f) where
   o = "no-invert"
   f set = do
     noArg Nothing o set
-    modifySt (\s -> s { invert = False })
+    modify (\s -> s { invert = False })
 
 flipCase :: 
   Bool  -- ^ Invert matching behavior?
@@ -264,44 +265,44 @@ within = (o, f) where
   o = "within"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newSt = s { matcher = newMatcher }
         newMatcher = flipCase (invert s)
                      (raiseMatcher (Matchers.within (sensitive s)))
-    putSt newSt
+    put newSt
 
 posix :: PP
 posix = (o, f) where
   o = "posix"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newSt = s { matcher = newMatcher }
         newMatcher = flipCase (invert s)
                      (Matchers.tdfa (sensitive s))
-    putSt newSt
+    put newSt
 
 pcre :: PP
 pcre = (o, f) where
   o = "pcre"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newSt = s { matcher = newMatcher }
         newMatcher = flipCase (invert s)
                      (Matchers.pcre (sensitive s))
-    putSt newSt
+    put newSt
 
 exact :: PP
 exact = (o, f) where
   o = "exact"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newSt = s { matcher = newMatcher }
         newMatcher = flipCase (invert s)
                      (raiseMatcher (Matchers.exact (sensitive s)))
-    putSt newSt
+    put newSt
 
 raiseMatcher ::
   (Text -> Text -> Bool)
@@ -310,17 +311,17 @@ raiseMatcher f s = Right $ f s
 addConveyor :: (T.Tray -> E.ErrorT Error IO T.Tray)
                -> ParserSE Opts Error ()
 addConveyor f = do
-  old <- getSt
-  putSt old { conveyor = conveyor old >=> f }
+  old <- get
+  put old { conveyor = conveyor old >=> f }
 
 find :: PP
 find = (o, f) where
   o = "find"
   f set = do
     (a1, a2) <- twoArg (Just 'f') o set
-    s <- getSt
+    s <- get
     m <- case (matcher s) a2 of
-      (Left e) -> zero e
+      (Left e) -> throw e
       (Right g) -> return g
     let p = F.foodMatch (F.TagName a1) m
         c = C.trayFilterToConvey .
@@ -330,7 +331,7 @@ find = (o, f) where
 
 strToId :: Text -> ParserSE Opts Error F.FoodId
 strToId s = case fromStr s of
-  Nothing -> zero $ R.IDStringNotValid s
+  Nothing -> throw $ R.IDStringNotValid s
   (Just i) -> return $ F.FoodId i
 
 
@@ -360,7 +361,7 @@ recopy = (o, f) where
 
 strToNonNegInteger :: Text -> ParserSE Opts Error NonNegInteger
 strToNonNegInteger s = case fromStr s of
-  Nothing -> zero (R.NonNegIntegerStringNotValid s)
+  Nothing -> throw (R.NonNegIntegerStringNotValid s)
   (Just i) -> return i
 
 headOpt :: PP
@@ -392,8 +393,8 @@ move = (o, f) where
   f set = do
     as <- variableArg Nothing o set
     case as of
-      [] -> zero R.NoMoveIDsGiven
-      (_:[]) -> zero R.OneMoveIDGiven
+      [] -> throw R.NoMoveIDsGiven
+      (_:[]) -> throw R.OneMoveIDGiven
       (as1:ass) -> do
         first <- case as1 == singleton 'f' || as1 == singleton 'F' of
           True -> return C.Beginning
@@ -428,10 +429,9 @@ changeTag = (o, f) where
         c = C.xformToConvey (return . ct)
     addConveyor c
 
-parseEither :: Either e a
-               -> ParserSE s e a
+parseEither :: MAE.Error e => Either e a -> ParserSE s e a
 parseEither e = case e of
-  (Left err) -> zero err
+  (Left err) -> throw err
   (Right g) -> return g
 
 
@@ -439,7 +439,7 @@ deleteTag :: PP
 deleteTag = (o, f) where
   o = "delete-tag"
   f set = do
-    s <- getSt
+    s <- get
     a <- oneArg Nothing o set
     m <- parseEither . matcher s $ a
     let xformer fd = F.setTags new fd where
@@ -456,7 +456,7 @@ matchUnit :: PP
 matchUnit = (o, f) where
   o = "match-unit"
   f set = do
-    s <- getSt
+    s <- get
     a <- oneArg (Just 'u') o set
     m <- parseEither (matcher s a)
     let changeWithErr fd = case F.changeCurrUnit m fd of
@@ -472,7 +472,7 @@ setCurrUnit = (o, f) where
     (a1, a2) <- twoArg Nothing o set
     let n = F.UnitName a1
     v <- case fromStr a2 of
-      Nothing -> zero $ R.PosMixedNotValid a2
+      Nothing -> throw $ R.PosMixedNotValid a2
       (Just p) -> return p
     let xform = F.setCurrUnit (F.CurrUnit n v)
         c = C.xformToConvey (return . xform)
@@ -484,7 +484,7 @@ changeQty = (o, f) where
   f set = do
     a <- oneArg Nothing o set
     nnm <- case fromStr a of
-      Nothing -> zero $ R.NonNegMixedNotValid a
+      Nothing -> throw $ R.NonNegMixedNotValid a
       (Just n) -> return n
     let q = F.Qty (Right (nnm :: NonNegMixed))
         xform fd = F.setQty q fd
@@ -497,7 +497,7 @@ changePctRefuse = (o, f) where
   f set = do
     a <- oneArg Nothing o set
     pc <- case fromStr a of
-      Nothing -> zero $ R.BoundedPercentNotValid a
+      Nothing -> throw $ R.BoundedPercentNotValid a
       (Just n) -> return n
     let xform = F.setPctRefuse (F.PctRefuse pc)
         c = C.xformToConvey (return . xform)
@@ -509,7 +509,7 @@ changeYield = (o, f) where
   f set = do
     a <- oneArg Nothing o set
     yl <- case fromStr a of
-      Nothing -> zero $ R.NonNegMixedNotValid a
+      Nothing -> throw $ R.NonNegMixedNotValid a
       (Just n) -> return n
     let c = C.xformToConvey (return . setYield)
         setYield fd = F.setYield y fd where
@@ -530,10 +530,10 @@ byNutrient = (o, f) where
   o = "by-nutrient"
   f set = do
     (a1, a2) <- twoArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither (matcher s a1)
     q <- case fromStr a2 of
-      Nothing -> zero (R.NonNegMixedNotValid a2)
+      Nothing -> throw (R.NonNegMixedNotValid a2)
       (Just g) -> return g
     let setQ fn = case F.setQtyByNut m q fn of
           (Left err) -> Left (R.QByNutFail err)
@@ -555,7 +555,7 @@ addNut = (o, f) where
   f set = do
     (a1, a2) <- twoArg Nothing o set
     nn <- case fromStr a2 of
-      Nothing -> zero (R.NonNegMixedNotValid a2)
+      Nothing -> throw (R.NonNegMixedNotValid a2)
       (Just val) -> return val
     let n = F.NutName a1
         v = F.NutAmt nn
@@ -573,10 +573,10 @@ changeNut = (o, f) where
   o = "change-nutrient"
   f set = do
     (a1, a2) <- twoArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither (matcher s a1)
     q <- case fromStr a2 of
-      Nothing -> zero (R.NonNegMixedNotValid a2)
+      Nothing -> throw (R.NonNegMixedNotValid a2)
       (Just nn) -> return (F.NutAmt nn)
     let changer fd = let
           old = F.getNuts fd
@@ -597,7 +597,7 @@ renameNut = (o, f) where
   o = "rename-nutrient"
   f set = do
     (a1, a2) <- twoArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither $ matcher s a1
     let n = F.NutName a2
     addConveyor . C.xformToConvey $ (return . F.renameNuts m n)
@@ -607,7 +607,7 @@ deleteNut = (o, f) where
   o = "delete-nutrients"
   f set = do
     a <- oneArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither $ matcher s a
     addConveyor . C.xformToConvey $ (return . F.deleteNuts m)
 
@@ -618,7 +618,7 @@ addAvailUnit = (o, f) where
     (a1, a2) <- twoArg Nothing o set
     let n = F.UnitName a1
     v <- case fromStr a2 of
-      Nothing -> zero (R.PosMixedNotValid a2)
+      Nothing -> throw (R.PosMixedNotValid a2)
       (Just pm) -> return . F.UnitAmt $ pm
     let adder fd = F.setUnits new fd where
           old = F.getUnits fd
@@ -630,10 +630,10 @@ changeAvailUnit = (o, f) where
   o = "change-avail-unit"
   f set = do
     (a1, a2) <- twoArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither $ matcher s a1
     v <- case fromStr a2 of
-      Nothing -> zero (R.PosMixedNotValid a2)
+      Nothing -> throw (R.PosMixedNotValid a2)
       (Just pm) -> return . F.UnitAmt $ pm
     let mapfn (F.UnitName n) amt = case m n of
           True -> v
@@ -649,7 +649,7 @@ renameAvailUnit = (o, f) where
   o = "rename-avail-unit"
   f set = do
     (a1, a2) <- twoArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither $ matcher s a1
     let v = F.UnitName a2
         mapfn u@(F.UnitName n) = case m n of
@@ -665,7 +665,7 @@ deleteAvailUnit = (o, f) where
   o = "delete-avail-unit"
   f set = do
     a <- oneArg Nothing o set
-    s <- getSt
+    s <- get
     m <- parseEither $ matcher s a
     let fltr (F.UnitName n) _ = not . m $ n
         changer fd = F.setUnits new fd where
@@ -729,7 +729,7 @@ printOpt = (o, f) where
   f set = do
     a <- variableArg (Just 'p') o set
     gs <- parseEither $ buildReportGroups a
-    s <- getSt
+    s <- get
     let x = printReportGroups (reportOpts s) gs
     addConveyor . C.trayFilterToConvey $ C.printerToTrayFilter x
 
@@ -740,56 +740,56 @@ goal = (o, f) where
     (a1, a2) <- twoArg (Just 'g') o set
     let n = F.NutName a1
     v <- case fromStr a2 of
-      Nothing -> zero $ R.NonNegMixedNotValid a2
+      Nothing -> throw $ R.NonNegMixedNotValid a2
       (Just nn) -> return $ F.NutAmt nn
-    s <- getSt
+    s <- get
     let gna = RT.GoalNameAmt n v
         newS = s { reportOpts = newRo } where
           newRo = (reportOpts s) { RT.goals = oldGoals ++ [gna] } where
             oldGoals = RT.goals . reportOpts $ s
-    putSt newS
+    put newS
 
 showAllNuts :: PP
 showAllNuts = (o, f) where
   o = "show-all-nutrients"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newS = s { reportOpts = newRo }
         newRo = (reportOpts s) { RT.showAllNuts = True }
-    putSt newS
+    put newS
 
 showTag :: PP
 showTag = (o, f) where
   o = "show-tag"
   f set = do
     a <- oneArg (Just 't') o set
-    s <- getSt
+    s <- get
     let t = F.TagName a
         newO = s { reportOpts = newRo }
         newRo = (reportOpts s) { RT.showTags = oldTags ++ [t] }
         oldTags = RT.showTags . reportOpts $ s
-    putSt newO
+    put newO
 
 showAllTags :: PP
 showAllTags = (o, f) where
   o = "show-all-tags"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newO = s { reportOpts = newRo }
         newRo = (reportOpts s) { RT.showAllTags = True }
-    putSt newO
+    put newO
 
 oneColumn :: PP
 oneColumn = (o, f) where
   o = "one-column"
   f set = do
     noArg Nothing o set
-    s <- getSt
+    s <- get
     let newO = s { reportOpts = newRo }
         newRo = (reportOpts s) { RT.oneColumn = True }
-    putSt newO
+    put newO
 
 ------------------------------------------------------------
 -- SORTING
@@ -845,7 +845,7 @@ key = (o, f) where
   f set = do
     a <- variableArg (Just 'k') o set
     ks <- parseEither $ makeKeys a
-    s <- getSt
+    s <- get
     let sorter = C.sort (tagMap s) ks
         c = C.filterToConvey sorter
     addConveyor c
@@ -855,12 +855,12 @@ order = (o, f) where
   o = "key-order"
   f set = do
     (a1, a2) <- twoArg (Just 'k') o set
-    s <- getSt
+    s <- get
     let n = F.TagName a1
         v = F.TagVal a2
         newTagMap = S.addTag n v oldTagMap
         oldTagMap = tagMap s
-    putSt s { tagMap = newTagMap }
+    put s { tagMap = newTagMap }
 
 append :: PP
 append = (o, f) where
@@ -1009,7 +1009,7 @@ helpOpt s g = (o, f) where
   o = s
   f set = do
     noArg Nothing o set
-    st <- getSt
+    st <- get
     addConveyor
       . C.trayFilterToConvey
       . g
