@@ -27,7 +27,7 @@ properties o f = case (oneColumn o) of
   False -> twoColReport f
 
 label :: String -> Text -> Text
-label s t = pack s `append` pack ": " `append` t `snoc` '\n'
+label s t = pack s `append` pack ": " `append` t
 
 twoColReport :: F.Food -> Text
 twoColReport f = X.unlines [
@@ -38,15 +38,15 @@ twoColReport f = X.unlines [
      `snoc` ' '
      `append` u
      `snoc` ' '
-     `append` paren (rounded . F.foodGrams $ f)
+     `append` paren ((rounded . F.foodGrams $ f) `snoc` 'g')
 
   , let r = label "%R" (exact . F.getPctRefuse $ f)
         y = case F.getYieldGrams f of
           Nothing -> X.empty
           (Just yld) -> let
             yamt = rounded yld
-            in label "Yield" (yamt `append` singleton 'g')
-    in r `append` pack "    " `append` y
+            in label "    Yield" (yamt `append` singleton 'g')
+    in r `append` y
        
   , label "ID" (exact . F.getFoodId $ f)
   ]
