@@ -429,6 +429,7 @@ open f t = do
   (n, b) <- readDb f
   return t { nextId = n
            , buffer = b
+           , filename = Just f
            , undos = addToUndos (buffer t) (undos t) }
     
 saveAs :: CanonPath -> Tray -> E.ErrorT R.Error IO Tray
