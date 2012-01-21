@@ -4,9 +4,8 @@ module Pantry.Reports.Columns ( rpad
                        , fmtColumnRow
                        , newspaper ) where
 
-import Prelude(Int, map, zip, ($), (.), divMod, uncurry,
-               length, (==), (+), drop)
-import Data.Text (Text, append, snoc, justifyLeft, concat)
+import Data.Text (Text, append, snoc, justifyLeft)
+import qualified Data.Text as X
 import Data.List (transpose)
 import Data.List.Split (splitEvery)
 
@@ -21,14 +20,26 @@ numColWidth = 6
 rpad :: Int -> Text -> Text
 rpad l = justifyLeft l ' '
 
+-- | Prints a single "cell" of a multi-row, multi-column table. If the
+-- resulting text is at least as wide as the column width of the cell,
+-- prints an extra space so that the next column is not immediately
+-- adjacent.
+cell ::
+  Int -- ^ How many columns wide?
+  -> Text -- ^ Print this text
+  -> Text -- ^ Result, properly padded
+cell l t = if X.length t >= l
+           then t `snoc` ' '
+           else rpad l t
+
 -- | Formats a single line for columnar text. For colsToString is ts,
 -- is is the number of columns minus 1, and ts is the list of items to
 -- place into columns. Each column width (except the last column) is
 -- specified in is.
 fmtColumnRow :: [Int] -> [Text] -> Text
 fmtColumnRow is ss = firsts `append` lasts `snoc` '\n' where
-  firsts = concat . map (uncurry rpad) . zip is $ ss
-  lasts = concat . drop (length is) $ ss
+  firsts = X.concat . map (uncurry cell) . zip is $ ss
+  lasts = X.concat . drop (length is) $ ss
 
 
 -- | For colsToString is ts, ts is a nested list of strings. Each
@@ -36,7 +47,7 @@ fmtColumnRow is ss = firsts `append` lasts `snoc` '\n' where
 -- columns. is specifies the width of each column (except the last
 -- column).
 colsListToString :: [Int] -> [[Text]] -> Text
-colsListToString is tss = concat . map (fmtColumnRow is) $ tss
+colsListToString is tss = X.concat . map (fmtColumnRow is) $ tss
 
 -- | Arrange a single list of items into newspaper-style columns.
 arrangeNews :: Int      -- ^ How many columns

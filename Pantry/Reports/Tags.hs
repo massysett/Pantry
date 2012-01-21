@@ -22,9 +22,10 @@ orderedTags ns f = catMaybes . map toMaybe $ ns where
     v <- M.lookup n m
     return (n, v)
 
-removeRedundantTags :: [(F.TagName, F.TagVal)] -- ^ Tags that must be shown
-                       -> [(F.TagName, F.TagVal)] -- ^ All tags
-                       -> [(F.TagName, F.TagVal)] -- ^ All tags, with redundant ones removed
+removeRedundantTags ::
+  [(F.TagName, F.TagVal)] -- ^ Tags that must be shown
+  -> [(F.TagName, F.TagVal)] -- ^ All tags
+  -> [(F.TagName, F.TagVal)] -- ^ All tags, with redundant ones removed
 removeRedundantTags = flip (\\)
 
 tagsToShow :: Bool      -- ^ True to show all tags,
