@@ -1,0 +1,18 @@
+Welcome to Pantry, comand-line nutrient analysis!
+
+This code is mostly undocumented and should be considered
+unstable. Nonetheless it should compile and work. I'm not sure
+anyone can make sense of it without a manual, but intrepid
+adventurers have inquired about the code.
+
+I posted the code to serve as an example of what you can
+do with multiarg, a library to parse command lines. Unlike this
+project, that code is documented and quite usable:
+
+http://hackage.haskell.org/package/multiarg
+
+This is a Haskell version of Pantry, which is a successor to an
+older C++ version, which is documented but has an awkward user
+interface. It's here:
+
+http://www.smileystation.com/pantry
